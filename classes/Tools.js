@@ -1,5 +1,7 @@
 const config = require('../config.json')
 const Discord = require('discord.js')
+const {inlineCode} = require('@discordjs/builders')
+const { Font, RankCardBuilder } = require("canvacord");
 
 // this class contains all sorts of misc functions used around the bot
 
@@ -196,6 +198,143 @@ class Tools {
             return this.warn(user.bot ? "*noBotXP" : user.id != int.user.id ? `${user.displayName} doesn't have any XP yet!` : `You don't have any XP yet!`)
         }
 
+        //load the default font for rank cards
+        Font.loadDefault();
+
+         // creates a rank card using RankCardBuilder
+         this.createRankCard = function({
+            displayName,
+            username,
+            avatarURL,
+            currentXP,
+            requiredXP,
+            level,
+            rank,
+            overlay,
+            background,
+            status,
+            progress,
+            size,
+            avtarBorderColour,
+            
+        }) {
+            return new Promise((resolve, reject) => {
+                  // Ensure the avatar URL is in a supported format (e.g., PNG or JPEG)
+                  const supportedAvatarURL = avatarURL.replace(/\.gif$/, '.png');
+                const card = new RankCardBuilder()
+                    .setDisplayName(displayName) // Big name
+                    .setUsername(username) // small name, do not include it if you want to hide it
+                    .setStyles({
+                        container: {
+                            style: {
+                                padding: "2px", // Padding for rank card container
+                            }
+                        },
+                        avatar: {
+                            image: {
+                                style: {
+                                    borderRadius: "20%", // Rounded corners for avatar image
+                                    border: `7px solid ${avtarBorderColour || '#42484f'}`, // Border for avatar container
+                                }
+                            }
+                        },
+                        background:{
+                            style:{
+                                borderRadius: "0px", // Rounded corners for rank card container
+                                // padding:"0px",
+                                backgroundColor: "#1e2024", // Background color for rank card container
+                            }
+                        },
+                        // overlay: {
+                        //     style: {
+                        //         backgroundColor: "#282c30", // Background color for overlay
+                        //         borderRadius: "10px", // Rounded corners for overlay
+                        //     }
+                        // },
+                        progressbar: {
+                            container: {
+                                style: {
+                                    height: "30px",
+                                    borderRadius: "11px", // Rounded corners for progress bar container
+                                }
+                            },
+                            track: {
+                                style: {
+                                    backgroundColor: "white", // Background color for progress bar track
+                                    borderRadius: "11px", // Rounded corners for progress bar track
+                                    height: "30px",
+                                }
+                            },
+                            thumb: {
+                                style: {
+                                    backgroundColor: '#1e2024', // Background color for progress bar thumb
+                                    borderRadius: "11px", // Rounded corners for progress bar thumb
+                                    height: "30px",
+                                   
+                                }
+                            },
+                        },
+                        statistics: {
+                            container: {
+                                style: {
+                                    padding: "0 0 0 0", // Padding for statistics container
+                                }
+                            },
+                            level: {
+                                text: {
+                                    style: {
+                                        fontSize: size, // Text size for level text
+                                    }
+                                },
+                                value: {
+                                    style: {
+                                        fontSize: size, // Text size for level value
+                                    }
+                                }
+                            },
+                            rank: {
+                                text: {
+                                    style: {
+                                        fontSize: size, // Text size for rank text
+                                    }
+                                },
+                                value: {
+                                    style: {
+                                        fontSize: size, // Text size for rank value
+                                    }
+                                }
+                            },
+                            xp: {
+                                text: {
+                                    style: {
+                                        fontSize: size, // Text size for XP text
+                                    }
+                                },
+                                value: {
+                                    style: {
+                                        fontSize: size, // Text size for XP value
+                                    }
+                                }
+                            },
+                        },
+                       
+                    })
+                    .setProgressCalculator((currentXP, requiredXP) => progress) // progress calculator
+                    .setAvatar(supportedAvatarURL) // user avatar
+                    .setCurrentXP(currentXP) // current xp
+                    .setRequiredXP(requiredXP) // required xp
+                    .setLevel(level) // user level
+                    .setRank(rank) // user rank
+                    .setOverlay(overlay) // overlay percentage. Overlay is a semi-transparent layer on top of the background
+                    .setBackground(background) // set background color or image
+                    .setStatus(status); // user status. Omit this if you want to hide it
+
+                card.build({ format: "png" })
+                    .then(image => resolve(image))
+                    .catch(err => reject(err));
+            });
+        };
+
         // creates an embed from an object, because i despise how discord.js does it
         this.createEmbed = function(options={}) {
             let embed = new Discord.EmbedBuilder()
@@ -206,6 +345,7 @@ class Tools {
             if (options.footer) embed.setFooter(typeof options.footer == "string" ? {text: options.footer} : options.footer)
             if (options.fields) embed.addFields(options.fields)
             if (options.timestamp) embed.setTimestamp()
+            if (options.thumbnail) embed.setThumbnail(options.thumbnail)
             return embed
         }
 
@@ -307,6 +447,14 @@ class Tools {
             return Object.entries(users).map(x => Object.assign({id: x[0]}, x[1]))
         }
 
+         //leaderboard rank
+         this.getRank = function(id,users) {
+            let arr = this.xpObjToArray(users)
+            arr = arr.sort((a, b) => b.xp - a.xp)
+            let rank = arr.findIndex(x => x.id === id) + 1
+            return rank
+        }
+
         // sends an ephemeral reply, usually when the user did something wrong
         this.warn = function(msg) {
             if (msg.startsWith("*")) msg = this.errors[msg.slice(1)] || msg
@@ -374,10 +522,15 @@ class Tools {
         }
 
         // adds commas to long numbers
-        this.commafy = function(num, locale="en-US") {
+        this.commafy = function(num,inline) {
+            const locale = "en-US"
+            if (inline) return inlineCode(num.toLocaleString(locale, { maximumFractionDigits: 10 }))
             return num.toLocaleString(locale, { maximumFractionDigits: 10 })
         }
 
+        this.inline = function(str) {
+            return inlineCode(str)
+        }
         // convert timestamp to neat string (e.g. "3 minutes")
         this.time = function(ms, decimals=0, noS, shortTime) {
             let commafy = this.commafy

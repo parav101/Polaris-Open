@@ -15,7 +15,7 @@ async run(client, message, tools) {
     let settings = db.settings
 
     // fetch user's xp, or give them 0
-    let userData = db.users[author] || { xp: 0, cooldown: 0 }
+    let userData = db.users[author] || { xp: 0, cooldown: 0, voiceTime: 0 }
     if (userData.cooldown > Date.now()) return // on cooldown, stop here
 
     // check role+channel multipliers, exit if 0x

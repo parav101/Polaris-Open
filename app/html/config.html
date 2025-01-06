@@ -117,6 +117,17 @@
                 <span class="sliderspan"></span>
             </label>
         </div>
+        <div class="settingBox box fulllength">
+            <h1>Voice XP Gain</h1>
+            <p>Members can also gain XP by participating in voice channels.</p>
+
+            <h2>Enable Voice XP</h2>
+            <p class="details">When enabled, members will be able to gain Voice XP.</p>
+            <label style="margin-top: 5px"; class="slider">
+                <input db="enabledVoiceXp" id="enableVoiceLevelUp" type="checkbox" saveName="db">
+                <span class="sliderspan"></span>
+            </label>
+        </div>
 
         <div class="settingBox box fulllength">
             <h1>Basic Settings</h1>
@@ -144,6 +155,33 @@
                             <input updatecurve="true" id="num_time" style="width: 100px" type="number" decimals="4" min="0" max="31536000" default="60" db="gain.time" saveName="db">
                             <p>seconds</p>
                             <p id="cooldownunit" style="opacity: 70%; display: none"></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="settingBox box fulllength">
+            <h1>Voice Xp Settings</h1>
+            <p>Customize the amount of Voice XP earned, as well as how often it can be gained. Easy enough.</p>
+
+            <div class="simpleflex">
+                <div class="sideoption">
+                    <h2>Voice Xp Multiplier</h2>
+                    <p class="details">0 means no voice xp, 1 means equal xp to message xp</p>
+                    <div class="field">
+                        <div class="centerflex spacedflex">
+                            <input id="vcMultiplier" style="width: 75px" type="number" decimals="2" min="0" max="1" default="1" db="voice.multiplier" saveName="db">                        
+                        </div>
+                    </div>
+                </div>
+                <div class="sideoption">
+                    <h2>Hours limit</h2>
+                    <p class="details">Set the maximum number of hours for XP per VC. 0 means no limit.</p>
+                    <div class="field">
+                        <div class="centerflex spacedflex">
+                            <input id="hoursLimit" style="width: 75px" type="number" decimals="1" min="0" max="24" default="0" db="voice.hoursLimit" saveName="db">
+                            <p>hours</p>
                         </div>
                     </div>
                 </div>
@@ -627,7 +665,7 @@
 
         <div class="settingBox box ifrankenabled">
             <h2>Force hidden</h2>
-            <p class="details">Forces usages of /top to always be hidden (ephemeral).<br></p>
+            <p class="details">Forces usages of /leaderboard to always be hidden (ephemeral).<br></p>
             <label style="margin-top: 5px"; class="slider">
                 <input type="checkbox" tabindex="0" db="leaderboard.ephemeral" saveName="db">
                 <span class="sliderspan"></span>
@@ -720,6 +758,7 @@
                 <select id="importfrom" style="margin-left: 8px; width: 250px; font-weight: bold;" onchange="$('.importdiv').hide(); $(`.importdiv[importtype='${$(this).val()}']`).show()">
                     <option value="json">.json file</option>
                     <option value="polaris">Another server</option>
+                    <option value="lurkr">Lurkr</option>
                 </select>
             </div>
 
@@ -773,6 +812,24 @@
                     <p>Import settings (cooldown, curve, level up message, etc)</p>
                 </div>
             </div>
+
+            <div class="importdiv" importtype="lurkr" style="display: none">
+                <p class="details">Copies xp from json from the Lurkr bot</p>
+                
+                <div class="centerflex spacedflex">
+                    <p>Import from:</p>
+                    <input type="file" id="importLurkrFile" accept="application/json" style="padding-top: 15px; width: 500px; margin: 10px 0px"></select>
+                </div>
+
+                <div class="centerflex spacedflex">
+                    <label class="slider">
+                        <input class="importSetting" option="xp" type="checkbox" checked>
+                        <span class="sliderspan"></span>
+                    </label>
+                    <p>Import XP (overwrites existing members!)</p>
+                </div>
+            </div>
+            
 
             <div style="height: 60px" id="botimporting">
                 <button style="margin-top: 15px; background-color: var(--emojigreen)" onclick="$('#confirmBotImport').toggle()">Import!</button>
@@ -829,8 +886,8 @@
         </div>
 
         <div class="settingBox box" style="height: 145px">
-            <h2>Custom /top Embed Color</h2>
-            <p class="details">Changes the embed color when using /top.<br>Uses Polaris' green by default.</p>
+            <h2>Custom /leaderboard Embed Color</h2>
+            <p class="details">Changes the embed color when using /leaderboard.<br>Uses Polaris' green by default.</p>
             <div class="centerflex" style="height: 45px">
                 <label style="margin-top: 5px"; class="slider">
                     <input type="checkbox" tabindex="0" id="useCustomEmbedColTop" onchange="$('#customEmbedColTopConfig').toggle($(this).prop('checked')); checkUnsavedChanges()">
@@ -1858,8 +1915,8 @@
         let importGroup = $(`.importdiv[importtype='${importBot}']`)
 
         let jsonData;
-        if (importBot == "json") {
-            let jsonfile = $('#importJSONFile').prop('files')[0]
+        if (importBot == "json" || importBot == "lurkr") {
+            let jsonfile = importBot == 'json' ? $('#importJSONFile').prop('files')[0] : $('#importLurkrFile').prop('files')[0]
             if (!jsonfile) return alert("No .json file has been uploaded!")
             jsonData = await readJSONFile(jsonfile).catch(() => null)
             if (!jsonData) return alert("Could not parse that file! Are you sure it's a valid .json file?")

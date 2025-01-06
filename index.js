@@ -57,11 +57,10 @@ client.updateStatus = function() {
 }
 
 // when online
-client.on("ready", () => {
+client.on("ready", async() => {
     if (client.shard.id == client.shard.count - 1) console.log(`Bot online! (${+process.uptime().toFixed(2)} secs)`)
     client.startupTime = Date.now() - startTime
     client.version = version
-
     client.application.commands.fetch() // cache slash commands
     .then(cmds => {
         if (cmds.size < 1) { // no commands!! deploy to test server
@@ -82,6 +81,12 @@ client.on("messageCreate", async message => {
     if (message.system || message.author.bot) return
     else if (!message.guild || !message.member) return // dm stuff
     else client.commands.get("message").run(client, message, client.globalTools)
+})
+
+// on voice state update
+client.on("voiceStateUpdate", async (oldState, newState) => {
+    if (!oldState.guild || !oldState.member) return // ignore DM
+    client.commands.get("voice").run(client, oldState, newState, client.globalTools)
 })
 
 // on interaction

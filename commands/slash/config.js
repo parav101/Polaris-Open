@@ -13,9 +13,11 @@ async run(client, int, tools) {
 
     let polarisSettings = [
         `**✨ XP enabled: __${settings.enabled ? "Yes!" : "No!"}__**`,
+        `**✨Vc XP enabled: __${settings.enabledVoiceXp ? "Yes!" : "No!"}__**`,
         `**XP per message:** ${settings.gain.min == settings.gain.max ? tools.commafy(settings.gain.min) : `${tools.commafy(settings.gain.min)} - ${tools.commafy(settings.gain.max)}`}`,
         `**XP cooldown:** ${tools.commafy(settings.gain.time)} ${tools.extraS("sec", settings.gain.time)}`,
         `**XP curve:** ${settings.curve[3]}x³ + ${settings.curve[2]}x² + ${settings.curve[1]}x`,
+        `**Vc multiplier:** ${settings.voice.multiplier}`,
         `**Level up message:** ${settings.levelUp.enabled && settings.levelUp.message ? (settings.levelUp.embed ? "Enabled (embed)" : "Enabled") : "Disabled"}`,
         `**Rank cards:** ${settings.rankCard.disabled ? "Disabled" : settings.rankCard.ephemeral ? "Enabled (forced hidden)" : "Enabled"}`,
         `**Leaderboard:** ${settings.leaderboard.disabled ? "Disabled" : `[${settings.leaderboard.private ? "Private" : "Public"}](<${tools.WEBSITE}/leaderboard/${int.guild.id}>)`}`

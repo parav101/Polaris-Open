@@ -1,3 +1,4 @@
+const { settings } = require("../../database_schema")
 const multiplierModes = require("../../json/multiplier_modes.json")
 
 module.exports = {
@@ -5,7 +6,7 @@ metadata: {
     name: "calculate",
     description: "Check how much XP you need to reach a certain level.",
     args: [
-        { type: "integer", name: "target", description: "The desired level", min: 1, max: 1000, required: true },
+        { type: "integer", name: "target", description: "The desired level", min: 1, max: 1000, required: false },
         { type: "user", name: "member", description: "Which member to check", required: false }
     ]
 },
@@ -18,9 +19,7 @@ async run(client, int, tools) {
 
     let db = await tools.fetchSettings(member.id)
     if (!db) return tools.warn("*noData")
-    else if (!db.settings.enabled) return tools.warn("*xpDisabled")
-
-    let targetLevel = Math.min(int.options.get("target").value, db.settings.maxLevel)
+    let targetLevel = Math.min(int.options.get("target")?.value || (tools.getLevel(db.users[member.id]?.xp || 0, db.settings) + 1), db.settings.maxLevel)
     let targetXP = tools.xpForLevel(targetLevel, db.settings)
     
     let cardCol = db.settings.rankCard.embedColor
@@ -28,7 +27,7 @@ async run(client, int, tools) {
 
     if (db.settings.rankCard.disabled) {
         let miniEmbed = tools.createEmbed({
-            title: `Level ${tools.commafy(targetLevel)}`,
+            title: `${tools.commafy(targetLevel)}`,
             color: cardCol || member.displayColor || await member.user.fetch().then(x => x.accentColor),
             description: `${tools.commafy(targetXP)} XP required`,
             footer: "Rank cards are disabled, so calculations are hidden!"
@@ -40,14 +39,17 @@ async run(client, int, tools) {
     if (!currentXP || !currentXP.xp) return tools.noXPYet(foundUser ? foundUser.user : int.user)
     let xp = currentXP.xp
     let userLevel = tools.getLevel(xp, db.settings)
+    
+    let levelData = tools.getLevel(xp, db.settings, true)       // get user's level
+    let maxLevel = levelData.level >= db.settings.maxLevel      // check if level is maxxed
 
     let remaining = targetXP - xp
     let reached = remaining <= 0
-    let percent = xp / targetXP * 100
+    let levelPercent = maxLevel ? 100 : (xp - levelData.previousLevel) / (levelData.xpRequired - levelData.previousLevel) * 100
 
-    let barSize = 33
-    let barRepeat = Math.min(barSize, Math.round(percent / (100 / barSize)))
-    let progressBar = `${"▓".repeat(barRepeat)}${"░".repeat(barSize - barRepeat)} (${Number(percent.toFixed(2))}%)`
+    let barSize = 33    // how many characters the xp bar is
+    let barRepeat = Math.round(levelPercent / (100 / barSize)) // .round() so bar can sometimes display as completely full and completely empty
+    let progressBar = `${"▓".repeat(barRepeat)}${"░".repeat(barSize - barRepeat)} (${!maxLevel ? Number(levelPercent.toFixed(2)) + "%" : "MAX"})`
 
     if (targetLevel == userLevel && userLevel >= db.settings.maxLevel) progressBar += `\n🎉 You reached the maximum level${db.settings.maxLevel < 1000 ? " in this server" : ""}! Congratulations!`
 
@@ -60,24 +62,25 @@ async run(client, int, tools) {
     let estimatedAvg = Math.round((estimatedMax + estimatedMin) / 2)
     let estimatedTime = estimatedAvg * db.settings.gain.time
 
-    let estimatedRange = (estimatedMax == estimatedMin) ? `${tools.commafy(estimatedMax)}` : `${tools.commafy(estimatedMax)} - ${tools.commafy(estimatedMin)} (avg. ${tools.commafy(estimatedAvg)})`
+    let estimatedRange = (estimatedMax == estimatedMin) ? `${tools.commafy(estimatedMax,true)}` : `${tools.commafy(estimatedMax,true)} - ${tools.commafy(estimatedMin,true)}`
 
     let levelDetails = [
-        `**Current XP: **${tools.commafy(xp)} (Level ${tools.commafy(userLevel)})`,
-        `**Target XP: **${tools.commafy(targetXP)}`,
-        `**Remaining XP: **${reached? "0 (" : ""}${tools.commafy(targetXP - xp)}${reached ? ")" : ""}`
+        // `**Current XP: **${tools.commafy(xp)} (Level ${tools.commafy(userLevel)})`,
+        // `**Target XP: **${tools.commafy(targetXP)}`,
+        `**XP REQUIRED: **${reached? "0 (" : ""}${tools.commafy(targetXP - xp)}${reached ? ")" : ""}`
     ]
 
     if (!reached) levelDetails = levelDetails.concat([
         "",
-        `**XP per message: **${db.settings.gain.min == db.settings.gain.max ? tools.commafy(Math.round(db.settings.gain.min * multiplier)) : `${tools.commafy(Math.round(db.settings.gain.min * multiplier))} - ${tools.commafy(Math.round(db.settings.gain.max * multiplier))}`}`,
-        `**Messages remaining: **${estimatedRange}`,
-        `**Cooldown remaining: **${estimatedTime == Infinity ? "Until the end of time" : tools.time(estimatedTime * 1000, 1)}`,
+        `**XP range: **${db.settings.gain.min == db.settings.gain.max ? tools.commafy(Math.round(db.settings.gain.min * multiplier)) : `${tools.commafy(Math.round(db.settings.gain.min * multiplier))} - ${tools.commafy(Math.round(db.settings.gain.max * multiplier))}`}`,
+        `**Messages: **${estimatedRange}`,
     ])
+
+    if(db.settings.enabledVoiceXp) levelDetails.push(`**Voice: **${estimatedTime == Infinity ? "Until the end of time" : tools.inline(tools.time((estimatedTime * (1 / db.settings.voice.multiplier)) * 1000, 1))} (avg)`)
 
     let embed = tools.createEmbed({
         author: { name: member.user.displayName, iconURL: member.displayAvatarURL() },
-        title: `Level ${tools.commafy(targetLevel)}${reached ? " (reached!)" : ""}`,
+        title: `To reach level ${tools.commafy(targetLevel)}${reached ? " (reached!)" : ""}`,
         color: cardCol || member.displayColor || await member.user.fetch().then(x => x.accentColor),
         description: levelDetails.join("\n"), footer: progressBar
     })

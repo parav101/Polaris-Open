@@ -2,7 +2,7 @@ const multiplierModes = require("../../json/multiplier_modes.json")
 
 module.exports = {
 metadata: {
-    name: "rank",
+    name: "info",
     description: "View your current XP, level, and cooldown.",
     args: [
         { type: "user", name: "member", description: "Which member to view", required: false },
@@ -39,6 +39,7 @@ async run(client, int, tools) {
     let levelPercent = maxLevel ? 100 : (xp - levelData.previousLevel) / (levelData.xpRequired - levelData.previousLevel) * 100
 
     let multiplierData = tools.getMultiplier(member, db.settings)
+    let rewardRole = tools.getRolesForLevel(levelData.level, db.settings.rewards)
     let multiplier = multiplierData.multiplier
 
     let barSize = 33    // how many characters the xp bar is
@@ -52,7 +53,7 @@ async run(client, int, tools) {
     let estimatedRange = (estimatedMax == estimatedMin) ? `${tools.commafy(estimatedMax)} ${tools.extraS("message", estimatedMax)}` : `${tools.commafy(estimatedMax)}-${tools.commafy(estimatedMin)} messages`
 
     // xp required to level up
-    let nextLevelXP = (db.settings.rankCard.relativeLevel ? `${tools.commafy(xp - levelData.previousLevel)}/${tools.commafy(levelData.xpRequired - levelData.previousLevel)}` : `${tools.commafy(levelData.xpRequired)}`) + ` (${tools.commafy(remaining)} more)`
+    let nextLevelXP = (db.settings.rankCard.relativeLevel ? `${tools.commafy(xp - levelData.previousLevel)}/${tools.commafy(levelData.xpRequired - levelData.previousLevel)}` : `${tools.commafy(levelData.xpRequired)}`) + ` (${tools.commafy(remaining,true)} more)`
 
     let cardCol = db.settings.rankCard.embedColor
     if (cardCol == -1) cardCol = null
@@ -61,12 +62,14 @@ async run(client, int, tools) {
     let memberColor = cardCol || member.displayColor || await member.user.fetch().then(x => x.accentColor)
 
     let embed = tools.createEmbed({
-        author: { name: member.user.displayName, iconURL: memberAvatar },
+        // author: { name: member.user.displayName },
+        title: member.user.displayName,
+        thumbnail: memberAvatar,
         color: memberColor,
         footer: maxLevel ? progressBar : ((estimatedMin == Infinity || estimatedMin < 0) ? "You are unable to gain XP!" : `${progressBar}\n${estimatedRange} to go!`),
         fields: [
-            { name: "✨ XP", value: `${tools.commafy(xp)} (lv. ${levelData.level})`, inline: true },
-            { name: "⏩ Next level", value: !maxLevel ? nextLevelXP : "Max level! Woah!", inline: true },
+            { name: `✨ Level: ${levelData.level}`, value: `${int.guild.id != rewardRole[0].id ? `Rank:<@&${rewardRole[0].id}>` : "No Rank"}`, inline: true },
+            { name: "⏩ Xp req", value: !maxLevel ? nextLevelXP : "Max level! Woah!"},
         ]
     })
 

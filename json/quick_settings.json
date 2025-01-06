@@ -13,9 +13,10 @@
         { "db": "gain.min", "name": "Min XP", "desc": "Minimum amount of XP to earn per message", "tip": "Each message gives a random amount of XP, this changes the lower bound" },
         { "db": "gain.max", "name": "Max XP", "desc": "Maximum amount of XP to earn per message", "tip": "Each message gives a random amount of XP, this changes the upper bound" },
         { "db": "gain.time", "name": "XP Cooldown", "desc": "Members must wait this many seconds before they can gain XP again", "tip": "Messages sent during the cooldown period will not gain", "str": "# seconds" },
-        { "db": "maxLevel", "name": "Level cap", "desc": "The highest level members can reach", "tip": "Members can still gain XP past this, unless you reward a role with a 0x multiplier" }
+        { "db": "maxLevel", "name": "Level cap", "desc": "The highest level members can reach", "tip": "Members can still gain XP past this, unless you reward a role with a 0x multiplier" },
+        { "db": "enabledVoiceXp", "name": "Enable Voice XP", "desc": "Allows members to gain Voice XP", "tip": "Disabling will prevent anyone from gaining Voice XP, but will not reset or remove existing Voice XP." },
+        { "db": "voice.multiplier", "name": "Min XP", "desc": "Multiplier for vc xp to message xp", "tip": "0 means no xp, 1 means equal xp" }
     ],
-
     "level": [
         { "emoji": "⬅️", "name": "Back", "folder": "home", "groupName": "Levelling settings" },
         { "db": "levelUp.enabled", "name": "Enable level up message", "desc": "Sends a message or DM when a member levels up" },
@@ -37,7 +38,7 @@
         { "db": "leaderboard.disabled", "name": "Enable leaderboard", "invert": true, "desc": "Enables the server XP leaderboard" },
         { "db": "leaderboard.private", "name": "Private leaderboard", "desc": "Restricts the online leaderboard so only server members can access it (requires logging in)" },
         { "db": "leaderboard.hideRoles", "name": "Hide reward roles", "desc": "Hides the list of reward roles on the online leaderboard" },
-        { "db": "leaderboard.ephemeral", "name": "Hide /top messages", "desc": "Forces /top messages to be ephemeral, meaning only the member who typed the commmand can see it" },
+        { "db": "leaderboard.ephemeral", "name": "Hide /leaderboard messages", "desc": "Forces /leaderboard messages to be ephemeral, meaning only the member who typed the commmand can see it" },
         { "db": "leaderboard.minLevel", "name": "Minimum leaderboard level", "desc": "Restricts the leaderboard to only show members above this level", "tip": "Set to 0 to disable", "zeroText": "None" },
         { "db": "leaderboard.maxEntries", "name": "Max leaderboard entries", "desc": "Only shows the top X members on the leaderboard", "tip": "Set to 0 to display everyone", "zeroText": "Unlimited" }
     ]

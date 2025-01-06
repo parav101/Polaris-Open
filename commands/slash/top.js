@@ -2,7 +2,7 @@ const PageEmbed = require("../../classes/PageEmbed.js")
 
 module.exports = {
 metadata: {
-    name: "top",
+    name: "leaderboard",
     description: "View the server's XP leaderboard.",
     args: [
         { type: "integer", name: "page", description: "Which page to view (negative to start from last page)", required: false },
