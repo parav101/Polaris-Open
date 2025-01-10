@@ -60,7 +60,7 @@ async run(client, int, tools) {
     let cardCol = db.settings.rankCard.embedColor
     if (cardCol == -1) cardCol = null
 
-    let memberAvatar = member.displayAvatarURL()
+    let memberAvatar = member.displayAvatarURL({ forceStatic:true, size: 128 });
     let memberColor = cardCol || member.displayColor || await member.user.fetch().then(x => x.accentColor)
 
     // let embed = tools.createEmbed({
@@ -130,7 +130,7 @@ async run(client, int, tools) {
             rank: rank,
             overlay: 90,
             background: "#23272a", // or "./path/to/image.png"
-            status: "online",
+            // status: "online",
             progress: Number(levelPercent.toFixed(2)),
             size: "25px",
             avtarBorderColour: avtarBorderColour

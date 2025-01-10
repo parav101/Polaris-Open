@@ -21,9 +21,21 @@ const startTime = Date.now()
 const client = new Discord.Client({
     allowedMentions: { parse: ["users"] },
     makeCache: Discord.Options.cacheWithLimits({ MessageManager: 0 }),
-    intents: ['Guilds', 'GuildMessages', 'DirectMessages', 'GuildVoiceStates'].map(i => Discord.GatewayIntentBits[i]),
-    partials: ['Channel'].map(p => Discord.Partials[p]),
-    failIfNotExists: false
+    intents: [
+        Discord.GatewayIntentBits.Guilds,
+        Discord.GatewayIntentBits.GuildMessages,
+        Discord.GatewayIntentBits.DirectMessages,
+        Discord.GatewayIntentBits.GuildVoiceStates,
+        Discord.GatewayIntentBits.DirectMessageReactions,
+        Discord.GatewayIntentBits.GuildMessageReactions,
+        Discord.GatewayIntentBits.GuildPresences
+    ],
+    partials: [
+        Discord.Partials.Channel,
+        Discord.Partials.Message,
+        Discord.Partials.Reaction
+    ],
+    failIfNotExists: false,
 })
 
 if (!client.shard) {
@@ -80,7 +92,10 @@ client.on("ready", async() => {
 client.on("messageCreate", async message => {
     if (message.system || message.author.bot) return
     else if (!message.guild || !message.member) return // dm stuff
-    else client.commands.get("message").run(client, message, client.globalTools)
+    else {
+        client.commands.get("message").run(client, message, client.globalTools)
+        client.commands.get("xpChest").run(client, message, client.globalTools)
+    }
 })
 
 // on voice state update

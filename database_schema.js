@@ -88,7 +88,18 @@ const settings = {
     },
 
     hideMultipliers: { type: "bool", default: false },
-    manualPerms: { type: "bool", default: false }
+    manualPerms: { type: "bool", default: false },
+
+    chestDrops: {
+        enabled: { type: "bool", default: false },
+        channelId: { type: "string", accept: ["discord:channel"] },
+        messageCount: { type: "int", default: 25, min: 1, max: 10000 },
+        timeGap: { type: "int", default: 300, min: 60, max: 36000 }, // seconds
+        chancePercent: { type: "int", default: 40, min: 1, max: 100 },
+        keyEmoji: { type: "string", default: "🗝️" },
+        chestEmoji: { type: "string", default: "📦" },
+        emojiId: { type: "string", accept: ["discord:emoji"] },
+    },
 }
 
 const settingsArray = []

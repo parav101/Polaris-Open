@@ -1,7 +1,7 @@
 const config = require('../config.json')
 const Discord = require('discord.js')
 const {inlineCode} = require('@discordjs/builders')
-const { Font, RankCardBuilder } = require("canvacord");
+const { Font, RankCardBuilder, LeaderboardBuilder } = require("canvacord");
 
 // this class contains all sorts of misc functions used around the bot
 
@@ -334,6 +334,33 @@ class Tools {
                     .catch(err => reject(err));
             });
         };
+
+        this.leaderboardBuilder = function({
+            title,
+            image,
+            subtitle,
+            memberList,
+            backgroundImage,
+            variant,
+        }) {
+            return new Promise((resolve, reject) => {
+                const leaderboard = new LeaderboardBuilder()
+                .setHeader({
+                    title: title,
+                    image: image,
+                    subtitle: subtitle,
+                })
+                .setPlayers(memberList)
+                .setBackground(backgroundImage);
+
+                if (variant) leaderboard.setVariant(variant);
+                
+                leaderboard.build({ format: "png" })
+                    .then(image => resolve(image))
+                    .catch(err => reject(err));
+            });
+        }
+
 
         // creates an embed from an object, because i despise how discord.js does it
         this.createEmbed = function(options={}) {

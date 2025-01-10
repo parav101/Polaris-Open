@@ -60,6 +60,11 @@
             <p>Data</p>
         </div>
 
+        <div tabindex="0" category="chestDrops" class="category" title="Configure XP chest drop settings.">
+            <img src="/assets/categories/chest.svg">
+            <p>XP Chest</p>
+        </div>
+
         <div tabindex="0" category="advanced" class="category" title="Some extra advanced/experimental settings for finer customization.">
             <img src="/assets/categories/advanced.svg">
             <p>Advanced</p>
@@ -844,6 +849,48 @@
         
     </div>
 
+    <div class="configboxes" tab="chestDrops" style="display:none">
+        <div class="settingBox box fulllength">
+            <h1>XP Chest</h1>
+            <p>Settings related to the XP chest feature.</p>
+        </div>
+        <div class="settingBreak"></div>
+    
+        <div class="settingBox box">
+            <h2>Enable XP Chest</h2>
+            <p class="details">Allows members to store XP in a chest for later use.</p>
+            <label style="margin-top: 5px;" class="slider">
+                <input type="checkbox" tabindex="0" db="chestDrops.enabled" saveName="db" onchange="$('.ifchestenabled').toggle($(this).prop('checked'))">
+                <span class="sliderspan"></span>
+            </label>
+        </div>
+    
+        <div class="settingBox box ifchestenabled" style="display:none;">
+            <h2>Chest Drop Channel</h2>
+            <p class="details">Specify the channel where XP chests will drop.</p>
+            <!-- <input type="text" tabindex="0" db="chestDrops.channelId" saveName="db" placeholder="Enter channel ID"> -->
+            <select id="chestDropChannelSelect" db="chestDrops.channelId" saveName="db"></select>
+        </div>
+    
+        <div class="settingBox box ifchestenabled" style="display:none;">
+            <h2>Message Count</h2>
+            <p class="details">Number of messages required to trigger a chest drop.</p>
+            <input type="number" tabindex="0" db="chestDrops.messageCount" saveName="db" min="1" max="10000" value="25">
+        </div>
+    
+        <div class="settingBox box ifchestenabled" style="display:none;">
+            <h2>Time Gap</h2>
+            <p class="details">Minimum time gap (in seconds) between chest drops.</p>
+            <input type="number" tabindex="0" db="chestDrops.timeGap" saveName="db" min="60" max="36000" value="300">
+        </div>
+    
+        <div class="settingBox box ifchestenabled" style="display:none;">
+            <h2>Drop Chance Percentage</h2>
+            <p class="details">Chance percentage for a chest to drop after the conditions are met.</p>
+            <input type="number" tabindex="0" db="chestDrops.chancePercent" saveName="db" min="1" max="100" value="40">
+        </div>
+    </div>
+
     <div class="configboxes" tab="advanced" style="display: none">
 
         <div class="settingBox box fulllength" style="padding-bottom: 15px">
@@ -1434,6 +1481,12 @@
             if (foundMultiplier && !isNaN(newBoost) && newBoost >= 0 && newBoost <= 100) foundMultiplier.boost = newBoost
             buildChannelMultiplierTable()
         })
+
+        // add chestDropChannel
+        $('#chestDropChannelSelect').append(data.channels.map(x => `<option value="${x.id}">${channelPrefixes[x.type] || "* "}${x.name}</option>`))
+        $('#chestDropChannelSelect').val(db.chestDropChannel)
+        if (!$("#chestDropChannelSelect").val()) $("#chestDropChannelSelect").val("none")
+
 
 
         // level up message channel
