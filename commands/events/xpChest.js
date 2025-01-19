@@ -1,32 +1,33 @@
 const Discord = require('discord.js')
 
-const chestTypes = [
-    { type: "Common",    chance: 60, xp: [100, 500],    color: 0x969696 },
-    { type: "Rare",      chance: 20, xp: [500, 1000],   color: 0x0096FF },
-    { type: "Epic",      chance: 10,  xp: [1000, 2000],  color: 0x9400D3 },
-    { type: "Legendary", chance: 3,  xp: [2000, 5000],  color: 0xFFD700 },
-    { type: "Mystic",    chance: 1,  xp: [5000, 10000], color: 0xFF0000 },
-    { type: "Mimic",     chance: 6,  xp: [-2000, -500], color: 0x000000 }
+// Default chest types for new servers
+const defaultChestTypes = [
+    { type: "Common",    chance: 60, xpMin: 100,  xpMax: 500,   color: 0x969696 },
+    { type: "Rare",      chance: 20, xpMin: 500,  xpMax: 1000,  color: 0x0096FF },
+    { type: "Epic",      chance: 10, xpMin: 1000, xpMax: 2000,  color: 0x9400D3 },
+    { type: "Legendary", chance: 3,  xpMin: 2000, xpMax: 5000,  color: 0xFFD700 },
+    { type: "Mystic",    chance: 1,  xpMin: 5000, xpMax: 10000, color: 0xFF0000 },
+    { type: "Mimic",     chance: 6,  xpMin: -2000,xpMax: -500,  color: 0x000000 }
 ];
 
-// Simple channel activity tracking
-const channelActivity = new Map();
-
-function getChannelActivity(channelId) {
-    if (!channelActivity.has(channelId)) {
-        channelActivity.set(channelId, {
+async function getChannelActivity(db, channelId) {
+    const activity = db.settings.chestDrops.channelActivity.find(a => a.channelId === channelId);
+    if (!activity) {
+        const newActivity = {
+            channelId,
             messageCount: 0,
             lastChestTime: Date.now()
-        });
+        };
+        db.settings.chestDrops.channelActivity.push(newActivity);
+        return newActivity;
     }
-    return channelActivity.get(channelId);
+    return activity;
 }
 
-function shouldDropChest(channel, settings) {
+function shouldDropChest(channel, settings, activity) {
     if (!settings.chestDrops?.channelId || channel.id !== settings.chestDrops.channelId) return false;
     
-    const activity = getChannelActivity(channel.id);
-    const timePassed = Date.now() - activity.lastChestTime >= (settings.chestDrops.timeGap * 1000);
+    const timePassed = Date.now() - activity.lastChestTime >= (settings.chestDrops.timeGap * 1000 * 60 * 60);
     const messageThreshold = activity.messageCount >= settings.chestDrops.messageCount;
     
     return (timePassed || messageThreshold) && Math.random() * 100 <= settings.chestDrops.chancePercent;
@@ -34,8 +35,7 @@ function shouldDropChest(channel, settings) {
 
 async function handleChestClaim(user, chest, db, tools) {
     let userData = db.users[user.id] || { xp: 0 };
-    const [min, max] = chest.xp;
-    const xpChange = Math.floor(Math.random() * (max - min + 1)) + min;
+    const xpChange = Math.floor(Math.random() * (chest.xpMax - chest.xpMin + 1)) + chest.xpMin;
     
     userData.xp = Math.max(0, userData.xp + xpChange);
     
@@ -51,20 +51,39 @@ module.exports = {
     async run(client, message, tools) {
         let db = await tools.fetchSettings(message.author.id, message.guild.id);
         if (!db?.settings?.enabled || !db.settings.chestDrops?.enabled) return;
+        if (message.channel.id !== db.settings.chestDrops.channelId) return;
+        // Initialize chest types if they don't exist
+        if (!db.settings.chestDrops.chestTypes?.length) {
+            db.settings.chestDrops.chestTypes = defaultChestTypes;
+            await client.db.update(message.guild.id, {
+                $set: { "settings.chestDrops.chestTypes": defaultChestTypes }
+            }).exec();
+        }
 
-        const activity = getChannelActivity(message.channel.id);
+        const activity = await getChannelActivity(db, message.channel.id);
         activity.messageCount++;
 
-        if (!shouldDropChest(message.channel, db.settings)) return;
+        if (!shouldDropChest(message.channel, db.settings, activity)) {
+            await client.db.update(message.guild.id, {
+                $set: { "settings.chestDrops.channelActivity": db.settings.chestDrops.channelActivity }
+            }).exec();
+            return;
+        }
 
         // Reset activity counter
         activity.messageCount = 0;
         activity.lastChestTime = Date.now();
+        await client.db.update(message.guild.id, {
+            $set: { "settings.chestDrops.channelActivity": db.settings.chestDrops.channelActivity }
+        }).exec();
 
-        // Quick chest type selection
+        // Select chest type from database
         const roll = Math.random() * 100;
         let sum = 0;
-        const selectedChest = chestTypes.find(chest => (sum += chest.chance) >= roll) || chestTypes[0];
+        const selectedChest = db.settings.chestDrops.chestTypes.find(
+            chest => (sum += chest.chance) >= roll
+        ) || db.settings.chestDrops.chestTypes[0];
+
         const chestEmoji = db.settings.chestDrops?.chestEmoji || "🎁";
         const keyEmoji = db.settings.chestDrops?.keyEmoji || "🗝️";
         const embed = new Discord.EmbedBuilder()

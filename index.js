@@ -28,7 +28,8 @@ const client = new Discord.Client({
         Discord.GatewayIntentBits.GuildVoiceStates,
         Discord.GatewayIntentBits.DirectMessageReactions,
         Discord.GatewayIntentBits.GuildMessageReactions,
-        Discord.GatewayIntentBits.GuildPresences
+        Discord.GatewayIntentBits.GuildPresences,
+        Discord.GatewayIntentBits.GuildMembers 
     ],
     partials: [
         Discord.Partials.Channel,
@@ -144,6 +145,17 @@ client.on("interactionCreate", async int => {
     try { await foundCommand.run(client, int, tools) }
     catch(e) { console.error(e); int.reply({ content: "**Error!** " + e.message, ephemeral: true }) }
 })
+
+// Add guildMemberRemove event handler
+client.on('guildMemberRemove', async member => {
+    if (member.user.bot) return
+    if (!member.guild) return // dm stuff
+    try {
+        await client.commands.get('guildMemberRemove').execute(member, client, client.globalTools);
+    } catch (error) {
+        console.error('Error handling guildMemberRemove event:', error);
+    }
+});
 
 client.on('error', e => console.warn(e))
 client.on('warn', e => console.warn(e))

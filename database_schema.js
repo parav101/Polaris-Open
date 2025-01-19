@@ -90,15 +90,28 @@ const settings = {
     hideMultipliers: { type: "bool", default: false },
     manualPerms: { type: "bool", default: false },
 
+    resetXpOnLeave: { type: "bool", default: false }, // Add this line before chestDrops
     chestDrops: {
         enabled: { type: "bool", default: false },
         channelId: { type: "string", accept: ["discord:channel"] },
         messageCount: { type: "int", default: 25, min: 1, max: 10000 },
-        timeGap: { type: "int", default: 300, min: 60, max: 36000 }, // seconds
+        timeGap: { type: "float", default: 1, min: 0.1, max: 24 }, 
         chancePercent: { type: "int", default: 40, min: 1, max: 100 },
         keyEmoji: { type: "string", default: "🗝️" },
         chestEmoji: { type: "string", default: "📦" },
         emojiId: { type: "string", accept: ["discord:emoji"] },
+        chestTypes: { type: "collection", values: {
+            type: { type: "string" },
+            chance: { type: "int", min: 1, max: 100 },
+            xpMin: { type: "int", min: -10000, max: 10000 },
+            xpMax: { type: "int", min: -10000, max: 10000 },
+            color: { type: "int", min: 0, max: 0xffffff }
+        }},
+        channelActivity: { type: "collection", values: {
+            channelId: { type: "string", accept: ["discord:channel"] },
+            messageCount: { type: "int", min: 0 },
+            lastChestTime: { type: "int" }
+        }}
     },
 }
 

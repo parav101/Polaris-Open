@@ -865,26 +865,26 @@
             </label>
         </div>
     
-        <div class="settingBox box ifchestenabled" style="display:none;">
+        <div class="settingBox box ifchestenabled";">
             <h2>Chest Drop Channel</h2>
             <p class="details">Specify the channel where XP chests will drop.</p>
             <!-- <input type="text" tabindex="0" db="chestDrops.channelId" saveName="db" placeholder="Enter channel ID"> -->
             <select id="chestDropChannelSelect" db="chestDrops.channelId" saveName="db"></select>
         </div>
     
-        <div class="settingBox box ifchestenabled" style="display:none;">
+        <div class="settingBox box ifchestenabled";">
             <h2>Message Count</h2>
             <p class="details">Number of messages required to trigger a chest drop.</p>
             <input type="number" tabindex="0" db="chestDrops.messageCount" saveName="db" min="1" max="10000" value="25">
         </div>
     
-        <div class="settingBox box ifchestenabled" style="display:none;">
+        <div class="settingBox box ifchestenabled";">
             <h2>Time Gap</h2>
             <p class="details">Minimum time gap (in seconds) between chest drops.</p>
-            <input type="number" tabindex="0" db="chestDrops.timeGap" saveName="db" min="60" max="36000" value="300">
+            <input type="number" tabindex="0" db="chestDrops.timeGap" saveName="db" min="0.1" max="24" value="1">
         </div>
     
-        <div class="settingBox box ifchestenabled" style="display:none;">
+        <div class="settingBox box ifchestenabled";">
             <h2>Drop Chance Percentage</h2>
             <p class="details">Chance percentage for a chest to drop after the conditions are met.</p>
             <input type="number" tabindex="0" db="chestDrops.chancePercent" saveName="db" min="1" max="100" value="40">
@@ -1484,10 +1484,10 @@
 
         // add chestDropChannel
         $('#chestDropChannelSelect').append(data.channels.map(x => `<option value="${x.id}">${channelPrefixes[x.type] || "* "}${x.name}</option>`))
-        $('#chestDropChannelSelect').val(db.chestDropChannel)
+        $('#chestDropChannelSelect').val(db.chestDrops.channelId)
         if (!$("#chestDropChannelSelect").val()) $("#chestDropChannelSelect").val("none")
 
-
+        // current chestDropChannel
 
         // level up message channel
         $("#lvlMessageSelect").append(data.channels.filter(x => x.type == "channel").map(x => `<option value="${x.id}">#${x.name}</option>`))
