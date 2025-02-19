@@ -6,7 +6,6 @@ module.exports = {
             const db = await tools.fetchSettings(member.id,member.guild.id)
             // Check if XP reset is enabled
             if (!db?.settings?.enabled || !db.settings?.resetXpOnLeave) return;
-            console.log("XP reset on leave is enabled")
             
             // Check if user has XP data
             if (!db.users?.[member.user.id]) return;

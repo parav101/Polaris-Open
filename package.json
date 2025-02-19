@@ -2,12 +2,14 @@
   "dependencies": {
     "@discordjs/builders": "^1.9.0",
     "@discordjs/rest": "^2.4.0",
+    "@napi-rs/canvas": "^0.1.67",
     "bufferutil": "^4.0.8",
     "canvacord": "^6.0.2",
     "connect-timeout": "^1.9.0",
     "cookie-parser": "^1.4.6",
     "cors": "^2.8.5",
     "discord-api-types": "^0.37.99",
+    "discord-card-canvas": "^2.0.0",
     "discord.js": "^14.16.1",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
@@ -25,7 +27,6 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node polaris.js",
     "dev": "nodemon polaris.js"
-    
   },
   "author": "",
   "license": "ISC",
