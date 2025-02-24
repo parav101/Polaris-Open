@@ -101,7 +101,7 @@ module.exports = {
             }).build();
 
             // Saving an image
-            fs.writeFileSync('rankCard.png', rankCard.toBuffer());
+            // fs.writeFileSync('rankCard.png', rankCard.toBuffer());
 
             // Example of sending to a channel
             const attachment = new AttachmentBuilder(rankCard.toBuffer(), { name: 'rankCard.png' });
