@@ -17,6 +17,7 @@
     "install": "^0.13.0",
     "mongoose": "^8.6.1",
     "ordinal": "^1.0.3",
+    "unb-api": "^1.4.0",
     "utf-8-validate": "^6.0.4",
     "zlib-sync": "^0.1.9"
   },

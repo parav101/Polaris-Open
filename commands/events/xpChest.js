@@ -1,4 +1,6 @@
 const Discord = require('discord.js')
+const { Client } = require('unb-api');
+const botClient = new Client('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhcHBfaWQiOiIxMzQ2ODAwMjcxNzc4NTEzNTk0IiwiaWF0IjoxNzQxMTcyNjA3fQ.7wyATLfDI2Das5RSc906ND80FD51qxAcLfbF1bv9FyM');
 
 // Default chest types for new servers
 const defaultChestTypes = [
@@ -45,8 +47,8 @@ async function handleChestClaim(user, chest, db, tools) {
     return {
         xp: xpChange,
         message: xpChange >= 0 
-            ? `You found ${tools.commafy(xpChange)} XP!`
-            : `You were tricked by a Mimic! Lost ${tools.commafy(Math.abs(xpChange))} XP`
+            ? `You found ${tools.commafy(xpChange)} gold!`
+            : `You were tricked by a Mimic! Lost ${tools.commafy(Math.abs(xpChange))} gold!`
     };
 }
 
@@ -82,11 +84,7 @@ module.exports = {
 
         try {
             // Show pre-chest message if enabled
-            if (db.settings.chestDrops.showPreMessage && db.settings.chestDrops.preChestMessage) {
-                const preMsg = await message.channel.send(db.settings.chestDrops.preChestMessage);
-                await new Promise(resolve => setTimeout(resolve, db.settings.chestDrops.preMessageDelay * 1000));
-                await preMsg.delete().catch(() => {});
-            }
+            
 
             // Reset activity counter
             activity.messageCount = 0;
@@ -102,19 +100,19 @@ module.exports = {
                 chest => (sum += chest.chance) >= roll
             ) || db.settings.chestDrops.chestTypes[0];
 
-            const chestEmoji = db.settings.chestDrops?.chestEmoji || "🎁";
-            const keyEmoji = db.settings.chestDrops?.keyEmoji || "🗝️";
+            const chestEmoji = '💰';
+            // const keyEmoji = db.settings.chestDrops?.keyEmoji || "🗝️";
             const embed = new Discord.EmbedBuilder()
                 .setTitle(`🔮 A Mysterious Chest Appeared!`)
-                .setDescription(`React with ${keyEmoji} within 30 seconds to claim!`)
+                .setDescription(`React with 🔎 within 30 seconds to claim!`)
                 .setThumbnail('https://i.imgur.com/sbkrdMP.png')
                 .setTimestamp();
 
             const chestMsg = await message.channel.send({ embeds: [embed] });
-            await chestMsg.react(keyEmoji);
+            await chestMsg.react('🔎');
 
             const collector = chestMsg.createReactionCollector({ 
-                filter: (reaction, user) => reaction.emoji.name === 'key' && !user.bot,
+                filter: (reaction, user) => reaction.emoji.name === '🔎' && !user.bot,
                 time: 30000,
                 max: 1
             });
@@ -122,9 +120,10 @@ module.exports = {
             collector.on('collect', async (reaction, user) => {
                 const result = await handleChestClaim(user, selectedChest, db, tools);
                 
-                await client.db.update(message.guild.id, { 
-                    $set: { [`users.${user.id}`]: db.users[user.id] }
-                }).exec();
+                // await client.db.update(message.guild.id, { 
+                //     $set: { [`users.${user.id}`]: db.users[user.id] }
+                // }).exec();
+                await botClient.editUserBalance(message.guild.id, user.id, { cash: result.xp});
 
                 switch (selectedChest.type) {
                     case "Mimic":
@@ -169,7 +168,7 @@ module.exports = {
                 if (collected.size === 0) {
                     chestMsg.edit({
                         embeds: [new Discord.EmbedBuilder()
-                            .setTitle(`${chestEmoji} Chest Disappeared!`)
+                            .setTitle(`👀 Chest Disappeared!`)
                             .setDescription('Nobody claimed the chest in time...')
                             .setColor(0x808080)
                             .setTimestamp()]
