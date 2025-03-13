@@ -11,8 +11,9 @@ const mongoose = require("mongoose")
 
 const settings = {
     enabled: { type: "bool", default: false },
-
     enabledVoiceXp: { type: "bool", default: false },
+    resetXpOnLeave: { type: "bool", default: false }, 
+    nicknameRank: { type: "bool", default: false }, 
 
     gain: {
         min: { type: "int", default: 50, min: 0, max: 5000 },
@@ -40,7 +41,9 @@ const settings = {
         message: { type: "string", maxlength: 6000, default: "" },
         channel: { type: "string", default: "current", accept: ["dm", "current", "discord:channel"] },
         multiple: { type: "int", default: 1, min: 1, max: 1000 },
-        multipleUntil: { type: "int", default: 20, min: 0, max: 1000 }
+        multipleUntil: { type: "int", default: 20, min: 0, max: 1000 },
+        emoji: { type: "string", default: "✨" },
+        maxRank: { type: "int", default: 100, min: 0, max: 1000 },
     },
 
     multipliers: {
@@ -90,7 +93,6 @@ const settings = {
     hideMultipliers: { type: "bool", default: false },
     manualPerms: { type: "bool", default: false },
 
-    resetXpOnLeave: { type: "bool", default: false }, // Add this line before chestDrops
     chestDrops: {
         enabled: { type: "bool", default: false },
         channelId: { type: "string", accept: ["discord:channel"] },

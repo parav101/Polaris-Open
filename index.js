@@ -96,6 +96,7 @@ client.on("messageCreate", async message => {
     else {
         client.commands.get("message").run(client, message, client.globalTools)
         client.commands.get("xpChest").run(client, message, client.globalTools)
+        client.commands.get("guildMemberNicknameRank").run(client, message, client.globalTools)
     }
 })
 
