@@ -17,6 +17,7 @@ module.exports = {
             } else {
                 let wholeDB = await tools.fetchAll(int.guild.id);
                 const rank = tools.getRank(member.id, wholeDB.users);
+                
                 if (!rank) return;
                 else if (rank > db.settings.levelUp.maxRank) return;
                 
@@ -25,10 +26,15 @@ module.exports = {
                 const emoji = db.settings.levelUp.emoji;
                 
                 // Check if the nickname already contains any rank
-                const rankRegex = new RegExp(`\\s${emoji}\\d+$`);
-                if (currentName.match(rankRegex)) {
+                const rankRegex = new RegExp(`\\s${emoji}(\\d+)$`);
+                const rankMatch = currentName.match(rankRegex);
+                
+                // Extract previous rank from the nickname if it exists
+                const prevRank = rankMatch ? parseInt(rankMatch[1]) : null;
+                
+                if (rankMatch) {
                     // If there's already a rank and it's the same, do nothing
-                    if (currentName.endsWith(`${emoji}${rank}`)) {
+                    if (parseInt(rankMatch[1]) === rank) {
                         return;
                     }
                     
@@ -57,6 +63,20 @@ module.exports = {
                         const maxNameLength = 32 - (emoji.length + rank.toString().length + 1);
                         const truncatedName = currentName.substring(0, maxNameLength);
                         member.setNickname(`${truncatedName} ${emoji}${rank}`);
+                    }
+                }
+                
+                // Check for milestone achievements if rank has changed and is better than the previous rank (lower number)
+                // Only send milestone messages when levelUp messages are enabled
+                if (prevRank !== rank && db.settings.levelUp.enabled && (prevRank === null || rank < prevRank)) {
+                    try {
+                        const MilestoneMessage = require('../../classes/MilestoneMessage.js');
+                        const milestoneMsg = new MilestoneMessage(member, rank, prevRank, wholeDB.users);
+                        if (milestoneMsg.shouldSend) {
+                            await milestoneMsg.send(int.channel);
+                        }
+                    } catch (milestoneError) {
+                        console.error('Error handling milestone message:', milestoneError);
                     }
                 }
             }
