@@ -8,13 +8,13 @@ class MilestoneMessage {
         this.prevRank = prevRank;
         this.users = users;
         
-        // Define milestone thresholds (changed top 60 to top 50)
+        // Define milestone thresholds
         this.milestones = [
             { position: 1, name: 'NUMBER ONE' },
             { position: 3, name: 'TOP 3' },
             { position: 10, name: 'TOP 10' },
             { position: 25, name: 'TOP 25' },
-            { position: 50, name: 'TOP 50' },  // Changed from 60 to 50
+            { position: 50, name: 'TOP 50' },
             { position: 100, name: 'TOP 100' }
         ];
         
@@ -23,14 +23,25 @@ class MilestoneMessage {
     }
     
     checkMilestone() {
-        // Only proceed if we have a previous rank for comparison
-        if (this.prevRank === null || this.newRank >= this.prevRank) {
+        // Handle the case when there's no previous rank (first time ranking)
+        if (this.prevRank === null) {
+            // Find the highest milestone the user qualifies for on first ranking
+            for (const milestone of this.milestones) {
+                if (this.newRank <= milestone.position) {
+                    return milestone;
+                }
+            }
             return null;
         }
         
-        // Find the highest milestone achieved (if any)
+        // Only proceed if the new rank is better than previous rank
+        if (this.newRank >= this.prevRank) {
+            return null;
+        }
+        
+        // Find the highest milestone achieved
         for (const milestone of this.milestones) {
-            if (this.newRank <= milestone.position && (this.prevRank > milestone.position)) {
+            if (this.newRank <= milestone.position && this.prevRank > milestone.position) {
                 return milestone;
             }
         }
@@ -84,6 +95,7 @@ class MilestoneMessage {
             // Send a simple text message instead of an embed
             const message = this.getRandomMessage();
             await channel.send(message);
+            console.log(`Sent milestone message for ${this.member.user.tag} reaching ${this.milestone.name}`);
         } catch (error) {
             console.error('Error sending milestone message:', error);
         }
