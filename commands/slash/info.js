@@ -42,6 +42,26 @@ async run(client, int, tools) {
     let rewardRole = tools.getRolesForLevel(levelData.level, db.settings.rewards)
     let multiplier = multiplierData.multiplier
 
+    // Get member's rank
+    let wholeDB = await tools.fetchAll(int.guild.id)
+    let rank = tools.getRank(member.id, wholeDB.users)
+    
+    // Find rival (next user above in rank)
+    let xpArray = tools.xpObjToArray(wholeDB.users).sort((a, b) => b.xp - a.xp)
+    let userIndex = xpArray.findIndex(u => u.id === member.id)
+    let rival = userIndex > 0 ? xpArray[userIndex - 1] : null
+    
+    let rivalUser = null
+    let rivalXpDiff = 0
+    if (rival) {
+        try {
+            rivalUser = await int.guild.members.fetch(rival.id)
+            rivalXpDiff = rival.xp - xp
+        } catch (e) {
+            console.error("Could not fetch rival user:", e)
+        }
+    }
+
     let barSize = 33    // how many characters the xp bar is
     let barRepeat = Math.round(levelPercent / (100 / barSize)) // .round() so bar can sometimes display as completely full and completely empty
     let progressBar = `${"▓".repeat(barRepeat)}${"░".repeat(barSize - barRepeat)} (${!maxLevel ? Number(levelPercent.toFixed(2)) + "%" : "MAX"})`
@@ -60,51 +80,72 @@ async run(client, int, tools) {
 
     let memberAvatar = member.displayAvatarURL()
     let memberColor = cardCol || member.displayColor || await member.user.fetch().then(x => x.accentColor)
-
+    
+    // Create the new embed format
     let embed = tools.createEmbed({
-        // author: { name: member.user.displayName },
-        title: member.user.displayName,
+        author: { 
+            name: int.guild.name,
+            iconURL: int.guild.iconURL({ dynamic: true })
+        },
+        description: `\`\`\`Player: ${member.user.displayName}\`\`\``,
         thumbnail: memberAvatar,
         color: memberColor,
-        footer: maxLevel ? progressBar : ((estimatedMin == Infinity || estimatedMin < 0) ? "You are unable to gain XP!" : `${progressBar}\n${estimatedRange} to go!`),
         fields: [
-            { name: `✨ Level: ${levelData.level}`, value: `${int.guild.id != rewardRole[0].id ? `Rank:<@&${rewardRole[0].id}>` : "No Rank"}`, inline: true },
-            { name: "⏩ Xp req", value: !maxLevel ? nextLevelXP : "Max level! Woah!"},
-        ]
+            { name: `Level: ${levelData.level}`, value: "\u200b", inline: true },
+            { name: `Rank: #${rank}`, value: "\u200b", inline: true },
+            { name: `Progress: ${Number(levelPercent.toFixed(0))}%`, value: "\u200b", inline: true },
+        ],
+        footer: {
+            text: getRandomTip(), 
+            iconURL: "https://cdn3.emoji.gg/emojis/9385-sparkles-pinkpastel.gif"
+        }
     })
-
-    if (!db.settings.rankCard.hideCooldown) {
-        let foundCooldown = currentXP.cooldown || 0
-        let cooldown = foundCooldown > Date.now() ? tools.timestamp(foundCooldown - Date.now()) : "None!"
-        embed.addFields([{ name: "🕓 Cooldown", value: cooldown, inline: true }])
+    
+    // Function to get a random tip to display in the footer
+    function getRandomTip() {
+        const tips = [
+            "✨ Use XP boost to level up faster ✨",
+            "✨ You get XP for being in voice channels ✨",
+            "✨ You get XP after each minute for messaging ✨",
+            "✨ Stay active to climb the ranks ✨",
+            "✨ Check your rank regularly to track progress ✨"
+        ];
+        return tips[Math.floor(Math.random() * tips.length)];
     }
-
-    let hideMult = db.settings.hideMultipliers
-
-    let multRoles = multiplierData.roleList
-    let multiplierInfo = []
-    if ((!hideMult || multiplierData.role == 0) && multRoles.length) {
-        let xpStr = multiplierData.role > 0 ? `${multiplierData.role}x XP` : "Cannot gain XP!"
-        let roleMultiplierStr = multRoles.length == 1 ? `${int.guild.id != multRoles[0].id ? `<@&${multRoles[0].id}>` : "Everyone"} - ${xpStr}` : `**${multRoles.length} roles** - ${xpStr}`
-        multiplierInfo.push(roleMultiplierStr)
+    
+    // Add XP Boost field
+    if (multiplier !== 1 && !db.settings.hideMultipliers) {
+        embed.addFields([{ 
+            name: `XP Boost: ${multiplier * 100}%`, 
+            value: multiplierData.roleList.length ? multiplierData.roleList.map(role => `<@&${role.id}>`).join(", ") : "\u200b", 
+            inline: true 
+        }])
+    } else {
+        embed.addFields([{ name: "XP Boost: 100%", value: "\u200b", inline: true }])
     }
-
-    let multChannels = multiplierData.channelList
-    if ((!hideMult || multiplierData.channel == 0) && multChannels.length && multiplierData.role > 0 && (multiplierData.role != 1 || multiplierData.channel != 1)) {
-        let chXPStr = multChannels[0].boost > 0 ? `${multiplierData.channel}x XP` : "Cannot gain XP!"
-        let chMultiplierStr = `<#${multChannels[0].id}> - ${chXPStr}` // leaving room for multiple channels, via categories or vcs or something
-        multiplierInfo.push(chMultiplierStr)
-        if (multRoles.length) multiplierInfo.push(`**Total multiplier: ${multiplier}x XP** (${multiplierModes.channelStacking[multiplierData.channelStacking].toLowerCase()})`)
+    
+    // Add rival field
+    if (rivalUser) {
+        embed.addFields([{
+            name: "Your Rival",
+            value: `<@${rivalUser.id}>`,
+            inline: true
+        }])
+    } else {
+        embed.addFields([{
+            name: "Your Rival",
+            value: "You're at the top!",
+            inline: true
+        }])
     }
-
-    if (multiplierInfo.length) embed.addFields([{ name: "🌟 Multiplier", value: multiplierInfo.join("\n") }])
-
-    else if (!db.settings.rewardSyncing.noManual && !db.settings.rewardSyncing.noWarning) {
-        let syncCheck = tools.checkLevelRoles(int.guild.roles.cache, member.roles.cache, levelData.level, db.settings.rewards)
-        if (syncCheck.incorrect.length || syncCheck.missing.length) embed.addFields([{ name: "⚠ Note", value: `Your level roles are not properly synced! Type ${tools.commandTag("sync")} to fix this.` }])
-    }
+    
+    // Add XP required to beat rival
+    embed.addFields([{
+        name: `XP req: ${rivalXpDiff > 0 ? tools.commafy(rivalXpDiff, true) : '0'}`,
+        value: rivalUser ? "to beat rival" : "You're the leader!",
+        inline: true
+    }])
 
     let isHidden = db.settings.rankCard.ephemeral || !!int.options.get("hidden")?.value
     return int.reply({embeds: [embed], ephemeral: isHidden})
-
 }}
