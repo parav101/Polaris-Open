@@ -47,8 +47,8 @@ async function handleChestClaim(user, chest, db, tools) {
     return {
         xp: xpChange,
         message: xpChange >= 0 
-            ? `You found ${tools.commafy(xpChange)} gold!`
-            : `You were tricked by a Mimic! Lost ${tools.commafy(Math.abs(xpChange))} gold!`
+            ? `You gained ${tools.commafy(xpChange)} XP costed you ${tools.commafy(xpChange)} gold!`
+            : `You were tricked by a Mimic! Lost ${tools.commafy(Math.abs(xpChange))} gold & XP!`
     };
 }
 
@@ -105,7 +105,7 @@ module.exports = {
             const embed = new Discord.EmbedBuilder()
                 .setTitle(`🔮 A Mysterious Chest Appeared!`)
                 .setDescription(`React with 🔎 within 30 seconds to claim!`)
-                .setThumbnail('https://i.imgur.com/sbkrdMP.png')
+                .setThumbnail('https://s6.gifyu.com/images/bMU57.gif')
                 .setTimestamp();
 
             const chestMsg = await message.channel.send({ embeds: [embed] });
@@ -120,10 +120,14 @@ module.exports = {
             collector.on('collect', async (reaction, user) => {
                 const result = await handleChestClaim(user, selectedChest, db, tools);
                 
-                // await client.db.update(message.guild.id, { 
-                //     $set: { [`users.${user.id}`]: db.users[user.id] }
-                // }).exec();
-                await botClient.editUserBalance(message.guild.id, user.id, { cash: result.xp});
+                await client.db.update(message.guild.id, { 
+                    $set: { [`users.${user.id}`]: db.users[user.id] }
+                }).exec();
+                if (result.xp > 0) {
+                    await botClient.editUserBalance(message.guild.id, user.id, { bank:-result.xp });
+                } else {
+                    await botClient.editUserBalance(message.guild.id, user.id, { bank: result.xp});
+                }
 
                 switch (selectedChest.type) {
                     case "Mimic":
@@ -143,7 +147,7 @@ module.exports = {
                                 .setTitle(`${chestEmoji} ${selectedChest.type} Chest Claimed!`)
                                 .setDescription(`${user} claimed the chest!\n${result.message}`)
                                 .setColor(selectedChest.color)
-                                .setThumbnail('https://i.imgur.com/sbkrdMP.png')
+                                .setThumbnail('https://s6.gifyu.com/images/bMU57.gif')
                                 .setTimestamp()]
                         });
                         break;
