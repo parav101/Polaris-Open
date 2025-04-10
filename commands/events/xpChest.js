@@ -22,7 +22,7 @@ const tips = [
     "📊 Track your progress using the rank command 📊"
 ];
 
-function getRandomTip() {
+function getRandomTip(tools) {
     return tools.choose(tips);
 }
 
@@ -125,7 +125,7 @@ module.exports = {
                 .setDescription(`React with 🔎 within 30 seconds to claim!`)
                 .setThumbnail('https://s6.gifyu.com/images/bMU57.gif')
                 .setFooter({
-                    text: getRandomTip(),
+                    text: getRandomTip(tools),
                     iconURL: "https://cdn3.emoji.gg/emojis/9385-sparkles-pinkpastel.gif"
                 }); // Updated footer with random tip and icon URL
 
@@ -159,7 +159,7 @@ module.exports = {
                                 .setColor(selectedChest.color)
                                 .setThumbnail('https://i.imgur.com/Rf7Sulp.png') // Scary mimic image
                                 .setFooter({
-                                    text: getRandomTip(),
+                                    text: getRandomTip(tools),
                                     iconURL: "https://cdn3.emoji.gg/emojis/9385-sparkles-pinkpastel.gif"
                                 })] // Updated footer with random tip and icon URL
                         });
@@ -173,7 +173,7 @@ module.exports = {
                                 .setColor(selectedChest.color)
                                 .setThumbnail('https://s6.gifyu.com/images/bMU57.gif')
                                 .setFooter({
-                                    text: getRandomTip(),
+                                    text: getRandomTip(tools),
                                     iconURL: "https://cdn3.emoji.gg/emojis/9385-sparkles-pinkpastel.gif"
                                 })] // Updated footer with random tip and icon URL
                         });
@@ -186,7 +186,7 @@ module.exports = {
                                 .setColor(selectedChest.color)
                                 .setThumbnail('https://i.imgur.com/ID73XEz.png')
                                 .setFooter({
-                                    text: getRandomTip(),
+                                    text: getRandomTip(tools),
                                     iconURL: "https://cdn3.emoji.gg/emojis/9385-sparkles-pinkpastel.gif"
                                 })] // Updated footer with random tip and icon URL
                         });
@@ -206,7 +206,7 @@ module.exports = {
                             .setDescription('Nobody claimed the chest in time...')
                             .setColor(0x808080)
                             .setFooter({
-                                text: getRandomTip(),
+                                text: getRandomTip(tools),
                                 iconURL: "https://cdn3.emoji.gg/emojis/9385-sparkles-pinkpastel.gif"
                             })] // Updated footer with random tip and icon URL
                     });
