@@ -15,6 +15,17 @@ const defaultChestTypes = [
 // Add a Map to track active chest spawns
 const activeSpawns = new Map();
 
+const tips = [
+    "✨ Use XP boost to level up faster ✨",
+    "💰 Save your gold for rare opportunities 💰",
+    "🎯 Aim for Legendary chests for massive rewards 🎯",
+    "📊 Track your progress using the rank command 📊"
+];
+
+function getRandomTip() {
+    return tools.choose(tips);
+}
+
 async function getChannelActivity(db, channelId) {
     const activity = db.settings.chestDrops.channelActivity.find(a => a.channelId === channelId);
     if (!activity) {
@@ -38,12 +49,19 @@ function shouldDropChest(channel, settings, activity) {
     return (timePassed || messageThreshold) && Math.random() * 100 <= settings.chestDrops.chancePercent;
 }
 
-async function handleChestClaim(user, chest, db, tools) {
+async function handleChestClaim(user, chest, db, tools, guildId) {
     let userData = db.users[user.id] || { xp: 0 };
     const xpChange = Math.floor(Math.random() * (chest.xpMax - chest.xpMin + 1)) + chest.xpMin;
     
     userData.xp = Math.max(0, userData.xp + xpChange);
-    
+    const balance = await botClient.getUserBalance(guildId,  user.id);
+    if(balance.total <= xpChange && xpChange > 0) {
+        // User doesn't have enough gold to claim the XP
+        return{
+            xp: Math.floor(xpChange/10),
+            message: `Player: ${user} doesn't have ${tools.commafy(xpChange)} gold to claim all the XP! You only get ${tools.commafy(Math.floor(xpChange/10))} XP!`
+        }
+    }
     return {
         xp: xpChange,
         message: xpChange >= 0 
@@ -106,7 +124,10 @@ module.exports = {
                 .setTitle(`🔮 A Mysterious Chest Appeared!`)
                 .setDescription(`React with 🔎 within 30 seconds to claim!`)
                 .setThumbnail('https://s6.gifyu.com/images/bMU57.gif')
-                .setTimestamp();
+                .setFooter({
+                    text: getRandomTip(),
+                    iconURL: "https://cdn3.emoji.gg/emojis/9385-sparkles-pinkpastel.gif"
+                }); // Updated footer with random tip and icon URL
 
             const chestMsg = await message.channel.send({ embeds: [embed] });
             await chestMsg.react('🔎');
@@ -118,7 +139,7 @@ module.exports = {
             });
 
             collector.on('collect', async (reaction, user) => {
-                const result = await handleChestClaim(user, selectedChest, db, tools);
+                const result = await handleChestClaim(user, selectedChest, db, tools,message.guild.id);
                 
                 await client.db.update(message.guild.id, { 
                     $set: { [`users.${user.id}`]: db.users[user.id] }
@@ -137,7 +158,10 @@ module.exports = {
                                 .setDescription(`${user} fell for the trap!\n${result.message}`)
                                 .setColor(selectedChest.color)
                                 .setThumbnail('https://i.imgur.com/Rf7Sulp.png') // Scary mimic image
-                                .setTimestamp()]
+                                .setFooter({
+                                    text: getRandomTip(),
+                                    iconURL: "https://cdn3.emoji.gg/emojis/9385-sparkles-pinkpastel.gif"
+                                })] // Updated footer with random tip and icon URL
                         });
                         break;
                     case "Common":
@@ -148,7 +172,10 @@ module.exports = {
                                 .setDescription(`${user} claimed the chest!\n${result.message}`)
                                 .setColor(selectedChest.color)
                                 .setThumbnail('https://s6.gifyu.com/images/bMU57.gif')
-                                .setTimestamp()]
+                                .setFooter({
+                                    text: getRandomTip(),
+                                    iconURL: "https://cdn3.emoji.gg/emojis/9385-sparkles-pinkpastel.gif"
+                                })] // Updated footer with random tip and icon URL
                         });
                         break;
                     default:
@@ -158,7 +185,10 @@ module.exports = {
                                 .setDescription(`${user} claimed the chest!\n${result.message}`)
                                 .setColor(selectedChest.color)
                                 .setThumbnail('https://i.imgur.com/ID73XEz.png')
-                                .setTimestamp()]
+                                .setFooter({
+                                    text: getRandomTip(),
+                                    iconURL: "https://cdn3.emoji.gg/emojis/9385-sparkles-pinkpastel.gif"
+                                })] // Updated footer with random tip and icon URL
                         });
                         break;
                 }
@@ -175,7 +205,10 @@ module.exports = {
                             .setTitle(`👀 Chest Disappeared!`)
                             .setDescription('Nobody claimed the chest in time...')
                             .setColor(0x808080)
-                            .setTimestamp()]
+                            .setFooter({
+                                text: getRandomTip(),
+                                iconURL: "https://cdn3.emoji.gg/emojis/9385-sparkles-pinkpastel.gif"
+                            })] // Updated footer with random tip and icon URL
                     });
                 }
             });
