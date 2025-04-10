@@ -52,20 +52,25 @@ function shouldDropChest(channel, settings, activity) {
 async function handleChestClaim(user, chest, db, tools, guildId) {
     let userData = db.users[user.id] || { xp: 0 };
     const xpChange = Math.floor(Math.random() * (chest.xpMax - chest.xpMin + 1)) + chest.xpMin;
-    
-    userData.xp = Math.max(0, userData.xp + xpChange);
-    const balance = await botClient.getUserBalance(guildId,  user.id);
-    if(balance.total <= xpChange && xpChange > 0) {
-        // User doesn't have enough gold to claim the XP
-        return{
-            xp: Math.floor(xpChange/10),
-            message: `Player: ${user} doesn't have ${tools.commafy(xpChange)} gold to claim all the XP! You only get ${tools.commafy(Math.floor(xpChange/10))} XP!`
-        }
+
+    const balance = await botClient.getUserBalance(guildId, user.id);
+
+    if (xpChange > 0 && balance.total < xpChange) {
+        // User doesn't have enough gold to claim the full XP
+        const partialXp = Math.floor(xpChange / 10); // Grant XP proportional to available gold
+        userData.xp = Math.max(0, userData.xp + partialXp);
+        return {
+            xp: partialXp,
+            message: `You doesn't have (${tools.commafy(xpChange)}) gold to claim all the XP! You only got ${tools.commafy(partialXp)} XP for free!`
+        };
     }
+
+    // User has enough gold or XP change is negative
+    userData.xp = Math.max(0, userData.xp + xpChange);
     return {
         xp: xpChange,
-        message: xpChange >= 0 
-            ? `You gained ${tools.commafy(xpChange)} XP costed you ${tools.commafy(xpChange)} gold!`
+        message: xpChange >= 0
+            ? `You gained ${tools.commafy(xpChange)} XP costing you the same amount of gold!`
             : `You were tricked by a Mimic! Lost ${tools.commafy(Math.abs(xpChange))} gold & XP!`
     };
 }
