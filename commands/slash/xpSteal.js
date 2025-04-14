@@ -18,6 +18,7 @@ module.exports = {
         const targetUser = member?.user;
         if (!targetUser) return int.editReply("I couldn't find that member!");
         if(targetUser === int.user) return int.editReply("You can't steal XP from yourself!");
+        if (targetUser.bot) return int.editReply("You can't steal XP from bots!");
         
         const author = int.user;
         const db = await tools.fetchSettings(author.id);
@@ -34,6 +35,7 @@ module.exports = {
         const wholeDB = await tools.fetchAll(int.guild.id);
         const userRank = tools.getRank(author.id, wholeDB.users);
         const targetRank = tools.getRank(targetUser.id, wholeDB.users);
+        if(!targetRank) return int.editReply("I couldn't find that user in the database!");
 
         if (Math.abs(targetRank - userRank) > db.settings.xpSteal.range) {
             return int.editReply(`Can't steal from this user. Rank difference is ${Math.abs(targetRank - userRank)}, max allowed is ${db.settings.xpSteal.range}!`);
