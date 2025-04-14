@@ -118,6 +118,17 @@ const settings = {
             lastChestTime: { type: "int" }
         }}
     },
+
+    xpSteal: {
+        enabled: { type: "bool", default: false },
+        xpMin: { type: "int", default: 1000, min: 0, max: 10000 },
+        xpMax: { type: "int", default: 5000, min: 0, max: 10000 },
+        itemId: { type: "string", default: "1361292712967539166" },
+        range: { type: "int", default: 3, min: 0, max: 100 },
+        immuneRoles: { type: "collection", values: {
+            id: { type: "string", accept: ["discord:role"] },
+        }, default: [] }
+    }
 }
 
 const settingsArray = []

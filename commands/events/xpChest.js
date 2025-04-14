@@ -1,6 +1,6 @@
 const Discord = require('discord.js')
 const { Client } = require('unb-api');
-const botClient = new Client('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhcHBfaWQiOiIxMzQ2ODAwMjcxNzc4NTEzNTk0IiwiaWF0IjoxNzQxMTcyNjA3fQ.7wyATLfDI2Das5RSc906ND80FD51qxAcLfbF1bv9FyM');
+const botClient = new Client(process.env.UNB_KEY);
 
 // Default chest types for new servers
 const defaultChestTypes = [

@@ -65,6 +65,11 @@
             <p>XP Chest</p>
         </div>
 
+        <div tabindex="0" category="xpSteal" class="category" title="Configure the XP Steal feature, allowing members to steal XP from others.">
+            <img src="">
+            <p>XP Steal</p>
+        </div>
+
         <div tabindex="0" category="advanced" class="category" title="Some extra advanced/experimental settings for finer customization.">
             <img src="/assets/categories/advanced.svg">
             <p>Advanced</p>
@@ -713,7 +718,6 @@
 
     </div>
 
-
     <div class="configboxes" tab="data" style="display: none">
         <div class="settingBox box fulllength" style="padding-bottom: 15px">
             <h1>Data</h1>
@@ -891,6 +895,57 @@
         </div>
     </div>
 
+    <div class="configboxes" tab="xpSteal" style="display: none">
+        <div class="settingBox box fulllength">
+            <h1>XP Steal</h1>
+            <p>Configure the XP Steal feature, allowing members to steal XP from others.</p>
+    
+            <h2>Enable XP Steal</h2>
+            <p class="details">When enabled, members can use the XP Steal feature.</p>
+            <label style="margin-top: 5px;" class="slider">
+                <input type="checkbox" tabindex="0" db="xpSteal.enabled" saveName="db">
+                <span class="sliderspan"></span>
+            </label>
+        </div>
+    
+        <div class="settingBox box">
+            <h2>Add Immune Role</h2>
+            <p class="details">Select roles that are immune to XP stealing.</p>
+    
+            <div style="margin-top:10px" class="centerflex spacedflex">
+                <select id="immuneRoleSelect"></select>
+                <button style="margin-left: 10px;" id="addImmuneRole">Add</button>
+            </div>
+    
+            <h2 style="margin-top: 50px; margin-bottom: 15px">Immune Roles (<span id="immuneRoleCount">0</span>)</h2>
+    
+            <div class="simpleflex flexTable" id="immuneRolesTable"></div>
+        </div>
+    
+        <div class="settingBox box">
+            <h2>XP Range</h2>
+            <p class="details">Set the minimum and maximum XP that can be stolen in one attempt.</p>
+            <div class="centerflex spacedflex">
+                <p>Min:</p>
+                <input type="number" tabindex="0" db="xpSteal.xpMin" saveName="db" min="0" max="10000" value="1000" style="width: 100px;">
+                <p>Max:</p>
+                <input type="number" tabindex="0" db="xpSteal.xpMax" saveName="db" min="0" max="10000" value="5000" style="width: 100px;">
+            </div>
+        </div>
+    
+        <div class="settingBox box">
+            <h2>Rank Range</h2>
+            <p class="details">Set the maximum rank difference allowed for stealing XP.</p>
+            <input type="number" tabindex="0" db="xpSteal.range" saveName="db" min="0" max="100" value="3" style="width: 100px;">
+        </div>
+    
+        <div class="settingBox box">
+            <h2>Item ID</h2>
+            <p class="details">Specify the item ID required to use the XP Steal feature.</p>
+            <input type="text" tabindex="0" db="xpSteal.itemId" saveName="db" placeholder="Enter item ID" style="width: 100%;">
+        </div>
+    </div>
+
     <div class="configboxes" tab="advanced" style="display: none">
 
         <div class="settingBox box fulllength" style="padding-bottom: 15px">
@@ -1011,6 +1066,56 @@
             right: 50,
             top: 10 ** 5.5
         }
+
+        let immuneRoles = db.xpSteal.immuneRoles || [];
+
+        // Populate immune role dropdown
+        $('#immuneRoleSelect').append("<option value='none' selected disabled>(Select role)</option>");
+        data.roles.forEach(role => {
+            const option = `<option value="${role.id}">${role.name}</option>`;
+            $('#immuneRoleSelect').append(option);
+        });
+
+        // Build immune roles table
+        function buildImmuneRolesTable() {
+            immuneRoles = immuneRoles.filter(roleObj => data.roles.some(role => role.id === roleObj.id));
+            $('#immuneRolesTable').html(`
+                <div col="role" style="width: 400px"><p><b>Role</b></p></div>
+                <div col="delete" style="width: 80px"><p><b>Delete</b></p></div>
+            `);
+
+            immuneRoles.forEach(roleObj => {
+                const role = data.roles.find(r => r.id === roleObj.id);
+                if (!role) return;
+
+                $('#immuneRolesTable div[col="role"]').append(`<p class="longname">${role.name}</p>`);
+                $('#immuneRolesTable div[col="delete"]').append(`<p class="deleteRow deleteImmuneRole" tabindex="0" roleID="${roleObj.id}">🗑️</p>`);
+            });
+
+            $('#immuneRoleCount').text(immuneRoles.length);
+            checkUnsavedChanges();
+        }
+
+        // Add new immune role
+        $('#addImmuneRole').click(function () {
+            const roleId = $('#immuneRoleSelect').val();
+            if (!data.roles.some(role => role.id === roleId) || immuneRoles.some(roleObj => roleObj.id === roleId)) return;
+
+            immuneRoles.push({ id: roleId });
+            $('#immuneRoleSelect').val('none');
+            buildImmuneRolesTable();
+        });
+
+        // Delete immune role
+        $(document).on('click', '.deleteImmuneRole', function () {
+            const roleId = $(this).attr('roleID');
+            immuneRoles = immuneRoles.filter(roleObj => roleObj.id !== roleId);
+            buildImmuneRolesTable();
+            checkUnsavedChanges(); // Ensure save button appears
+        });
+                
+        // Initialize immune roles table
+        buildImmuneRolesTable();
 
         // failsafe in case the desmos api breaks
         let desmosGraph = typeof Desmos != "undefined" ? Desmos.GraphingCalculator(document.getElementById('xpGraph'), desmosConfig) : null
@@ -1584,7 +1689,7 @@
         if (data.guild.botDev) $('.forDevs').removeAttr('disabled')
 
         generateSaveJSON = function() {
-            let settings = { rewards, "multipliers.roles": roleMultipliers, "multipliers.channels": channelMultipliers }
+            let settings = { rewards, "multipliers.roles": roleMultipliers, "multipliers.channels": channelMultipliers, "xpSteal.immuneRoles": immuneRoles }
 
             $("[saveName]:not(.inactiveSave)").each(function() {
                 let x = $(this)
