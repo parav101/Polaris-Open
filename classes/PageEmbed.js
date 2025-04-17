@@ -13,7 +13,7 @@ class PageEmbed {
         this.size = config.size || 10
         this.extraButtons = config.extraButtons || []
         this.mapFunction = config.mapFunction
-        this.timeoutSecs = config.timeoutSecs || 30
+        this.timeoutSecs = config.timeoutSecs || 60
         this.ownerID = config.owner
         this.ephemeral = config.ephemeral
 

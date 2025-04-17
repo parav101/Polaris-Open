@@ -181,7 +181,33 @@ const schema = {
     settings: settingsObj,
     info: {
         lastUpdate: { type: Number, default: 0 },
-    }
+    },
+    giveaways: [{
+        messageId: String,
+        channelId: String,
+        hostId: String,
+        baseGold: Number,
+        goldPerUser: Number,
+        maxGold: Number,
+        description: String,
+        participants: [String],
+        endTime: Number,
+        minParticipants: Number,
+        requiredLevel: Number,
+        requiredRoleId: String,
+        ended: Boolean,
+        currentGold: Number,
+        winnerId: String,
+        winnerIds: [String],
+        participantRewardPercent: Number,
+        winnerCount: Number,
+        winnerMethod: String,
+        cancelled: Boolean,
+        rerollable: { type: Boolean, default: true }, // Track if giveaway can be rerolled
+        rerollCount: { type: Number, default: 0 },   // Track how many times it's been rerolled
+        previousWinners: [[String]],                 // Track previous winners for reference
+        createdAt: Number
+    }]
 }
 
 const finalSchema = new mongoose.Schema(schema)
