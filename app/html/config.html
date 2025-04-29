@@ -70,6 +70,11 @@
             <p>XP Steal</p>
         </div>
 
+        <div tabindex="0" category="streak" class="category" title="Configure the daily streak system, milestones, and rewards.">
+            <img src="/assets/categories/fire.svg">
+            <p>Streaks</p>
+        </div>
+
         <div tabindex="0" category="advanced" class="category" title="Some extra advanced/experimental settings for finer customization.">
             <img src="/assets/categories/advanced.svg">
             <p>Advanced</p>
@@ -946,6 +951,41 @@
         </div>
     </div>
 
+    <div class="configboxes" tab="streak" style="display: none">
+        <div class="settingBox box fulllength">
+            <h1>Streak System</h1>
+            <p>Configure the daily streak system. Members can claim a streak once per day for bonus XP and milestone rewards.</p>
+
+            <h2>Enable Streaks</h2>
+            <p class="details">When enabled, members can claim a daily streak for XP and milestone roles.</p>
+            <label style="margin-top: 5px;" class="slider">
+                <input type="checkbox" tabindex="0" db="streak.enabled" saveName="db">
+                <span class="sliderspan"></span>
+            </label>
+        </div>
+
+        <div class="settingBox box fulllength">
+            <h2>XP per Claim</h2>
+            <p class="details">How much XP is awarded for each daily streak claim.</p>
+            <input id="streakXpPerClaim" type="number" min="0" max="10000" default="100" db="streak.xpPerClaim" saveName="db" style="width: 120px">
+        </div>
+
+        <div class="settingBox box fulllength">
+            <h2>Streak Milestones</h2>
+            <p class="details">Automatically grant roles to members when they reach a certain streak count.</p>
+            <div class="centerflex spacedflex" style="margin-top:10px">
+                <p>Role</p>
+                <select id="streakMilestoneRoleSelect"></select>
+                <p>at</p>
+                <input id="streakMilestoneDays" type="number" min="1" max="1000" style="width: 90px">
+                <p>days</p>
+                <button id="addStreakMilestone" style="margin-left: 10px;">Add</button>
+            </div>
+            <h2 style="margin-top: 30px; margin-bottom: 15px">Current milestones (<span id="streakMilestoneCount">0</span>)</h2>
+            <div class="simpleflex flexTable" id="streakMilestones"></div>
+        </div>
+    </div>
+
     <div class="configboxes" tab="advanced" style="display: none">
 
         <div class="settingBox box fulllength" style="padding-bottom: 15px">
@@ -1398,7 +1438,7 @@
             return roleSelect.append(option)
         }
 
-        // role selectors
+        // Populate role selectors
         data.roles.forEach(x => {
             let roleOption = $(`<option value="${x.id}">${x.name}</option>`)
             roleOption.css("color", x.color == "#000000" ? "var(--defaultrolecol)" : x.color)
@@ -1560,6 +1600,66 @@
             checkUnsavedChanges()
         }
 
+        let streakMilestones = db.streak.milestones || [];
+
+        // Populate streak milestone role dropdown
+        $('#streakMilestoneRoleSelect').append("<option value='none' selected disabled>(Select role)</option>");
+        data.roles.forEach(role => {
+            const option = `<option value="${role.id}">${role.name}</option>`;
+            $('#streakMilestoneRoleSelect').append(option);
+        });
+
+        // Build streak milestones table
+        function buildStreakMilestonesTable() {
+            streakMilestones = streakMilestones.filter(m => data.roles.some(role => role.id === m.roleId));
+            $('#streakMilestones').html(`
+                <div col="days" style="width: 100px"><p><b>Days</b></p></div>
+                <div col="role" style="width: 400px"><p><b>Role</b></p></div>
+                <div col="delete" style="width: 80px"><p><b>Delete</b></p></div>
+            `);
+
+            streakMilestones.forEach(milestone => {
+                const role = data.roles.find(r => r.id === milestone.roleId);
+                if (!role) return;
+                $('#streakMilestones div[col="days"]').append(`<p class="streakMilestoneDays numberinput" tabindex="-1" roleID="${milestone.roleId}" min="1" max="1000" default="1" contenteditable>${milestone.days}</p>`);
+                $('#streakMilestones div[col="role"]').append(`<p class="longname">${role.name}</p>`);
+                $('#streakMilestones div[col="delete"]').append(`<p class="deleteRow deleteStreakMilestone" tabindex="0" roleID="${milestone.roleId}">🗑️</p>`);
+            });
+
+            $('#streakMilestoneCount').text(streakMilestones.length);
+            checkUnsavedChanges();
+        }
+
+        // Add new streak milestone
+        $('#addStreakMilestone').click(function () {
+            const roleId = $('#streakMilestoneRoleSelect').val();
+            const days = Math.round($('#streakMilestoneDays').val());
+            if (!data.roles.some(role => role.id === roleId) || streakMilestones.some(m => m.roleId === roleId) || !days || days < 1 || days > 1000) return;
+            streakMilestones.push({ roleId, days });
+            $('#streakMilestoneRoleSelect').val('none');
+            buildStreakMilestonesTable();
+        });
+
+        // Delete streak milestone
+        $(document).on('click', '.deleteStreakMilestone', function () {
+            const roleId = $(this).attr('roleID');
+            streakMilestones = streakMilestones.filter(m => m.roleId !== roleId);
+            buildStreakMilestonesTable();
+            checkUnsavedChanges();
+        });
+
+        // Edit milestone days
+        $(document).on('blur', '.streakMilestoneDays', function () {
+            const roleId = $(this).attr('roleID');
+            const milestone = streakMilestones.find(m => m.roleId === roleId);
+            const newVal = Math.round($(this).text());
+            if (milestone && newVal > 0 && newVal <= 1000) milestone.days = newVal;
+            buildStreakMilestonesTable();
+        });
+
+        // Initialize streak milestones table
+        buildStreakMilestonesTable();
+
         // add new multiplier channel
         $('#addChannelMultiplier').click(function() {
             let channelID = $('#channelMultiplierSelect').val()
@@ -1689,7 +1789,7 @@
         if (data.guild.botDev) $('.forDevs').removeAttr('disabled')
 
         generateSaveJSON = function() {
-            let settings = { rewards, "multipliers.roles": roleMultipliers, "multipliers.channels": channelMultipliers, "xpSteal.immuneRoles": immuneRoles }
+            let settings = { rewards, "multipliers.roles": roleMultipliers, "multipliers.channels": channelMultipliers, "xpSteal.immuneRoles": immuneRoles, "streak.milestones": streakMilestones, "chestDrops.channelId": $('#chestDropChannelSelect').val(), "levelUp.channel": $("#lvlMessageSelect").val(), "levelUp.enabled": db.levelUp.enabled, "levelUp.message": db.levelUp.message, "levelUp.embed": db.levelUp.embed, "rankCard.disabled": db.rankCard.disabled, "rankCard.ephemeral": db.rankCard.ephemeral, "rankCard.embedColor": db.rankCard.embedColor, "leaderboard.disabled": db.leaderboard.disabled, "leaderboard.private": db.leaderboard.private, "leaderboard.maxEntries": db.leaderboard.maxEntries, "leaderboard.embedColor": db.leaderboard.embedColor }
 
             $("[saveName]:not(.inactiveSave)").each(function() {
                 let x = $(this)

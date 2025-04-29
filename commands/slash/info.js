@@ -81,6 +81,16 @@ async run(client, int, tools) {
     let memberAvatar = member.displayAvatarURL()
     let memberColor = cardCol || member.displayColor || await member.user.fetch().then(x => x.accentColor)
     
+    // Prepare streak info for footer if enabled
+    let streakFooter = "";
+    if (db.settings.streak?.enabled) {
+        if (!db.users[member.id].streak) {
+            db.users[member.id].streak = { count: 0, lastClaim: 0, highest: 0 };
+        }
+        const userStreak = db.users[member.id].streak;
+        streakFooter = `🔥 Streak: ${tools.commafy(userStreak.count)} | 🏆 Highest: ${tools.commafy(userStreak.highest || userStreak.count)}`;
+    }
+
     // Create the new embed format
     let embed = tools.createEmbed({
         author: { 
@@ -92,26 +102,14 @@ async run(client, int, tools) {
         color: memberColor,
         fields: [
             { name: `Level: ${levelData.level}`, value: "\u200b", inline: true },
-            { name: `Rank: #${rank}`, value: "\u200b", inline: true },
+            { name: `Rank: # ${rank}`, value: "\u200b", inline: true },
             { name: `Progress: ${Number(levelPercent.toFixed(0))}%`, value: "\u200b", inline: true },
         ],
         footer: {
-            text: getRandomTip(), 
+            text: streakFooter,
             iconURL: "https://cdn3.emoji.gg/emojis/9385-sparkles-pinkpastel.gif"
         }
     })
-    
-    // Function to get a random tip to display in the footer
-    function getRandomTip() {
-        const tips = [
-            "✨ Use XP boost to level up faster ✨",
-            "✨ You get XP for being in voice channels ✨",
-            "✨ You get XP after each minute for messaging ✨",
-            "✨ Stay active to climb the ranks ✨",
-            "✨ Check your rank regularly to track progress ✨"
-        ];
-        return tips[Math.floor(Math.random() * tips.length)];
-    }
     
     // Add XP Boost field
     if (multiplier !== 1 && !db.settings.hideMultipliers) {
@@ -123,22 +121,20 @@ async run(client, int, tools) {
     } else {
         embed.addFields([{ name: "XP Boost: 100%", value: "\u200b", inline: true }])
     }
-    
     // Add rival field
     if (rivalUser) {
         embed.addFields([{
-            name: "Your Rival",
+            name: "Your Rival:",
             value: `<@${rivalUser.id}>`,
             inline: true
         }])
     } else {
         embed.addFields([{
-            name: "Your Rival",
+            name: "Your Rival:",
             value: "You're at the top!",
             inline: true
         }])
     }
-    
     // Add XP required to beat rival
     embed.addFields([{
         name: `XP req: ${rivalXpDiff > 0 ? tools.commafy(rivalXpDiff, true) : '0'}`,

@@ -128,6 +128,15 @@ const settings = {
         immuneRoles: { type: "collection", values: {
             id: { type: "string", accept: ["discord:role"] },
         }, default: [] }
+    },
+
+    streak: {
+        enabled: { type: "bool", default: false },
+        xpPerClaim: { type: "int", default: 100, min: 0, max: 10000 },
+        milestones: { type: "collection", values: {
+            days: { type: "int", min: 1, max: 1000 },
+            roleId: { type: "string", accept: ["discord:role"] }
+        }, default: [] }
     }
 }
 

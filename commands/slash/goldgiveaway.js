@@ -57,7 +57,8 @@ module.exports = {
             { type: "integer", name: "min_participants", description: "Minimum participants required", required: false, min: 1, max: 1000 },
             { type: "integer", name: "required_level", description: "Minimum level required to enter", required: false, min: 1, max: 1000 },
             { type: "role", name: "required_role", description: "Role required to enter the giveaway", required: false },
-            { type: "integer", name: "winners", description: "Number of winners (default: 1)", required: false, min: 1, max: 10 }
+            { type: "integer", name: "winners", description: "Number of winners (default: 1)", required: false, min: 1, max: 10 },
+            { type: "string", name: "required_rank", description: "Required rank to enter (optional)", required: false } // <-- added
         ]
     },
 
@@ -78,6 +79,7 @@ module.exports = {
         const requiredLevel = int.options.getInteger('required_level') || 0;
         const requiredRole = int.options.getRole('required_role');
         const winners = int.options.getInteger('winners') || 1;
+        const requiredRank = int.options.getString('required_rank'); // <-- added
 
         // Parse duration
         const durationMs = parseDuration(durationString);
@@ -120,6 +122,7 @@ module.exports = {
             minParticipants: minParticipants,
             requiredLevel: requiredLevel,
             requiredRoleId: requiredRole?.id,
+            requiredRank: requiredRank, // <-- added
             ended: false,
             currentGold: baseGold,
             winnerId: null,
@@ -250,7 +253,7 @@ module.exports = {
  * Creates an embed for the giveaway
  */
 async function createGiveawayEmbed(giveawayData, int, tools) {
-    const { baseGold, goldPerUser, maxGold, description, participants, endTime, minParticipants, requiredLevel, requiredRoleId, participantRewardPercent, winnerCount } = giveawayData;
+    const { baseGold, goldPerUser, maxGold, description, participants, endTime, minParticipants, requiredLevel, requiredRoleId, participantRewardPercent, winnerCount, requiredRank } = giveawayData;
 
     // Calculate current gold amount
     let currentGold = baseGold + (participants.length * goldPerUser);
@@ -275,6 +278,9 @@ async function createGiveawayEmbed(giveawayData, int, tools) {
     }
     if (requiredRoleId) {
         requirementsText.push(`• <@&${requiredRoleId}> role required`);
+    }
+    if (requiredRank) {
+        requirementsText.push(`• Rank "${requiredRank}" required`);
     }
 
     // Choose a random tip
@@ -688,6 +694,32 @@ async function handleGiveawayEnter(client, int, tools, giveawayData) {
         }
     }
 
+    // Check rank requirement if any
+    if (giveawayData.requiredRank) {
+        try {
+            // Use tools.getRank which returns a numerical rank position
+            const userRankPosition = await tools.getRank(int.user.id, giveawayData.users);
+            
+            // Parse the required rank as a number (assuming it's stored as a string like "1", "2", etc.)
+            const requiredRankPosition = parseInt(giveawayData.requiredRank);
+            
+            if (isNaN(requiredRankPosition) || userRankPosition > requiredRankPosition) {
+                if (!int.replied && !int.deferred) await int.reply({
+                    content: `You need to be at least rank ${giveawayData.requiredRank} to enter this giveaway! Your current rank is ${userRankPosition}.`,
+                    ephemeral: true
+                });
+                return;
+            }
+        } catch (error) {
+            console.error("Error checking user rank:", error);
+            if (!int.replied && !int.deferred) await int.reply({
+                content: "There was an error checking your rank. Please try again later.",
+                ephemeral: true
+            });
+            return;
+        }
+    }
+
     // Add user to participants
     giveawayData.participants.push(int.user.id);
 
@@ -755,10 +787,13 @@ async function handleGiveawayParticipants(client, int, tools, giveawayData) {
  * Handles cancelling a giveaway
  */
 async function handleGiveawayCancel(client, int, tools, giveawayData) {
-    // Check if user is the host or has proper permissions
-    if (int.user.id !== giveawayData.hostId && !tools.canManageServer(int.member, false) && !tools.isDev()) {
+    const isHost = int.user.id === giveawayData.hostId;
+    const isMod = tools.canManageServer(int.member, false);
+    const isDev = tools.isDev(int.user);
+
+    if (!(isHost || isMod || isDev)) {
         if (!int.replied && !int.deferred) await int.reply({
-            content: "Only the giveaway host or server moderators can cancel this giveaway!",
+            content: "Only the giveaway host or server admins can cancel this giveaway!",
             ephemeral: true
         });
         return;
@@ -770,10 +805,10 @@ async function handleGiveawayCancel(client, int, tools, giveawayData) {
 
     try {
         const channel = await client.channels.fetch(giveawayData.channelId);
-        if (!channel) return;
+        if (!channel) { return; }
 
         const message = await channel.messages.fetch(giveawayData.messageId);
-        if (!message) return;
+        if (!message) { return; }
 
         // Update the embed
         const embed = Discord.EmbedBuilder.from(message.embeds[0])
