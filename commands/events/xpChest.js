@@ -50,28 +50,32 @@ function shouldDropChest(channel, settings, activity) {
 }
 
 async function handleChestClaim(user, chest, db, tools, guildId) {
-    let userData = db.users[user.id] || { xp: 0 };
-    const xpChange = Math.floor(Math.random() * (chest.xpMax - chest.xpMin + 1)) + chest.xpMin;
-
-    const balance = await botClient.getUserBalance(guildId, user.id);
-
-    if (xpChange > 0 && balance.total < xpChange) {
-        // User doesn't have enough gold to claim the full XP
-        const partialXp = Math.floor(xpChange / 10); // Grant XP proportional to available gold
-        userData.xp = Math.max(0, userData.xp + partialXp);
+    let userData = db.users[user.id] || { streak: { count: 0 }, gold: 0 };
+    // Require at least 1 streak to claim
+    if (!userData.streak || userData.streak.count < 1) {
         return {
-            xp: partialXp,
-            message: `You doesn't have (${tools.commafy(xpChange)}) gold to claim all the XP! You only got ${tools.commafy(partialXp)} XP for free!`
+            gold: 0,
+            message: `You need at least 1 daily streak to claim a chest! Use /streak to start your streak.`,
+            notEligible: true
         };
     }
-
-    // User has enough gold or XP change is negative
-    userData.xp = Math.max(0, userData.xp + xpChange);
+    // If user has more than 100k gold, do not give more gold
+    const balance = await botClient.getUserBalance(guildId, user.id);
+    if(balance.total > 200000) {
+        return {
+            gold: 0,
+            message: `You have too much gold! You can't claim more.`,
+            notEligible: true
+        };
+    }
+    // Gold reward logic (positive for all except Mimic)
+    const goldChange = Math.floor(Math.random() * (chest.xpMax - chest.xpMin + 1)) + chest.xpMin;
+    // Add gold to user (negative for Mimic)
     return {
-        xp: xpChange,
-        message: xpChange >= 0
-            ? `You gained ${tools.commafy(xpChange)} XP costing you the same amount of gold!`
-            : `You were tricked by a Mimic! Lost ${tools.commafy(Math.abs(xpChange))} gold & XP!`
+        gold: goldChange,
+        message: goldChange >= 0
+            ? `You gained ${tools.commafy(goldChange)} gold!`
+            : `You were tricked by a Mimic! Lost ${tools.commafy(Math.abs(goldChange))} gold!`
     };
 }
 
@@ -144,17 +148,15 @@ module.exports = {
             });
 
             collector.on('collect', async (reaction, user) => {
-                const result = await handleChestClaim(user, selectedChest, db, tools,message.guild.id);
-                
-                await client.db.update(message.guild.id, { 
-                    $set: { [`users.${user.id}`]: db.users[user.id] }
-                }).exec();
-                if (result.xp > 0) {
-                    await botClient.editUserBalance(message.guild.id, user.id, { bank:-result.xp });
-                } else {
-                    await botClient.editUserBalance(message.guild.id, user.id, { bank: result.xp});
+                const result = await handleChestClaim(user, selectedChest, db, tools, message.guild.id);
+                if (result.notEligible) {
+                    chestMsg.reply({ content: `${user}, ${result.message}` });
+                    return;
                 }
-
+                // Update user gold balance
+                if (result.gold !== 0) {
+                    await botClient.editUserBalance(message.guild.id, user.id, { cash: result.gold });
+                }
                 switch (selectedChest.type) {
                     case "Mimic":
                         chestMsg.edit({
