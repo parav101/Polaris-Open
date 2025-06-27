@@ -22,102 +22,38 @@ module.exports = {
         if (!db) return tools.warn("*noData");
         if (!db.settings.streak?.enabled) return tools.warn("Streak system is not enabled on this server.");
 
-        // fetch user streak data
-        if (!db.users[member.id]) db.users[member.id] = {};
-        if (!db.users[member.id].streak) {
-            db.users[member.id].streak = { count: 0, lastClaim: 0, highest: 0 };
-        }
+        // Update streak based on activity (this will also handle XP and milestones)
+        await tools.updateStreak(member, db, client);
+
+        // Re-fetch user streak data after update
+        db = await tools.fetchSettings(member.id);
         const userStreak = db.users[member.id].streak;
 
-        // streak info
-        const now = Date.now();
-
-        // Calculate current UTC day (YYYY-MM-DD)
-        function getUTCDateString(ts) {
-            const d = new Date(ts);
-            return d.getUTCFullYear() + '-' +
-                String(d.getUTCMonth() + 1).padStart(2, '0') + '-' +
-                String(d.getUTCDate()).padStart(2, '0');
-        }
-        const todayUTC = getUTCDateString(now);
-        const lastClaimUTC = userStreak.lastClaim ? getUTCDateString(userStreak.lastClaim) : null;
-
-        const canClaim = todayUTC !== lastClaimUTC;
         // Calculate next UTC midnight for time left
+        const now = Date.now();
         const nextUTCMidnight = (() => {
             const d = new Date(now);
             d.setUTCHours(24, 0, 0, 0);
             return d.getTime();
         })();
-        const timeLeft = nextUTCMidnight - now;
+        const nextClaimUnix = Math.floor(nextUTCMidnight / 1000);
 
-        let claimMsg = "";
-        let xp = db.settings.streak.xpPerClaim || 0;
-        let milestoneMsg = "";
+        let claimMsg = `Your streak has been updated!`;
+        if (userStreak.lastClaim && (now - userStreak.lastClaim) < ms('24h')) { // Check if claimed recently
+            claimMsg = `⏳ You already updated your streak today!\nNext update: <t:${nextClaimUnix}:R>`;
+        } else {
+            // This part might not be strictly necessary if updateStreak handles all logic,
+            // but it ensures the message reflects the outcome of the update.
+            let xp = db.settings.streak.xpPerClaim || 0;
+            let multiplierData = tools.getMultiplier(member, db.settings);
+            let multiplier = multiplierData.multiplier || 1;
+            let xpWithMultiplier = Math.round(xp * multiplier);
 
-        // Get multiplier for this member (same as message.js/info.js)
-        let multiplierData = tools.getMultiplier(member, db.settings);
-        let multiplier = multiplierData.multiplier || 1;
-        let xpWithMultiplier = Math.round(xp * multiplier);
-
-        
-        if (canClaim) {
-            // Claimed
-            // If last claim was yesterday (by UTC), increment streak, else reset to 1
-            let yesterdayUTC = (() => {
-                const d = new Date(now);
-                d.setUTCDate(d.getUTCDate() - 1);
-                return getUTCDateString(d.getTime());
-            })();
-            if (lastClaimUTC === yesterdayUTC && userStreak.lastClaim) {
-                userStreak.count += 1;
-            } else {
-                userStreak.count = 1;
-            }
-            userStreak.lastClaim = now;
-            if (userStreak.count > (userStreak.highest || 0)) userStreak.highest = userStreak.count;
-
-            // Give XP with multiplier
-            if (!db.users[member.id].xp) db.users[member.id].xp = 0;
-            db.users[member.id].xp += xpWithMultiplier;
-
-            // Update user XP in database
-            await client.db.update(int.guild.id, {
-                $set: { [`users.${member.id}.xp`]: db.users[member.id].xp }
-            }).exec();
-
-            // Check milestones
-            const milestones = db.settings.streak.milestones || [];
-            for (const msObj of milestones) {
-                if (msObj.days === userStreak.count && msObj.roleId) {
-                    const guildMember = await int.guild.members.fetch(member.id).catch(() => null);
-                    if (guildMember && !guildMember.roles.cache.has(msObj.roleId)) {
-                        // Remove any previous milestone roles before adding the new one
-                        const prevRoles = milestones
-                            .filter(m => m.roleId && m.roleId !== msObj.roleId && guildMember.roles.cache.has(m.roleId))
-                            .map(m => m.roleId);
-                        if (prevRoles.length) {
-                            await guildMember.roles.remove(prevRoles).catch(() => {});
-                        }
-                        await guildMember.roles.add(msObj.roleId).catch(() => {});
-                        milestoneMsg = `\nYou reached a streak of **${msObj.days}** days and earned a special role!`;
-                    }
-                }
-            }
-
-            // Save changes
-            await client.db.update(int.guild.id, { $set: { [`users.${member.id}`]: db.users[member.id] } }).exec();
-
-            // Show multiplier in claim message if > 1
             let multiplierMsg = (multiplier !== 1 && !db.settings.hideMultipliers)
                 ? `\nXP Boost: **${multiplier * 100}%**`
                 : "";
-
-            claimMsg = `✅ You claimed your daily streak!\nYou earned **${tools.commafy(xpWithMultiplier)} XP**.${multiplierMsg}${milestoneMsg}`;
-        } else {
-            // Use Discord dynamic timestamp for next claim
-            const nextClaimUnix = Math.floor(nextUTCMidnight / 1000);
-            claimMsg = `⏳ You already claimed your streak today!\nNext claim: <t:${nextClaimUnix}:R>`;
+            
+            claimMsg = `✅ Your streak has been updated!\nYou earned **${tools.commafy(xpWithMultiplier)} XP**.${multiplierMsg}`;
         }
 
         let streakFields = [

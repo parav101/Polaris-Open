@@ -500,6 +500,96 @@ class Tools {
             }
         }
 
+        // Function to update user streak based on activity
+        this.updateStreak = async function(member, db, client, channel = null) {
+            const now = Date.now();
+            const settings = db.settings.streak;
+            if (!settings?.enabled) return;
+
+            let userData = db.users[member.id] || {};
+            let userStreak = userData.streak || { count: 0, highest: 0, lastClaim: 0, milestoneRoles: [] };
+
+            const lastClaimDate = new Date(userStreak.lastClaim);
+            const today = new Date(now);
+
+            const isSameDay = lastClaimDate.getUTCFullYear() === today.getUTCFullYear() &&
+                            lastClaimDate.getUTCMonth() === today.getUTCMonth() &&
+                            lastClaimDate.getUTCDate() === today.getUTCDate();
+
+            if (isSameDay) return; // Already updated today
+
+            const yesterday = new Date(now);
+            yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+
+            const isConsecutive = lastClaimDate.getUTCFullYear() === yesterday.getUTCFullYear() &&
+                                lastClaimDate.getUTCMonth() === yesterday.getUTCMonth() &&
+                                lastClaimDate.getUTCDate() === yesterday.getUTCDate();
+
+            if (userStreak.lastClaim && !isConsecutive && now - userStreak.lastClaim > (48 * 60 * 60 * 1000)) {
+                // Streak lost, remove milestone roles
+                if (userStreak.milestoneRoles && userStreak.milestoneRoles.length > 0) {
+                    try {
+                        await member.roles.remove(userStreak.milestoneRoles);
+                    } catch (error) {
+                        console.error(`Failed to remove milestone roles for ${member.user.tag}:`, error);
+                    }
+                }
+                userStreak.count = 1; // Reset to 1 for today's activity
+                userStreak.milestoneRoles = [];
+            } else if (!userStreak.lastClaim || isConsecutive) {
+                userStreak.count++;
+            } else {
+                // Streak lost (not consecutive but less than 48 hours)
+                if (userStreak.milestoneRoles && userStreak.milestoneRoles.length > 0) {
+                    try {
+                        await member.roles.remove(userStreak.milestoneRoles);
+                    } catch (error) {
+                        console.error(`Failed to remove milestone roles for ${member.user.tag}:`, error);
+                    }
+                }
+                userStreak.count = 1;
+                userStreak.milestoneRoles = [];
+            }
+
+            userStreak.lastClaim = now;
+            if (userStreak.count > userStreak.highest) {
+                userStreak.highest = userStreak.count;
+            }
+
+            // Add XP for streak
+            let xp = settings.xpPerClaim || 0;
+            if (xp > 0) {
+                let multiplierData = this.getMultiplier(member, db.settings, channel);
+                let multiplier = multiplierData.multiplier || 1;
+                let xpWithMultiplier = Math.round(xp * multiplier);
+                if (!userData.xp) userData.xp = 0;
+                userData.xp += xpWithMultiplier;
+            }
+
+            // Check for milestones
+            const milestones = settings.milestones || [];
+            if (milestones.length > 0) {
+                const reachedMilestone = milestones.find(m => m.days === userStreak.count);
+                if (reachedMilestone && reachedMilestone.roleId) {
+                    try {
+                        const role = await member.guild.roles.fetch(reachedMilestone.roleId);
+                        if (role) {
+                            await member.roles.add(role);
+                            if (!userStreak.milestoneRoles) {
+                                userStreak.milestoneRoles = [];
+                            }
+                            userStreak.milestoneRoles.push(role.id);
+                        }
+                    } catch (error) {
+                        console.error(`Failed to add milestone role for ${member.user.tag}:`, error);
+                    }
+                }
+            }
+
+            db.users[member.id] = { ...userData, streak: userStreak };
+            await client.db.update(member.guild.id, { $set: { [`users.${member.id}`]: db.users[member.id] } }).exec();
+        }
+
         // get setting from an id, e.g. "levelUp.multiple"
         this.getSettingFromID = function(id, settings) {
             let val = settings

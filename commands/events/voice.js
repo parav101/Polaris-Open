@@ -77,6 +77,8 @@ module.exports = {
         if (joinedVoice || movedChannel) {
             userData.voiceTime = Date.now()
             client.db.update(guildId, { $set: { [`users.${userId}`]: userData } }).exec()
+            // Update user streak based on voice activity
+            await tools.updateStreak(newState.member, db, client, newState.channel);
         }
     }
 }
