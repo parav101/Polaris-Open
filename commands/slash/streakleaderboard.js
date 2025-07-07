@@ -33,7 +33,14 @@ async run(client, int, tools) {
         currentStreak: user.streak.count || 0,
         highestStreak: user.streak.highest || user.streak.count || 0,
         lastClaim: user.streak.lastClaim || 0
-    }))
+    })).filter(user => {
+        // For current streaks, exclude users who haven't claimed in more than 1 day
+        if (streakType === "current" && user.lastClaim) {
+            let daysSinceLastClaim = Math.floor((Date.now() - user.lastClaim) / (24 * 60 * 60 * 1000))
+            return daysSinceLastClaim <= 1
+        }
+        return true // For highest streaks or users without lastClaim data, include them
+    })
 
     // Sort by the selected streak type
     if (streakType === "highest") {
