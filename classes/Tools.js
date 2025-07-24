@@ -483,9 +483,31 @@ class Tools {
         }
 
         // sends an ephemeral reply, usually when the user did something wrong
-        this.warn = function(msg) {
+        this.warn = async function(msg) {
             if (msg.startsWith("*")) msg = this.errors[msg.slice(1)] || msg
-            return int.reply({content: this.errors[msg] || msg, ephemeral: true})
+            return this.safeReply({content: this.errors[msg] || msg, ephemeral: true})
+        }
+
+        // safely reply to an interaction, handling timeouts and errors
+        this.safeReply = async function(data) {
+            try {
+                // If already replied or deferred, use followUp instead
+                if (int.replied) {
+                    return await int.followUp(data);
+                } else if (int.deferred) {
+                    return await int.editReply(data);
+                } else {
+                    return await int.reply(data);
+                }
+            } catch (error) {
+                // If the interaction has timed out, we can't reply anymore
+                if (error.code === 10062) {
+                    console.warn(`Interaction timed out for user ${int.user.tag} (${int.user.id})`);
+                    return null;
+                }
+                // Re-throw other errors
+                throw error;
+            }
         }
 
         // get detailed position info on a channel, for sorting

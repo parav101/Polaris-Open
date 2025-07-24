@@ -97,7 +97,7 @@ async run(client, int, tools) {
                 data.setContexts([0])
                 if (metadata.dev) data.setDefaultMemberPermissions(0)
                 else if (metadata.permission) data.setDefaultMemberPermissions(Discord.PermissionFlagsBits[metadata.permission])
-                if (metadata.description) data.setDescription(metadata.description)
+                data.setDescription(metadata.description || "No description provided")
                 if (metadata.args) metadata.args.forEach(arg => {
                     return createSlashArg(data, arg)
                 })

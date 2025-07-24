@@ -26,6 +26,7 @@ async run(client, int, tools, selected) {
     // displays the preview value for a setting
     function previewSetting(val, data, schema) {
         if (data.zeroText && val === 0) return data.zeroText
+        if (!schema) return "Unknown"
         switch(schema.type) {
             case "bool": return (data.invert ? !val : val) ? "__True__" : "False";
             case "int": return tools.commafy(val);

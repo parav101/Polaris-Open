@@ -138,6 +138,17 @@ const settings = {
             roleId: { type: "string", accept: ["discord:role"] }
         }, default: [] }
     }
+,
+    
+    confession: {
+        enabled: { type: "bool", default: false },
+        channelId: { type: "string", accept: ["discord:channel"] },
+        anonymous: { type: "bool", default: true },
+        cooldown: { type: "int", default: 300, min: 0, max: 86400 },
+        logChannelId: { type: "string", accept: ["discord:channel"] },
+        maxLength: { type: "int", default: 2000, min: 1, max: 4000 },
+        allowImages: { type: "bool", default: false }
+    }
 }
 
 const settingsArray = []

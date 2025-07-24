@@ -4,7 +4,8 @@
         { "groupName": "Quick settings" },
         { "emoji": "✨", "name": "General", "folder": "general" },
         { "emoji": "🎁", "name": "Levelling", "folder": "level" },
-        { "emoji": "📊", "name": "Rank and Leaderboard", "folder": "rank" }
+        { "emoji": "📊", "name": "Rank and Leaderboard", "folder": "rank" },
+        { "emoji": "🤫", "name": "Confessions", "folder": "confession" }
     ],
 
     "general": [
@@ -41,5 +42,16 @@
         { "db": "leaderboard.ephemeral", "name": "Hide /leaderboard messages", "desc": "Forces /leaderboard messages to be ephemeral, meaning only the member who typed the commmand can see it" },
         { "db": "leaderboard.minLevel", "name": "Minimum leaderboard level", "desc": "Restricts the leaderboard to only show members above this level", "tip": "Set to 0 to disable", "zeroText": "None" },
         { "db": "leaderboard.maxEntries", "name": "Max leaderboard entries", "desc": "Only shows the top X members on the leaderboard", "tip": "Set to 0 to display everyone", "zeroText": "Unlimited" }
+    ],
+
+    "confession": [
+        { "emoji": "⬅️", "name": "Back", "folder": "home", "groupName": "Confession settings" },
+        { "db": "confession.enabled", "name": "Enable Confessions", "desc": "Allows members to make anonymous confessions" },
+        { "db": "confession.channelId", "name": "Confession Channel", "desc": "Channel where confessions will be posted" },
+        { "db": "confession.anonymous", "name": "Anonymous Confessions", "desc": "Hide the identity of confessors" },
+        { "db": "confession.cooldown", "name": "Confession Cooldown", "desc": "Time between confessions (seconds)", "str": "# seconds" },
+        { "db": "confession.maxLength", "name": "Max Confession Length", "desc": "Maximum characters per confession", "str": "# characters" },
+        { "db": "confession.allowImages", "name": "Allow Images", "desc": "Allow images in confessions" },
+        { "db": "confession.logChannelId", "name": "Log Channel", "desc": "Channel to log confessions for moderation" }
     ]
 }

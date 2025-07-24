@@ -95,7 +95,7 @@ client.on("messageCreate", async message => {
     else if (!message.guild || !message.member) return // dm stuff
     else {
         client.commands.get("message").run(client, message, client.globalTools)
-        client.commands.get("xpChest").run(client, message, client.globalTools)
+        // client.commands.get("xpChest").run(client, message, client.globalTools)
         client.commands.get("guildMemberNicknameRank").run(client, message, client.globalTools)
     }
 })
@@ -116,7 +116,14 @@ client.on("interactionCreate", async int => {
         if (int.customId.startsWith("configmenu_")) {
             if (int.customId.split("_")[1] != int.user.id) return int.deferUpdate()
             let configData = int.values[0].split("_").slice(1)
-            let configCmd = (configData[0] == "dir" ? "button:settings_list" : "button:settings_view")
+            let configCmd;
+            if (configData[0] == "dir") {
+                configCmd = "button:settings_list";
+            } else if (configData[1] === "confession" && configData[2] === "confession") {
+                configCmd = "button:settings_view_confession";
+            } else {
+                configCmd = "button:settings_view";
+            }
             client.commands.get(configCmd).run(client, int, new Tools(client, int), configData)
         }
         return;
@@ -127,7 +134,21 @@ client.on("interactionCreate", async int => {
         if (int.customId.startsWith("configmodal")) {
             let modalData = int.customId.split("~")
             if (modalData[2] != int.user.id) return int.deferUpdate()
-            client.commands.get("button:settings_edit").run(client, int, new Tools(client, int), modalData[1])
+            let settingId = modalData[1];
+            let configCmd = settingId.startsWith("confession.") ? "button:settings_edit_confession" : "button:settings_edit";
+            client.commands.get(configCmd).run(client, int, new Tools(client, int), settingId)
+        }
+        // Handle confession modal
+        else if (int.customId.startsWith("confession-modal")) {
+            let modalData = int.customId.split("~")
+            if (modalData[1] != int.user.id) return int.deferUpdate()
+            client.commands.get("confession_submit").run(client, int, new Tools(client, int))
+        }
+        // Handle confession settings modal
+        else if (int.customId.startsWith("confession_modal")) {
+            let modalData = int.customId.split("~").slice(1)
+            if (modalData[1] != int.user.id) return int.deferUpdate()
+            client.commands.get("confession_modal").run(client, int, new Tools(client, int), modalData)
         }
         return;
     }
@@ -144,7 +165,24 @@ client.on("interactionCreate", async int => {
     else if (config.lockBotToDevOnly && !tools.isDev()) return tools.warn("Only developers can use this bot!")
 
     try { await foundCommand.run(client, int, tools) }
-    catch(e) { console.error(e); int.reply({ content: "**Error!** " + e.message, ephemeral: true }) }
+    catch(e) {
+        console.error(e);
+        try {
+            // Use safe reply to handle timeout errors
+            if (!int.replied && !int.deferred) {
+                await int.reply({ content: "**Error!** " + e.message, ephemeral: true });
+            } else if (int.deferred) {
+                await int.editReply({ content: "**Error!** " + e.message, ephemeral: true });
+            } else {
+                await int.followUp({ content: "**Error!** " + e.message, ephemeral: true });
+            }
+        } catch (replyError) {
+            // If the interaction has timed out, we can't reply anymore
+            if (replyError.code !== 10062) {
+                console.error("Failed to send error message:", replyError);
+            }
+        }
+    }
 })
 
 // Add guildMemberRemove event handler
