@@ -523,88 +523,101 @@ class Tools {
         }
 
         // Function to update user streak based on activity
-        this.updateStreak = async function(member, db, client, channel = null) {
-            const now = Date.now();
+        this.updateStreak = async function(member, db, client, channel = null, message) {
+            const now = new Date();
             const settings = db.settings.streak;
             if (!settings?.enabled) return;
 
-            let userData = db.users[member.id] || {};
-            let userStreak = userData.streak || { count: 0, highest: 0, lastClaim: 0, milestoneRoles: [] };
+            const userData = db.users[member.id] || {};
+            const userStreak = {
+                count: 0,
+                highest: 0,
+                lastClaim: 0,
+                milestoneRoles: [],
+                ...userData.streak
+            };
 
-            const lastClaimDate = new Date(userStreak.lastClaim);
-            const today = new Date(now);
+            const hasClaimedToday = () => {
+                if (!userStreak.lastClaim) return false;
+                const lastClaimDate = new Date(userStreak.lastClaim);
+                return lastClaimDate.getUTCFullYear() === now.getUTCFullYear() &&
+                    lastClaimDate.getUTCMonth() === now.getUTCMonth() &&
+                    lastClaimDate.getUTCDate() === now.getUTCDate();
+            };
 
-            const isSameDay = lastClaimDate.getUTCFullYear() === today.getUTCFullYear() &&
-                            lastClaimDate.getUTCMonth() === today.getUTCMonth() &&
-                            lastClaimDate.getUTCDate() === today.getUTCDate();
+            if (hasClaimedToday()) return; // Already updated today
 
-            if (isSameDay) return; // Already updated today
+            const wasConsecutive = () => {
+                if (!userStreak.lastClaim) return false;
+                const yesterday = new Date(now);
+                yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+                const lastClaimDate = new Date(userStreak.lastClaim);
+                return lastClaimDate.getUTCFullYear() === yesterday.getUTCFullYear() &&
+                    lastClaimDate.getUTCMonth() === yesterday.getUTCMonth() &&
+                    lastClaimDate.getUTCDate() === yesterday.getUTCDate();
+            };
 
-            const yesterday = new Date(now);
-            yesterday.setUTCDate(yesterday.getUTCDate() - 1);
-
-            const isConsecutive = lastClaimDate.getUTCFullYear() === yesterday.getUTCFullYear() &&
-                                lastClaimDate.getUTCMonth() === yesterday.getUTCMonth() &&
-                                lastClaimDate.getUTCDate() === yesterday.getUTCDate();
-
-            if (userStreak.lastClaim && !isConsecutive && now - userStreak.lastClaim > (48 * 60 * 60 * 1000)) {
-                // Streak lost, remove milestone roles
+            const resetStreak = async () => {
                 if (userStreak.milestoneRoles && userStreak.milestoneRoles.length > 0) {
                     try {
                         await member.roles.remove(userStreak.milestoneRoles);
                     } catch (error) {
                         console.error(`Failed to remove milestone roles for ${member.user.tag}:`, error);
                     }
+                }
+                if (message && userStreak.count > 3) {
+                    message.reply(`😭 Oh no! You lost a streak of ${userStreak.count} days!`).catch(console.error);
                 }
                 userStreak.count = 1; // Reset to 1 for today's activity
                 userStreak.milestoneRoles = [];
-            } else if (!userStreak.lastClaim || isConsecutive) {
-                userStreak.count++;
+            };
+
+            if (userStreak.lastClaim && !wasConsecutive()) {
+                await resetStreak();
             } else {
-                // Streak lost (not consecutive but less than 48 hours)
-                if (userStreak.milestoneRoles && userStreak.milestoneRoles.length > 0) {
-                    try {
-                        await member.roles.remove(userStreak.milestoneRoles);
-                    } catch (error) {
-                        console.error(`Failed to remove milestone roles for ${member.user.tag}:`, error);
-                    }
-                }
-                userStreak.count = 1;
-                userStreak.milestoneRoles = [];
+                userStreak.count++;
             }
 
-            userStreak.lastClaim = now;
+            userStreak.lastClaim = now.getTime();
             if (userStreak.count > userStreak.highest) {
                 userStreak.highest = userStreak.count;
             }
 
             // Add XP for streak
-            let xp = settings.xpPerClaim || 0;
-            if (xp > 0) {
-                let multiplierData = this.getMultiplier(member, db.settings, channel);
-                let multiplier = multiplierData.multiplier || 1;
-                let xpWithMultiplier = Math.round(xp * multiplier);
-                if (!userData.xp) userData.xp = 0;
-                userData.xp += xpWithMultiplier;
+            if (settings.xpPerClaim > 0) {
+                const multiplierData = this.getMultiplier(member, db.settings, channel);
+                const multiplier = multiplierData.multiplier || 1;
+                const xpWithMultiplier = Math.round(settings.xpPerClaim * multiplier);
+                userData.xp = (userData.xp || 0) + xpWithMultiplier;
             }
 
             // Check for milestones
-            const milestones = settings.milestones || [];
-            if (milestones.length > 0) {
-                const reachedMilestone = milestones.find(m => m.days === userStreak.count);
-                if (reachedMilestone && reachedMilestone.roleId) {
-                    try {
-                        const role = await member.guild.roles.fetch(reachedMilestone.roleId);
-                        if (role) {
-                            await member.roles.add(role);
-                            if (!userStreak.milestoneRoles) {
-                                userStreak.milestoneRoles = [];
-                            }
-                            userStreak.milestoneRoles.push(role.id);
+            const reachedMilestone = settings.milestones?.find(m => m.days === userStreak.count);
+
+            if (reachedMilestone?.roleId) {
+                try {
+                    const newRole = await member.guild.roles.fetch(reachedMilestone.roleId);
+
+                    if (newRole) {
+                        // Prepare a list of roles to remove, but don't remove them from the user yet.
+                        const oldRolesToRemove = userStreak.milestoneRoles || [];
+
+                        // Add the new role first.
+                        await member.roles.add(newRole);
+
+                        // If the new role was added successfully, remove the old ones.
+                        if (oldRolesToRemove.length > 0) {
+                            await member.roles.remove(oldRolesToRemove);
                         }
-                    } catch (error) {
-                        console.error(`Failed to add milestone role for ${member.user.tag}:`, error);
+
+                        // If all API actions were successful, update the database state.
+                        // The user now only has the new milestone role.
+                        userStreak.milestoneRoles = [newRole.id];
                     }
+                } catch (error) {
+                    // If any part of the process fails, the database state for milestoneRoles is not changed,
+                    // preventing de-sync. The error is logged for debugging.
+                    console.error(`Failed to update milestone roles for ${member.user.tag}:`, error);
                 }
             }
 

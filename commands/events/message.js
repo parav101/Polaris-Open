@@ -15,7 +15,7 @@ async run(client, message, tools) {
     let settings = db.settings
 
      // Update user streak based on message activity
-    await tools.updateStreak(message.member, db, client, message.channel);
+    await tools.updateStreak(message.member, db, client, message.channel, message);
 
     // fetch user's xp, or give them 0
     let userData = db.users[author] || { xp: 0, cooldown: 0, voiceTime: 0 }
