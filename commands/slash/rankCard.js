@@ -19,25 +19,25 @@ module.exports = {
 
         // fetch member
         let member = int.member
-        let rank = int.options.get("rank") ? int.options.get("rank").value : null
-        let rankUser = null
-        let db = await tools.fetchSettings(member.id)
-        let wholeDB = await tools.fetchAll()
-        if (!db) return tools.warn("*noData")
-        else if (!db.settings.enabled) return tools.warn("*xpDisabled")
+        const rank = int.options.get("rank") ? int.options.get("rank").value : null
+        const wholeDB = await tools.fetchAll()
 
-        if (rank) {
-            rankUser = tools.getUserByRank(rank, wholeDB.users)
-        }
         let foundUser = int.options.get("user") || int.options.get("member") // option is "user" if from context menu 
         if (foundUser) member = foundUser.member
-        else if (rankUser) member = await int.guild.members.fetch(rankUser.id).catch(() => null)
+
+        if (rank) {
+            const rankUser = tools.getUserByRank(rank, wholeDB.users)
+            member = int.guild.members.cache.get(rankUser?.id) || await int.guild.members.fetch(rankUser?.id).catch(() => null)
+        }
+
         if (!member) return tools.warn("That member couldn't be found!")
 
         // fetch server xp settings
+        const db = await tools.fetchSettings(member.id)
+        if (!db) return tools.warn("*noData")
+        else if (!db.settings.enabled) return tools.warn("*xpDisabled")
 
         let currentXP = db.users[member.id]
-        if(rankUser) currentXP = rankUser
 
         if (db.settings.rankCard.disabled) return tools.warn("Rank cards are disabled in this server!")
 
