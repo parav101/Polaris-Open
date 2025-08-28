@@ -3,10 +3,11 @@ const PageEmbed = require("../../classes/PageEmbed.js")
 module.exports = {
 metadata: {
     name: "leaderboard",
-    description: "View the server's XP leaderboard.",
+    description: "View the server's XP leaderboard (shows active members by default).",
     args: [
         { type: "integer", name: "page", description: "Which page to view (negative to start from last page)", required: false },
         { type: "user", name: "member", description: "Finds a certain member's position on the leaderboard (overrides page)", required: false },
+        { type: "bool", name: "show_all", description: "Show all users on the leaderboard, including inactive ones", required: false },
         { type: "bool", name: "hidden", description: "Hides the reply so only you can see it", required: false }
     ]
 },
@@ -25,6 +26,12 @@ async run(client, int, tools) {
 
     let minLeaderboardXP = db.settings.leaderboard.minLevel > 1 ? tools.xpForLevel(db.settings.leaderboard.minLevel, db.settings) : 0
     let rankings = tools.xpObjToArray(db.users)
+
+    const showAll = int.options.get("show_all")?.value || false;
+    if (!showAll) {
+        rankings = rankings.filter(u => tools.isUserActive(u));
+    }
+
     rankings = rankings.filter(x => x.xp > minLeaderboardXP && !x.hidden).sort(function(a, b) {return b.xp - a.xp})
 
     if (db.settings.leaderboard.maxEntries > 0) rankings = rankings.slice(0, db.settings.leaderboard.maxEntries)
@@ -45,8 +52,11 @@ async run(client, int, tools) {
 
     let embed = tools.createEmbed({
         color: listCol || tools.COLOR,
-        author: {name: 'Leaderboard for ' + int.guild.name, iconURL: int.guild.iconURL()}
-    })
+        author: {
+            name: `Leaderboard for ${int.guild.name}${!showAll ? " (Active Only)" : ""}`,
+            iconURL: int.guild.iconURL()
+        }
+    });
 
     let isHidden = db.settings.leaderboard.ephemeral || !!int.options.get("hidden")?.value
 

@@ -482,6 +482,12 @@ class Tools {
             return rank
         }
 
+        this.getUserByRank = function(rank, users) {
+            let arr = this.xpObjToArray(users)
+            arr = arr.sort((a, b) => b.xp - a.xp)
+            return arr[rank - 1]
+        }
+
         // sends an ephemeral reply, usually when the user did something wrong
         this.warn = async function(msg) {
             if (msg.startsWith("*")) msg = this.errors[msg.slice(1)] || msg
@@ -623,6 +629,26 @@ class Tools {
 
             db.users[member.id] = { ...userData, streak: userStreak };
             await client.db.update(member.guild.id, { $set: { [`users.${member.id}`]: db.users[member.id] } }).exec();
+        }
+
+        
+
+        // check if user is active (last xp gain or streak claim within 30 days)
+        this.isUserActive = function(user) {
+            const last2Days = 2 * 24 * 60 * 60 * 1000;
+            const now = Date.now();
+
+            const lastXpGain = user.lastXpGain || 0;
+            if (now - lastXpGain <= last2Days) {
+                return true;
+            }
+
+            const lastStreakClaim = user.streak?.lastClaim || 0;
+            if (now - lastStreakClaim <= last2Days) {
+                return true;
+            }
+
+            return false;
         }
 
         // get setting from an id, e.g. "levelUp.multiple"
