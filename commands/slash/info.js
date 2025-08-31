@@ -39,7 +39,7 @@ async run(client, int, tools) {
     let levelPercent = maxLevel ? 100 : (xp - levelData.previousLevel) / (levelData.xpRequired - levelData.previousLevel) * 100
 
     let multiplierData = tools.getMultiplier(member, db.settings)
-    let rewardRole = tools.getRolesForLevel(levelData.level, db.settings.rewards)
+    // let rewardRole = tools.getRolesForLevel(levelData.level, db.settings.rewards)
     let multiplier = multiplierData.multiplier
 
     // Get member's rank
@@ -56,9 +56,17 @@ async run(client, int, tools) {
     if (rival) {
         try {
             rivalUser = await int.guild.members.fetch(rival.id)
-            rivalXpDiff = rival.xp - xp
         } catch (e) {
-            console.error("Could not fetch rival user:", e)
+            // User is not in the guild, try fetching the user directly
+            try {
+                rivalUser = await client.users.fetch(rival.id)
+            } catch (fetchErr) {
+                console.error("Could not fetch rival user:", fetchErr)
+            }
+        }
+
+        if (rivalUser) {
+            rivalXpDiff = rival.xp - xp
         }
     }
 
@@ -138,7 +146,7 @@ async run(client, int, tools) {
     // Add XP required to beat rival
     embed.addFields([{
         name: `XP req: ${rivalXpDiff > 0 ? tools.commafy(rivalXpDiff, true) : '0'}`,
-        value: rivalUser ? "to beat rival" : "You're the leader!",
+        value: rivalUser ? "to beat rival" : "",
         inline: true
     }])
 

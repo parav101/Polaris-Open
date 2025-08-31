@@ -15,7 +15,12 @@ module.exports = {
             if (userData.streak) {
                 delete userData.streak; // Remove streak data
             }
-            userData.xp = Math.round(userData.xp * 0.75);
+            if(userData.xp > 10000){
+                userData.xp = userData.xp - 10000;
+            }else{
+                userData.xp = 0;
+            }
+            
             await client.db.update(member.guild.id, {
                 $set: { [`users.${member.user.id}`]: userData }
             }).exec();
