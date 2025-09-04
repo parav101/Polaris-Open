@@ -17,71 +17,43 @@ module.exports = {
 
     async run(client, int, tools) {
 
-        // fetch member
-        let member = int.member
-        const rank = int.options.get("rank") ? int.options.get("rank").value : null
-        const wholeDB = await tools.fetchAll()
-
-        let foundUser = int.options.get("user") || int.options.get("member") // option is "user" if from context menu 
-        if (foundUser) member = foundUser.member
-
-        if (rank) {
-            const rankUser = tools.getUserByRank(rank, wholeDB.users)
-            member = int.guild.members.cache.get(rankUser?.id) || await int.guild.members.fetch(rankUser?.id).catch(() => null)
-        }
-
-        if (!member) return tools.warn("That member couldn't be found!")
-
-        // fetch server xp settings
-        const db = await tools.fetchSettings(member.id)
-        if (!db) return tools.warn("*noData")
-        else if (!db.settings.enabled) return tools.warn("*xpDisabled")
-
-        let currentXP = db.users[member.id]
-
-        if (db.settings.rankCard.disabled) return tools.warn("Rank cards are disabled in this server!")
-
-        // if user has no xp, stop here
-        if (!currentXP || !currentXP.xp) return tools.noXPYet(foundUser ? foundUser.user : int.user)
-
-        let xp = currentXP.xp
-
-        let levelData = tools.getLevel(xp, db.settings, true)       // get user's level
-        // let maxLevel = levelData.level >= db.settings.maxLevel      // check if level is maxxed
-
-        // let remaining = levelData.xpRequired - xp
-        // let levelPercent = maxLevel ? 100 : (xp - levelData.previousLevel) / (levelData.xpRequired - levelData.previousLevel) * 100
-
-        // let multiplierData = tools.getMultiplier(member, db.settings)
-        // let rewardRole = tools.getRolesForLevel(levelData.level, db.settings.rewards)
-        // let multiplier = multiplierData.multiplier
-
-        // let barSize = 33    // how many characters the xp bar is
-        // let barRepeat = Math.round(levelPercent / (100 / barSize)) // .round() so bar can sometimes display as completely full and completely empty
-        // let progressBar = `${"▓".repeat(barRepeat)}${"░".repeat(barSize - barRepeat)} (${!maxLevel ? Number(levelPercent.toFixed(2)) + "%" : "MAX"})`
-
-        // let estimatedMin = Math.ceil(remaining / (db.settings.gain.min * (multiplier || multiplierData.role)))
-        // let estimatedMax = Math.ceil(remaining / (db.settings.gain.max * (multiplier || multiplierData.role)))
-
-        // estimated number of messages to level up
-        // let estimatedRange = (estimatedMax == estimatedMin) ? `${tools.commafy(estimatedMax)} ${tools.extraS("message", estimatedMax)}` : `${tools.commafy(estimatedMax)}-${tools.commafy(estimatedMin)} messages`
-
-        // xp required to level up
-        // let nextLevelXP = (db.settings.rankCard.relativeLevel ? `${tools.commafy(xp - levelData.previousLevel)}/${tools.commafy(levelData.xpRequired - levelData.previousLevel)}` : `${tools.commafy(levelData.xpRequired)}`) + ` (${tools.commafy(remaining, true)} more)`
-
-        // let cardCol = db.settings.rankCard.embedColor
-        // if (cardCol == -1) cardCol = null
-
-        let memberAvatar = member.displayAvatarURL({ forceStatic: true, size: 128, extension: "png" });
-        // let memberColor = cardCol || member.displayColor || await member.user.fetch().then(x => x.accentColor)
-
+        await int.deferReply();
 
         try {
+            // fetch member
+            let member = int.member
+            const rankOption = int.options.get("rank") ? int.options.get("rank").value : null
+            const wholeDB = await tools.fetchAll()
 
+            let foundUser = int.options.get("user") || int.options.get("member") // option is "user" if from context menu 
+            if (foundUser) member = foundUser.member
+
+            if (rankOption) {
+                const rankUser = tools.getUserByRank(rankOption, wholeDB.users)
+                member = int.guild.members.cache.get(rankUser?.id) || await int.guild.members.fetch(rankUser?.id).catch(() => null)
+            }
+
+            if (!member) return int.editReply({ content: "That member couldn't be found!" });
+
+            // fetch server xp settings
+            const db = await tools.fetchSettings(member.id)
+            if (!db) return int.editReply({ content: tools.errors.noData });
+            else if (!db.settings.enabled) return int.editReply({ content: tools.errors.xpDisabled });
+
+            let currentXP = db.users[member.id]
+
+            if (db.settings.rankCard.disabled) return int.editReply({ content: "Rank cards are disabled in this server!" });
+
+            // if user has no xp, stop here
+            if (!currentXP || !currentXP.xp) return int.editReply({ content: tools.noXPYet(foundUser ? foundUser.user : int.user) });
+
+            let xp = currentXP.xp
+
+            let levelData = tools.getLevel(xp, db.settings, true)       // get user's level
+            let memberAvatar = member.displayAvatarURL({ forceStatic: true, size: 128, extension: "png" });
 
             // Acknowledge the interaction to avoid expiry
             const rank = tools.getRank(member.id, wholeDB.users);
-            await int.deferReply();
             let cardOptions;
 
             switch (rank) {
@@ -157,23 +129,16 @@ module.exports = {
                 ...cardOptions
             }).build();
 
-            // Saving an image
-            // fs.writeFileSync('rankCard.png', rankCard.toBuffer());
-
-            // Example of sending to a channel
             const attachment = new AttachmentBuilder(rankCard.toBuffer(), { name: 'rankCard.png' });
-            await int.followUp({ files: [attachment] });
+            await int.editReply({ files: [attachment] });
+
         } catch (err) {
-            console.error("Failed to create rank card:", err);
-            if (int.replied || int.deferred) {
-                await int.followUp("There was an error creating the rank card.");
+            console.error("Failed to execute rank command:", err);
+            if (!int.replied) { // Fallback in case defer fails for some reason
+                await int.reply({ content: "There was an error creating the rank card.", ephemeral: true });
             } else {
-                await int.reply("There was an error creating the rank card.");
+                await int.editReply({ content: "There was an error creating the rank card." });
             }
         }
-
-        // let isHidden = db.settings.rankCard.ephemeral || !!int.options.get("hidden")?.value
-        // return int.reply({embeds: [embed], ephemeral: isHidden})
-
     }
 }
