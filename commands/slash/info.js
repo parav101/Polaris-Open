@@ -45,6 +45,18 @@ async run(client, int, tools) {
     // Get member's rank
     let wholeDB = await tools.fetchAll(int.guild.id)
     let rank = tools.getRank(member.id, wholeDB.users)
+
+    // Tips for the footer
+    const tips = [
+        "Tip: You get XP from both chatting and being in voice channels!",
+        "Tip: Spamming won't get you XP faster. XP is awarded periodically.",
+        "Tip: Use /rank to see your rank card.",
+        "Tip: Use /leaderboards to see how you stack up against others!",
+        "Tip: Want to know how much XP you need for a level? Use /calculate.",
+        "Tip: Maintain your daily chat streak to climb the /streakleaderboard!",
+        "Tip: Don't forget to chat daily, or your streak will reset to 0!"
+    ];
+
     
     // Find rival (next user above in rank)
     let xpArray = tools.xpObjToArray(wholeDB.users).sort((a, b) => b.xp - a.xp)
@@ -74,14 +86,14 @@ async run(client, int, tools) {
     let barRepeat = Math.round(levelPercent / (100 / barSize)) // .round() so bar can sometimes display as completely full and completely empty
     let progressBar = `${"▓".repeat(barRepeat)}${"░".repeat(barSize - barRepeat)} (${!maxLevel ? Number(levelPercent.toFixed(2)) + "%" : "MAX"})`
 
-    let estimatedMin = Math.ceil(remaining / (db.settings.gain.min * (multiplier || multiplierData.role)))
-    let estimatedMax = Math.ceil(remaining / (db.settings.gain.max * (multiplier || multiplierData.role)))
+    // let estimatedMin = Math.ceil(remaining / (db.settings.gain.min * (multiplier || multiplierData.role)))
+    // let estimatedMax = Math.ceil(remaining / (db.settings.gain.max * (multiplier || multiplierData.role)))
 
     // estimated number of messages to level up
-    let estimatedRange = (estimatedMax == estimatedMin) ? `${tools.commafy(estimatedMax)} ${tools.extraS("message", estimatedMax)}` : `${tools.commafy(estimatedMax)}-${tools.commafy(estimatedMin)} messages`
+    // let estimatedRange = (estimatedMax == estimatedMin) ? `${tools.commafy(estimatedMax)} ${tools.extraS("message", estimatedMax)}` : `${tools.commafy(estimatedMax)}-${tools.commafy(estimatedMin)} messages`
 
     // xp required to level up
-    let nextLevelXP = (db.settings.rankCard.relativeLevel ? `${tools.commafy(xp - levelData.previousLevel)}/${tools.commafy(levelData.xpRequired - levelData.previousLevel)}` : `${tools.commafy(levelData.xpRequired)}`) + ` (${tools.commafy(remaining,true)} more)`
+    // let nextLevelXP = (db.settings.rankCard.relativeLevel ? `${tools.commafy(xp - levelData.previousLevel)}/${tools.commafy(levelData.xpRequired - levelData.previousLevel)}` : `${tools.commafy(levelData.xpRequired)}`) + ` (${tools.commafy(remaining,true)} more)`
 
     let cardCol = db.settings.rankCard.embedColor
     if (cardCol == -1) cardCol = null
@@ -90,31 +102,43 @@ async run(client, int, tools) {
     let memberColor = cardCol || member.displayColor || await member.user.fetch().then(x => x.accentColor)
     
     // Prepare streak info for footer if enabled
-    let streakFooter = "";
+    let streakText = null;
     if (db.settings.streak?.enabled) {
         if (!db.users[member.id].streak) {
             db.users[member.id].streak = { count: 0, lastClaim: 0, highest: 0 };
         }
         const userStreak = db.users[member.id].streak;
-        streakFooter = `🔥 Streak: ${tools.commafy(userStreak.count)} | 🏆 Highest: ${tools.commafy(userStreak.highest || userStreak.count)}`;
+        
+        const streakInfo = [
+            `**Current:** ${tools.commafy(userStreak.count)}`,
+            `**Highest:** ${tools.commafy(userStreak.highest || userStreak.count)}`
+        ];
+
+        if (userStreak.lastClaim > 0) {
+            streakInfo.push(`**Last claim:** <t:${Math.floor(userStreak.lastClaim / 1000)}:R>`);
+        }
+        
+        streakText = streakInfo.join('\n');
     }
+
+    const randomTip = tips[Math.floor(Math.random() * tips.length)];
 
     // Create the new embed format
     let embed = tools.createEmbed({
         author: { 
-            name: int.guild.name,
+            name: member.user.displayName,
             iconURL: int.guild.iconURL({ dynamic: true })
         },
-        description: `\`\`\`Player: ${member.user.displayName}\`\`\``,
+        description: `\`\`\`${progressBar}\`\`\``,
         thumbnail: memberAvatar,
         color: memberColor,
         fields: [
             { name: `Level: ${levelData.level}`, value: "\u200b", inline: true },
             { name: `Rank: # ${rank}`, value: "\u200b", inline: true },
-            { name: `Progress: ${Number(levelPercent.toFixed(0))}%`, value: "\u200b", inline: true },
+            // { name: `Progress: ${Number(levelPercent.toFixed(0))}%`, value: "\u200b", inline: true },
         ],
         footer: {
-            text: streakFooter,
+            text: randomTip,
             iconURL: "https://cdn3.emoji.gg/emojis/9385-sparkles-pinkpastel.gif"
         }
     })
@@ -127,28 +151,38 @@ async run(client, int, tools) {
             inline: true 
         }])
     } else {
-        embed.addFields([{ name: "XP Boost: 100%", value: "\u200b", inline: true }])
+        embed.addFields([{ name: "XP Boost: 100%", value: "No Boost Role", inline: true }])
     }
     // Add rival field
-    if (rivalUser) {
-        embed.addFields([{
-            name: "Your Rival:",
-            value: `<@${rivalUser.id}>`,
-            inline: true
-        }])
-    } else {
-        embed.addFields([{
-            name: "Your Rival:",
-            value: "You're at the top!",
-            inline: true
-        }])
-    }
+    // if (rivalUser) {
+    //     embed.addFields([{
+    //         name: "Your Rival:",
+    //         value: `<@${rivalUser.id}>`,
+    //         inline: true
+    //     }])
+    // } else {
+    //     embed.addFields([{
+    //         name: "Your Rival:",
+    //         value: "You're at the top!",
+    //         inline: true
+    //     }])
+    // }
+
+    //add Daily xp snapshot info
+    const dailyXp = xp - (currentXP.xpAtDayStart ?? xp);
+    const lastUpdate = currentXP.lastDailyUpdate ? `<t:${Math.floor(currentXP.lastDailyUpdate / 1000)}:R>` : "Now";
+    embed.addFields({ name: `XP Gained: ${tools.commafy(dailyXp)}`, value: `since ${lastUpdate}`, inline: true });
+
     // Add XP required to beat rival
     embed.addFields([{
-        name: `XP req: ${rivalXpDiff > 0 ? tools.commafy(rivalXpDiff, true) : '0'}`,
-        value: rivalUser ? "to beat rival" : "",
+        name: `XP Required: ${rivalXpDiff > 0 ? tools.commafy(rivalXpDiff, false) : '0'}`,
+        value: rivalUser ? `to beat <@${rivalUser.id}>` : "No rival left",
         inline: true
     }])
+
+    if (streakText) {
+        embed.addFields({ name: "Streak Info", value: streakText, inline: true });
+    }
 
     let isHidden = db.settings.rankCard.ephemeral || !!int.options.get("hidden")?.value
     return int.reply({embeds: [embed], ephemeral: isHidden})

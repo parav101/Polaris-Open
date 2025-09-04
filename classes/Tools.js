@@ -631,7 +631,26 @@ class Tools {
             await client.db.update(member.guild.id, { $set: { [`users.${member.id}`]: db.users[member.id] } }).exec();
         }
 
-        
+        //function to update daily XP gained
+        this.updateDailyXpSnapshot = async function(member, db, client) {
+            const now = new Date();
+            const userData = db.users[member.id];
+            if (!userData) return; // User has no data yet, nothing to snapshot.
+
+            const currentXP = userData.xp || 0;
+            const lastUpdate = userData.lastDailyUpdate ? new Date(userData.lastDailyUpdate) : null;
+
+            // Check if the last snapshot was taken on a previous day (in UTC).
+            if (!lastUpdate || lastUpdate.getUTCFullYear() !== now.getUTCFullYear() || lastUpdate.getUTCMonth() !== now.getUTCMonth() || lastUpdate.getUTCDate() !== now.getUTCDate()) {
+            // It's a new day. Record the current XP as the starting point for today.
+            userData.xpAtDayStart = currentXP;
+            userData.lastDailyUpdate = now.getTime();
+            
+            db.users[member.id] = userData;
+            await client.db.update(member.guild.id, { $set: { [`users.${member.id}`]: db.users[member.id] } }).exec();
+            }
+        }
+
 
         // check if user is active (last xp gain or streak claim within 30 days)
         this.isUserActive = function(user) {
