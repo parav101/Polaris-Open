@@ -165,7 +165,11 @@ module.exports = {
             await int.followUp({ files: [attachment] });
         } catch (err) {
             console.error("Failed to create rank card:", err);
-            await int.followUp("There was an error creating the rank card.");
+            if (int.replied || int.deferred) {
+                await int.followUp("There was an error creating the rank card.");
+            } else {
+                await int.reply("There was an error creating the rank card.");
+            }
         }
 
         // let isHidden = db.settings.rankCard.ephemeral || !!int.options.get("hidden")?.value
