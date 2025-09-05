@@ -13,7 +13,7 @@ metadata: {
 },
 
 async run(client, int, tools) {
-    const startTime = Date.now(); // Start timing
+    // const startTime = Date.now(); // Start timing
 
     let lbLink = `${tools.WEBSITE}/leaderboard/${int.guild.id}`
 
@@ -71,8 +71,8 @@ async run(client, int, tools) {
 
     xpEmbed.post(int)
 
-    const endTime = Date.now();
-    const executionTime = endTime - startTime;
-    console.log(`Execution time for /leaderboard command: ${executionTime} ms`);
+    // const endTime = Date.now();
+    // const executionTime = endTime - startTime;
+    // console.log(`Execution time for /leaderboard command: ${executionTime} ms`);
 
 }}

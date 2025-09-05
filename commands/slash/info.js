@@ -11,7 +11,7 @@ metadata: {
 },
 
 async run(client, int, tools) {
-        const startTime = Date.now(); // Start timing
+        // const startTime = Date.now(); // Start timing
 
     // fetch member
     let member = int.member
@@ -188,9 +188,9 @@ async run(client, int, tools) {
         embed.addFields({ name: "Streak Info", value: streakText, inline: true });
     }
 
-    const endTime = Date.now();
-    const executionTime = endTime - startTime;
-    console.log(`Execution time for /info command: ${executionTime} ms`);
+    // const endTime = Date.now();
+    // const executionTime = endTime - startTime;
+    // console.log(`Execution time for /info command: ${executionTime} ms`);
 
     // let isHidden = db.settings.rankCard.ephemeral || !!int.options.get("hidden")?.value
     return int.editReply({embeds: [embed]})
