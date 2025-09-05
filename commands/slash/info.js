@@ -23,6 +23,9 @@ async run(client, int, tools) {
     if (!db) return tools.warn("*noData")
     else if (!db.settings.enabled) return tools.warn("*xpDisabled")
 
+    let isHidden = db.settings.rankCard.ephemeral || !!int.options.get("hidden")?.value
+    await int.deferReply({ ephemeral: isHidden })
+
     let currentXP = db.users[member.id]
 
     if (db.settings.rankCard.disabled) return tools.warn("Rank cards are disabled in this server!")
@@ -184,6 +187,6 @@ async run(client, int, tools) {
         embed.addFields({ name: "Streak Info", value: streakText, inline: true });
     }
 
-    let isHidden = db.settings.rankCard.ephemeral || !!int.options.get("hidden")?.value
-    return int.reply({embeds: [embed], ephemeral: isHidden})
+    // let isHidden = db.settings.rankCard.ephemeral || !!int.options.get("hidden")?.value
+    return int.editReply({embeds: [embed]})
 }}
