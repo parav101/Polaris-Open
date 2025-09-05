@@ -13,7 +13,10 @@ metadata: {
 },
 
 async run(client, int, tools) {
-        const startTime = Date.now(); // Start timing
+    const startTime = Date.now(); // Start timing
+
+    const isHidden = !!int.options.get("hidden")?.value;
+    await int.deferReply({ ephemeral: isHidden });
 
 
     let lbLink = `${tools.WEBSITE}/leaderboard/${int.guild.id}`
@@ -60,7 +63,6 @@ async run(client, int, tools) {
         }
     });
 
-    let isHidden = db.settings.leaderboard.ephemeral || !!int.options.get("hidden")?.value
 
     let xpEmbed = new PageEmbed(embed, rankings, {
         page: pageNumber, size: pageSize, owner: int.user.id,  ephemeral: isHidden,
