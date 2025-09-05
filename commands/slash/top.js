@@ -7,17 +7,13 @@ metadata: {
     args: [
         { type: "integer", name: "page", description: "Which page to view (negative to start from last page)", required: false },
         { type: "user", name: "member", description: "Finds a certain member's position on the leaderboard (overrides page)", required: false },
-        { type: "bool", name: "show_all", description: "Show all users on the leaderboard, including inactive ones", required: false },
+        { type: "bool", name: "active_only", description: "Show only the active users ", required: false },
         { type: "bool", name: "hidden", description: "Hides the reply so only you can see it", required: false }
     ]
 },
 
 async run(client, int, tools) {
     const startTime = Date.now(); // Start timing
-
-    const isHidden = !!int.options.get("hidden")?.value;
-    await int.deferReply({ ephemeral: isHidden });
-
 
     let lbLink = `${tools.WEBSITE}/leaderboard/${int.guild.id}`
 
@@ -32,8 +28,8 @@ async run(client, int, tools) {
     let minLeaderboardXP = db.settings.leaderboard.minLevel > 1 ? tools.xpForLevel(db.settings.leaderboard.minLevel, db.settings) : 0
     let rankings = tools.xpObjToArray(db.users)
 
-    const showAll = int.options.get("show_all")?.value || false;
-    if (!showAll) {
+    const active_only = int.options.get("active_only")?.value || false;
+    if (active_only) {
         rankings = rankings.filter(u => tools.isUserActive(u));
     }
 
@@ -58,10 +54,12 @@ async run(client, int, tools) {
     let embed = tools.createEmbed({
         color: listCol || tools.COLOR,
         author: {
-            name: `Leaderboard for ${int.guild.name}${!showAll ? " (Active Only)" : ""}`,
+            name: `Leaderboard for ${int.guild.name}${active_only ? " (Active Only)" : ""}`,
             iconURL: int.guild.iconURL()
         }
     });
+
+    let isHidden = db.settings.leaderboard.ephemeral || !!int.options.get("hidden")?.value
 
 
     let xpEmbed = new PageEmbed(embed, rankings, {
