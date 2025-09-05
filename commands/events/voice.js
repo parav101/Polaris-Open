@@ -78,7 +78,7 @@ module.exports = {
             userData.voiceTime = Date.now()
             client.db.update(guildId, { $set: { [`users.${userId}`]: userData } }).exec()
             // Update user streak based on voice activity
-            await tools.updateStreak(newState.member, db, client, newState.channel);
+            await tools.updateStreak(newState.member, db, client, newState.channel,null);
             await tools.updateDailyXpSnapshot(newState.member, db, client);
 
         }
