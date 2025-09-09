@@ -13,7 +13,8 @@ module.exports = {
             //reduce the xp by 25% and remove the streak data
             let userData = db.users[member.user.id] || { xp: 0, cooldown: 0, voiceTime: 0 };
             if (userData.streak) {
-                delete userData.streak; // Remove streak data
+                userData.streak.count = 0;
+                userData.streak.lastClaim = 0;
             }
             if(userData.xp > 10000){
                 userData.xp = userData.xp - 10000;
