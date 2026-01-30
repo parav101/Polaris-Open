@@ -8,6 +8,7 @@ metadata: {
     args: [
         { type: "role", name: "role_name", description: "The role to add or remove", required: true },
         { type: "integer", name: "level", description: "The level to grant the role at, or 0 to remove", min: 0, max: 1000, required: true },
+        { type: "string", name: "description", description: "A short description of the milestone (e.g. 'Unlock Threads')", required: false },
         { type: "bool", name: "keep", description: "Keep this role even when a higher one is reached" },
         { type: "bool", name: "dont_sync", description: "Advanced: Ignores this role when syncing roles" }
     ]
@@ -20,6 +21,7 @@ async run(client, int, tools) {
 
     let role = int.options.getRole("role_name")
     let level = tools.clamp(Math.round(int.options.get("level")?.value), 0, 1000)
+    let description = int.options.getString("description") || ""
 
     let isKeep = !!int.options.get("keep")?.value
     let isDontSync = !!int.options.get("dont_sync")?.value    
@@ -51,7 +53,7 @@ async run(client, int, tools) {
     if (!role.editable) return tools.warn(`I don't have permission to grant <@&${role.id}>!`)
 
     // set up new role data
-    let roleData = { id: role.id, level }
+    let roleData = { id: role.id, level, description }
     let extraStrings = []
     if (isKeep) { roleData.keep = true; extraStrings.push("always kept") }
     if (isDontSync) { roleData.noSync = true; extraStrings.push("ignores sync") }
@@ -61,8 +63,17 @@ async run(client, int, tools) {
 
     // if reward already exists, replace existing role
     if (foundExisting) {
-        if (foundExisting.level == level) return tools.warn(`This role is already granted at level ${level}!`)
-        return finish(`📝 **<@&${role.id}> will now be granted at level ${level}!** (previously ${foundExisting.level})${extraStr}`)
+        let sameLevel = foundExisting.level == level
+        let sameDesc = (foundExisting.description || "") == description
+        let sameKeep = (!!foundExisting.keep) == isKeep
+        let sameSync = (!!foundExisting.noSync) == isDontSync
+
+        if (sameLevel && sameDesc && sameKeep && sameSync) return tools.warn(`This role is already granted at level ${level} with the same settings!`)
+
+        let editMsg = `📝 **Updated settings for <@&${role.id}> at level ${level}!**${extraStr}`
+        if (!sameLevel) editMsg = `📝 **<@&${role.id}> will now be granted at level ${level}!** (previously ${foundExisting.level})${extraStr}`
+
+        return finish(editMsg)
     }
 
     // otherwise, just add the role

@@ -62,6 +62,7 @@ const settings = {
     rewards: { type: "collection", values: {
         id: { type: "string", accept: ["discord:role"] },
         level: { type: "int", min: 1, max: 1000 },
+        description: { type: "string", maxlength: 200, default: "" },
         keep: { type: "bool" },
         noSync: { type: "bool" },
     }},

@@ -188,10 +188,18 @@ async run(client, int, tools) {
         embed.addFields({ name: "Streak Info", value: streakText, inline: true });
     }
 
+    // Navigation Buttons
+    let buttons = tools.button([
+        { style: "Secondary", label: "Progress", customId: `stats_view~progress~${member.id}` },
+        { style: "Secondary", label: "Rank", customId: `stats_view~rank~${member.id}` },
+        { style: "Success", label: "Info", customId: `stats_view~info~${member.id}` },
+        { style: "Secondary", label: "Leaderboard", customId: `stats_view~lb~${member.id}` }
+    ])
+
     // const endTime = Date.now();
     // const executionTime = endTime - startTime;
     // console.log(`Execution time for /info command: ${executionTime} ms`);
 
     // let isHidden = db.settings.rankCard.ephemeral || !!int.options.get("hidden")?.value
-    return int.editReply({embeds: [embed]})
+    return int.editReply({embeds: [embed], components: tools.row(buttons)})
 }}
