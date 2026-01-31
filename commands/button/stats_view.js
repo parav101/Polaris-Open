@@ -23,9 +23,8 @@ module.exports = {
         let cmdName = ""
         switch(view) {
             case "progress": cmdName = "stats"; break;
-            case "rank": cmdName = "rank"; break;
             case "info": cmdName = "info"; break;
-            case "lb": cmdName = "leaderboard"; break;
+
             default: return int.deferUpdate();
         }
 
@@ -33,12 +32,30 @@ module.exports = {
         if (!command) return int.deferUpdate()
 
         // Create a fake options object that returns the target member
-        const originalGet = int.options.get
-        int.options.get = (name) => {
-            if (name === "member" || name === "user") {
-                return { member: int.guild.members.cache.get(targetId), user: client.users.cache.get(targetId) }
+        if (!int.options) {
+            int.options = { 
+                get: (name) => {
+                    if (name === "member" || name === "user") {
+                        const member = int.guild.members.cache.get(targetId)
+                        return { member: member, user: member?.user || client.users.cache.get(targetId) }
+                    }
+                    return null
+                },
+                getUser: (name) => (name === "member" || name === "user") ? (int.guild.members.cache.get(targetId)?.user || client.users.cache.get(targetId)) : null,
+                getMember: (name) => (name === "member" || name === "user") ? int.guild.members.cache.get(targetId) : null,
+                getString: () => null,
+                getInteger: () => null,
+                getBoolean: () => null
             }
-            return originalGet.call(int.options, name)
+        } else {
+            const originalGet = int.options.get
+            int.options.get = (name) => {
+                if (name === "member" || name === "user") {
+                    const member = int.guild.members.cache.get(targetId)
+                    return { member: member, user: member?.user || client.users.cache.get(targetId) }
+                }
+                return originalGet ? originalGet.call(int.options, name) : null
+            }
         }
 
         // Most of our commands use editReply if deferred, which is good.

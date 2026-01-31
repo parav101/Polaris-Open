@@ -52,7 +52,8 @@ class PageEmbed {
         return this.embed.setDescription(currentData.join("\n") + (this.suffix ? `\n${this.suffix}` : ""))
     }
 
-    post(int, msgSettings={}) {
+    post(int=this.int, msgSettings={}) {
+        if (!int) return;
 
         let firstPage = (this.page == 1)
         let lastPage = (this.page >= this.pages)
@@ -75,10 +76,13 @@ class PageEmbed {
 
         let pgButtonRow = pageButtons[0] ? tools.row(pageButtons) : null
         
-        if (!this.int) return int.reply(Object.assign({ embeds: [this.embed], components: pgButtonRow, fetchReply: true, ephemeral: this.ephemeral }, msgSettings)).then(msg => {
-            this.int = int
-            if (this.pages > 1) this.handleButtons(msg, pageButtons)
-        }).catch(() => {})
+        if (!this.int) {
+            const method = (int.deferred || int.replied) ? "editReply" : "reply"
+            return int[method](Object.assign({ embeds: [this.embed], components: pgButtonRow, fetchReply: true, ephemeral: this.ephemeral }, msgSettings)).then(msg => {
+                this.int = int
+                if (this.pages > 1) this.handleButtons(msg, pageButtons)
+            }).catch(() => {})
+        }
 
         else return this.int.editReply({embeds: [this.embed], components: pgButtonRow }).then(msg => {
             this.handleButtons(msg, pageButtons)

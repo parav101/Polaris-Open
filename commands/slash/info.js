@@ -11,7 +11,7 @@ metadata: {
 },
 
 async run(client, int, tools) {
-        // const startTime = Date.now(); // Start timing
+    // const startTime = Date.now(); // Start timing
 
     // fetch member
     let member = int.member
@@ -21,11 +21,14 @@ async run(client, int, tools) {
 
     // fetch server xp settings
     let db = await tools.fetchSettings(member.id)
+
     if (!db) return tools.warn("*noData")
     else if (!db.settings.enabled) return tools.warn("*xpDisabled")
 
     let isHidden = db.settings.rankCard.ephemeral || !!int.options.get("hidden")?.value
-    await int.deferReply({ ephemeral: isHidden })
+    if (!int.deferred && !int.replied) {
+        await int.deferReply({ ephemeral: isHidden });
+    }
 
     let currentXP = db.users[member.id]
 
@@ -46,10 +49,6 @@ async run(client, int, tools) {
     // let rewardRole = tools.getRolesForLevel(levelData.level, db.settings.rewards)
     let multiplier = multiplierData.multiplier
 
-    // Get member's rank
-    let wholeDB = await tools.fetchAll(int.guild.id)
-    let rank = tools.getRank(member.id, wholeDB.users)
-
     // Tips for the footer
     const tips = [
         "Tip: You get XP from both chatting and being in voice channels!",
@@ -61,43 +60,11 @@ async run(client, int, tools) {
         "Tip: Don't forget to chat daily, or your streak will reset to 0!"
     ];
 
-    
-    // Find rival (next user above in rank)
-    let xpArray = tools.xpObjToArray(wholeDB.users).sort((a, b) => b.xp - a.xp)
-    let userIndex = xpArray.findIndex(u => u.id === member.id)
-    let rival = userIndex > 0 ? xpArray[userIndex - 1] : null
-    
-    let rivalUser = null
-    let rivalXpDiff = 0
-    if (rival) {
-        try {
-            rivalUser = await int.guild.members.fetch(rival.id)
-        } catch (e) {
-            // User is not in the guild, try fetching the user directly
-            try {
-                rivalUser = await client.users.fetch(rival.id)
-            } catch (fetchErr) {
-                console.error("Could not fetch rival user:", fetchErr)
-            }
-        }
-
-        if (rivalUser) {
-            rivalXpDiff = rival.xp - xp
-        }
-    }
+    const randomTip = tips[Math.floor(Math.random() * tips.length)];
 
     let barSize = 33    // how many characters the xp bar is
     let barRepeat = Math.round(levelPercent / (100 / barSize)) // .round() so bar can sometimes display as completely full and completely empty
     let progressBar = `${"▓".repeat(barRepeat)}${"░".repeat(barSize - barRepeat)} (${!maxLevel ? Number(levelPercent.toFixed(2)) + "%" : "MAX"})`
-
-    // let estimatedMin = Math.ceil(remaining / (db.settings.gain.min * (multiplier || multiplierData.role)))
-    // let estimatedMax = Math.ceil(remaining / (db.settings.gain.max * (multiplier || multiplierData.role)))
-
-    // estimated number of messages to level up
-    // let estimatedRange = (estimatedMax == estimatedMin) ? `${tools.commafy(estimatedMax)} ${tools.extraS("message", estimatedMax)}` : `${tools.commafy(estimatedMax)}-${tools.commafy(estimatedMin)} messages`
-
-    // xp required to level up
-    // let nextLevelXP = (db.settings.rankCard.relativeLevel ? `${tools.commafy(xp - levelData.previousLevel)}/${tools.commafy(levelData.xpRequired - levelData.previousLevel)}` : `${tools.commafy(levelData.xpRequired)}`) + ` (${tools.commafy(remaining,true)} more)`
 
     let cardCol = db.settings.rankCard.embedColor
     if (cardCol == -1) cardCol = null
@@ -125,8 +92,6 @@ async run(client, int, tools) {
         streakText = streakInfo.join('\n');
     }
 
-    const randomTip = tips[Math.floor(Math.random() * tips.length)];
-
     // Create the new embed format
     let embed = tools.createEmbed({
         author: { 
@@ -138,8 +103,7 @@ async run(client, int, tools) {
         color: memberColor,
         fields: [
             { name: `Level: ${levelData.level}`, value: "\u200b", inline: true },
-            { name: `Rank: # ${rank}`, value: "\u200b", inline: true },
-            // { name: `Progress: ${Number(levelPercent.toFixed(0))}%`, value: "\u200b", inline: true },
+            { name: `Total XP: ${tools.commafy(xp)}`, value: "\u200b", inline: true },
         ],
         footer: {
             text: randomTip,
@@ -157,32 +121,11 @@ async run(client, int, tools) {
     } else {
         embed.addFields([{ name: "XP Boost: 100%", value: "No Boost Role", inline: true }])
     }
-    // Add rival field
-    // if (rivalUser) {
-    //     embed.addFields([{
-    //         name: "Your Rival:",
-    //         value: `<@${rivalUser.id}>`,
-    //         inline: true
-    //     }])
-    // } else {
-    //     embed.addFields([{
-    //         name: "Your Rival:",
-    //         value: "You're at the top!",
-    //         inline: true
-    //     }])
-    // }
 
     //add Daily xp snapshot info
     const dailyXp = xp - (currentXP.xpAtDayStart ?? xp);
     const lastUpdate = currentXP.lastDailyUpdate ? `<t:${Math.floor(currentXP.lastDailyUpdate / 1000)}:R>` : "Now";
     embed.addFields({ name: `XP Gained: ${tools.commafy(dailyXp)}`, value: `since ${lastUpdate}`, inline: true });
-
-    // Add XP required to beat rival
-    embed.addFields([{
-        name: `XP Required: ${rivalXpDiff > 0 ? tools.commafy(rivalXpDiff, false) : '0'}`,
-        value: rivalUser ? `to beat <@${rivalUser.id}>` : "No rival left",
-        inline: true
-    }])
 
     if (streakText) {
         embed.addFields({ name: "Streak Info", value: streakText, inline: true });
@@ -191,15 +134,14 @@ async run(client, int, tools) {
     // Navigation Buttons
     let buttons = tools.button([
         { style: "Secondary", label: "Progress", customId: `stats_view~progress~${member.id}` },
-        { style: "Secondary", label: "Rank", customId: `stats_view~rank~${member.id}` },
         { style: "Success", label: "Info", customId: `stats_view~info~${member.id}` },
-        { style: "Secondary", label: "Leaderboard", customId: `stats_view~lb~${member.id}` }
     ])
+
+
+    const reply = await int.editReply({embeds: [embed], components: tools.row(buttons)});
 
     // const endTime = Date.now();
     // const executionTime = endTime - startTime;
     // console.log(`Execution time for /info command: ${executionTime} ms`);
-
-    // let isHidden = db.settings.rankCard.ephemeral || !!int.options.get("hidden")?.value
-    return int.editReply({embeds: [embed], components: tools.row(buttons)})
+    return reply;
 }}

@@ -65,15 +65,14 @@ async run(client, int, tools) {
     let xpEmbed = new PageEmbed(embed, rankings, {
         page: pageNumber, size: pageSize, owner: int.user.id,  ephemeral: isHidden,
         mapFunction: (x, y, p) => `**${p})** ${x.id == highlight ? "**" : ""}Lv. ${tools.getLevel(x.xp, db.settings)} - <@${x.id}> (${tools.commafy(x.xp)} XP)${x.id == highlight ? "**" : ""}`,
-        extraButtons: [ 
-            tools.button({style: "Link", label: "Online Leaderboard", url: lbLink}),
-            ...tools.button([
-                { style: "Secondary", label: "Progress", customId: `stats_view~progress~${int.user.id}` },
-                { style: "Secondary", label: "Rank", customId: `stats_view~rank~${int.user.id}` },
-                { style: "Secondary", label: "Info", customId: `stats_view~info~${int.user.id}` },
-                { style: "Success", label: "Leaderboard", customId: `stats_view~lb~${int.user.id}` }
-            ])
-        ]
+        // extraButtons: [ 
+        //     tools.button({style: "Link", label: "Online Leaderboard", url: lbLink}),
+        //     ...tools.button([
+        //         { style: "Secondary", label: "Progress", customId: `stats_view~progress~${int.user.id}` },
+        //         { style: "Secondary", label: "Info", customId: `stats_view~info~${int.user.id}` },
+        //         { style: "Success", label: "Leaderboard", customId: `stats_view~lb~${int.user.id}` }
+        //     ])
+        // ]
     })
     if (!xpEmbed.data.length) return tools.warn("There are no members on this page!")
 

@@ -131,15 +131,9 @@ module.exports = {
 
             const attachment = new AttachmentBuilder(rankCard.toBuffer(), { name: 'rankCard.png' });
             
-            // Navigation Buttons
-            let buttons = tools.button([
-                { style: "Secondary", label: "Progress", customId: `stats_view~progress~${member.id}` },
-                { style: "Success", label: "Rank", customId: `stats_view~rank~${member.id}` },
-                { style: "Secondary", label: "Info", customId: `stats_view~info~${member.id}` },
-                { style: "Secondary", label: "Leaderboard", customId: `stats_view~lb~${member.id}` }
-            ])
 
-            await int.editReply({ files: [attachment], components: tools.row(buttons) });
+
+            await int.editReply({ files: [attachment] });
 
         } catch (err) {
             console.error("Failed to execute rank command:", err);
