@@ -571,9 +571,9 @@ class Tools {
                         console.error(`Failed to remove milestone roles for ${member.user.tag}:`, error);
                     }
                 }
-                if (message && userStreak.count > 3) {
-                    message.reply(`😭 Oh no! You lost a streak of ${userStreak.count} days!`).catch(console.error);
-                }
+                // if (message && userStreak.count > userStreak.highest) {
+                //     message.reply(`<:info:1466817220687695967> Your new highest streak is of ${userStreak.count} days!`).catch(console.error);
+                // }
                 userStreak.count = 1; // Reset to 1 for today's activity
                 userStreak.milestoneRoles = [];
             };
