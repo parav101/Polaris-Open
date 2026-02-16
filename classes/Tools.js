@@ -382,6 +382,12 @@ class Tools {
             if (!isArr) buttonOptions = [buttonOptions]
             buttonOptions = buttonOptions.map(b => {
                 if (typeof b.style == "string") b.style = Discord.ButtonStyle[b.style]
+                // Handle string emojis by converting them to the format expected by ButtonBuilder
+                if (typeof b.emoji == "string" && b.emoji.includes(":")) {
+                    // It's a custom emoji like <:name:id> or just name:id
+                    let parts = b.emoji.replace(/[<>]/g, "").split(":")
+                    b.emoji = { name: parts[parts.length - 2], id: parts[parts.length - 1] }
+                }
                 return b
             })
 
@@ -597,6 +603,11 @@ class Tools {
                 userData.xp = (userData.xp || 0) + xpWithMultiplier;
             }
 
+            // Add Credits for streak
+            if (settings.creditsPerClaim > 0 && userStreak.count >= (settings.minStreakForCredits || 0)) {
+                userData.credits = (userData.credits || 0) + settings.creditsPerClaim;
+            }
+
             // Check for milestones
             const reachedMilestone = settings.milestones?.find(m => m.days === userStreak.count);
 
@@ -651,6 +662,30 @@ class Tools {
             }
         }
 
+        // Function to check and remove expired temporary roles
+        this.checkTempRoles = async function(member, db, client) {
+            const userData = db.users[member.id];
+            if (!userData || !userData.tempRoles || userData.tempRoles.length === 0) return;
+
+            const now = Date.now();
+            const expiredRoles = userData.tempRoles.filter(role => role.expires <= now);
+            if (expiredRoles.length === 0) return;
+
+            // Remove roles from member
+            for (const role of expiredRoles) {
+                try {
+                    await member.roles.remove(role.roleId);
+                } catch (error) {
+                    // console.error(`Failed to remove expired role ${role.roleId} from ${member.user.tag}:`, error);
+                }
+            }
+
+            // Update user data in DB
+            userData.tempRoles = userData.tempRoles.filter(role => role.expires > now);
+            db.users[member.id] = userData;
+            await client.db.update(member.guild.id, { $set: { [`users.${member.id}`]: db.users[member.id] } }).exec();
+        }
+
 
         // check if user is active (last xp gain or streak claim within 30 days)
         this.isUserActive = function(user) {
@@ -673,7 +708,10 @@ class Tools {
         // get setting from an id, e.g. "levelUp.multiple"
         this.getSettingFromID = function(id, settings) {
             let val = settings
-            id.split(".").forEach(x => { val = val[x] })
+            id.split(".").forEach(x => { 
+                if (val !== undefined && val !== null) val = val[x] 
+                else val = undefined
+            })
             return val;
         }
 

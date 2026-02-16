@@ -17,6 +17,7 @@ async run(client, message, tools) {
      // Update user streak based on message activity
     await tools.updateStreak(message.member, db, client, message.channel, message);
     await tools.updateDailyXpSnapshot(message.member, db, client);
+    await tools.checkTempRoles(message.member, db, client);
 
     // fetch user's xp, or give them 0
     let userData = db.users[author] || { xp: 0, cooldown: 0, voiceTime: 0 }

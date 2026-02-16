@@ -133,8 +133,9 @@ async run(client, int, tools) {
 
     // Navigation Buttons
     let buttons = tools.button([
-        { style: "Secondary", label: "Progress", customId: `stats_view~progress~${member.id}` },
-        { style: "Success", label: "Info", customId: `stats_view~info~${member.id}` },
+        { style: "Secondary", label: "Progress", customId: `stats_view~progress~${member.id}`, emoji: "<:progress:1466819928110792816>" },
+        { style: "Success", label: "Info", customId: `stats_view~info~${member.id}`, emoji: "<:info:1466817220687695967>" },
+        { style: "Primary", label: "Shop", customId: "shop", emoji: "<:gold:1472934905972527285>" }
     ])
 
 

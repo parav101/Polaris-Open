@@ -134,10 +134,23 @@ const settings = {
     streak: {
         enabled: { type: "bool", default: false },
         xpPerClaim: { type: "int", default: 100, min: 0, max: 10000 },
+        creditsPerClaim: { type: "int", default: 10, min: 0, max: 10000 },
+        minStreakForCredits: { type: "int", default: 0, min: 0, max: 1000 },
         milestones: { type: "collection", values: {
             days: { type: "int", min: 1, max: 1000 },
             roleId: { type: "string", accept: ["discord:role"] }
         }, default: [] }
+    },
+
+    shop: {
+        enabled: { type: "bool", default: false },
+        items: { type: "collection", values: {
+            roleId: { type: "string", accept: ["discord:role"] },
+            name: { type: "string", maxlength: 100 },
+            price: { type: "int", min: 0 },
+            duration: { type: "float", min: 0 },
+            emoji: { type: "string", maxlength: 100 }
+        }}
     }
 ,
     

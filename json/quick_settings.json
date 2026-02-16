@@ -5,7 +5,8 @@
         { "emoji": "✨", "name": "General", "folder": "general" },
         { "emoji": "🎁", "name": "Levelling", "folder": "level" },
         { "emoji": "📊", "name": "Rank and Leaderboard", "folder": "rank" },
-        { "emoji": "🤫", "name": "Confessions", "folder": "confession" }
+        { "emoji": "🤫", "name": "Confessions", "folder": "confession" },
+        { "emoji": "💰", "name": "Credit Shop", "folder": "shop" }
     ],
 
     "general": [
@@ -53,5 +54,12 @@
         { "db": "confession.maxLength", "name": "Max Confession Length", "desc": "Maximum characters per confession", "str": "# characters" },
         { "db": "confession.allowImages", "name": "Allow Images", "desc": "Allow images in confessions" },
         { "db": "confession.logChannelId", "name": "Log Channel", "desc": "Channel to log confessions for moderation" }
+    ],
+
+    "shop": [
+        { "emoji": "⬅️", "name": "Back", "folder": "home", "groupName": "Shop settings" },
+        { "db": "shop.enabled", "name": "Enable Shop", "desc": "Allows members to buy items with credits" },
+        { "db": "streak.creditsPerClaim", "name": "Credits per claim", "desc": "Amount of credits earned for each daily streak claim", "str": "# credits" },
+        { "db": "streak.minStreakForCredits", "name": "Min streak for credits", "desc": "Minimum streak required before earning credits", "str": "# days" }
     ]
 }

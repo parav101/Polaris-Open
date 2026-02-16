@@ -39,6 +39,17 @@ module.exports = {
         let multiplierData = tools.getMultiplier(member, db.settings)
         let multiplier = multiplierData.multiplier
 
+        let credits = currentXP.credits || 0
+        let tempRoles = currentXP.tempRoles || []
+        let tempRoleLines = tempRoles.map(x => {
+            let timeLeft = x.expires - Date.now()
+            if (timeLeft < 0) return null
+            return `<@&${x.roleId}> (${tools.time(timeLeft)} left)`
+        }).filter(x => x)
+
+        let shopInfo = `\n<:info:1466817220687695967> **Credits Balance**\n<:extendedend:1466819484999225579>${tools.commafy(credits)} <:gold:1472934905972527285>`
+        if (tempRoleLines.length > 0) shopInfo += `\n<:info:1466817220687695967> **Active Shop Roles**\n<:extendedend:1466819484999225579>${tempRoleLines.join("\n")}`
+
         // Progress Bar
         let barSize = 25
         let barRepeat = Math.round(levelPercent / (100 / barSize))
@@ -64,7 +75,7 @@ module.exports = {
                 name: "Progress Overview", 
                 iconURL: member.user.displayAvatarURL({ dynamic: true }) 
             },
-            description: `\n\n<:level:1466817213830009045> **Level ${levelData.level}** (${multiplier}x multiplier)\n\n <:info:1466817220687695967> **XP Required for Next Level**\n<:extendedend:1466819484999225579> ${tools.commafy(levelData.xpRequired - xp)} <:userxp:1466822701724340304>\n\n` +
+            description: `\n\n<:level:1466817213830009045> **Level ${levelData.level}** (${multiplier}x multiplier)\n\n <:info:1466817220687695967> **XP Required for Next Level**\n<:extendedend:1466819484999225579> ${tools.commafy(levelData.xpRequired - xp)} <:userxp:1466822701724340304>${shopInfo}\n\n` +
                          `<:progress:1466819928110792816> **Milestones**\n${milestoneLines.join("\n")}\n\n` +
                          `Keep up the activity in VC/Chat to gain XP and unlock new milestones!`,
             thumbnail: member.user.displayAvatarURL({ dynamic: true }),
@@ -81,8 +92,9 @@ module.exports = {
 
         // Navigation Buttons
         let buttons = tools.button([
-            { style: "Success", label: "Progress", customId: `stats_view~progress~${member.id}` },
-            { style: "Secondary", label: "Info", customId: `stats_view~info~${member.id}` },
+            { style: "Success", label: "Progress", customId: `stats_view~progress~${member.id}`, emoji: "<:progress:1466819928110792816>" },
+            { style: "Secondary", label: "Info", customId: `stats_view~info~${member.id}`, emoji: "<:info:1466817220687695967>" },
+            { style: "Primary", label: "Shop", customId: "shop", emoji: "<:gold:1472934905972527285>" }
         ])
 
         // const endTime = Date.now();
