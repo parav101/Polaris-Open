@@ -26,7 +26,7 @@ async run(client, int, tools) {
     const highlightUser = int.options.get("user") || int.options.get("member")
     const highlightId = highlightUser?.user?.id || null
 
-    const embed = await generateLeaderboardEmbed(int.guild, db, tools, highlightId)
+    const embed = await generateLeaderboardEmbed(int.guild, db, tools, highlightId, false, int.user.id)
 
     if (!embed) {
         return int.editReply({ content: "Failed to generate leaderboard." })

@@ -23,16 +23,19 @@ const RANK_EMOJIS = [
  * @returns {Promise<Array<{id: string, activityXP: number, member: import("discord.js").GuildMember|null}>>}
  *   Sorted descending, top 9, only users with activityXP > 0
  */
-async function buildActivityLeaderboard(guild, db) {
+async function buildActivityLeaderboard(guild, db, limit = 9) {
+    const results = await buildActivityLeaderboardInternal(guild, db)
+    return results.slice(0, limit)
+}
+
+/**
+ * Internal logic to compute all rankings.
+ */
+async function buildActivityLeaderboardInternal(guild, db) {
     const tools = Tools.global
     const usersArray = tools.xpObjToArray(db.users).filter(u => !u.hidden)
-
-    // Step 1: compute raw diff for every user (no network calls), filter zeros, sort descending
-    // Use xpAtDayStart as baseline (same as /info daily XP display), divided by multiplier.
-    // IMPORTANT: only count users whose lastDailyUpdate is TODAY (UTC) — this filters out
-    // users who were active on a previous day but haven't sent a message yet today,
-    // since their xpAtDayStart is stale and would produce a false non-zero diff.
     const now = new Date()
+
     const candidates = usersArray
         .map(user => {
             const lastUpdate = user.lastDailyUpdate ? new Date(user.lastDailyUpdate) : null
@@ -47,34 +50,28 @@ async function buildActivityLeaderboard(guild, db) {
         })
         .filter(u => u.rawDiff > 0)
         .sort((a, b) => b.rawDiff - a.rawDiff)
-        .slice(0, 20)
 
     if (!candidates.length) return []
 
-    // Step 2: fetch only those top-20 members in parallel (cache-first, no sequential awaits)
+    // Fetch members involved
     const memberMap = new Map()
-    await Promise.all(candidates.map(async ({ id }) => {
+    await Promise.all(candidates.slice(0, 100).map(async ({ id }) => {
         const cached = guild.members.cache.get(id)
         if (cached) { memberMap.set(id, cached); return }
         const fetched = await guild.members.fetch(id).catch(() => null)
         if (fetched) memberMap.set(id, fetched)
     }))
 
-    // Step 3: apply multiplier, re-filter, re-sort, slice to 9
     const results = candidates.map(({ id, rawDiff }) => {
         const member = memberMap.get(id) || null
         let multiplier = 1
         if (member) {
-            // Pass null as channel explicitly — avoids the `int.channel` default which throws
-            // when called outside of an interaction context (Tools.global). Role multipliers
-            // still apply correctly; channel multipliers are intentionally ignored here.
             multiplier = tools.getMultiplier(member, db.settings, null).multiplier || 1
         }
         return { id, activityXP: Math.floor(rawDiff / multiplier), member }
     })
     .filter(r => r.activityXP > 0)
     .sort((a, b) => b.activityXP - a.activityXP)
-    .slice(0, 9)
 
     return results
 }
@@ -87,9 +84,10 @@ async function buildActivityLeaderboard(guild, db) {
  * @param {object} tools Global tools
  * @param {string|null} highlightId User ID to highlight (slash command use case)
  * @param {boolean} showWinner Whether to show the "winner" line (auto-post use case)
+ * @param {string|null} commandUserId The ID of the user who ran the command
  * @returns {Promise<import("discord.js").EmbedBuilder>}
  */
-async function generateLeaderboardEmbed(guild, db, tools, highlightId = null, showWinner = false) {
+async function generateLeaderboardEmbed(guild, db, tools, highlightId = null, showWinner = false, commandUserId = null) {
     const settings = db.settings.activityLeaderboard
     if (!settings?.enabled) return null
 
@@ -129,6 +127,21 @@ async function generateLeaderboardEmbed(guild, db, tools, highlightId = null, sh
     let outsiderLine = ""
     if (highlightId && !rankings.find(r => r.id === highlightId)) {
         outsiderLine = `\n\n<:info:1466817220687695967> *<@${highlightId}> is not in the top 9 today.*`
+    }
+
+    // Append command user's position if applicable
+    if (commandUserId) {
+        // Need full rankings to find position if > 9
+        const fullRankings = await buildActivityLeaderboardInternal(guild, db)
+        const pos = fullRankings.findIndex(r => r.id === commandUserId)
+        
+        // Only show if user is NOT in the top 9 already
+        if (pos >= 9) {
+            const entry = fullRankings[pos]
+            const rank = pos + 1
+            // ... (rest of emoji logic or simple text)
+            outsiderLine += `\n\n<@${commandUserId}> your place is **#${rank}** with **${tools.commafy(entry.activityXP)}** Daily XP`
+        }
     }
 
     const embed = tools.createEmbed({

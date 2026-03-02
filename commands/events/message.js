@@ -23,7 +23,7 @@ async run(client, message, tools) {
         ) {
             const loadingMsg = await message.reply({ content: "<a:loading:1478025535975325738> Loading activity leaderboard..." }).catch(() => null)
 
-            const embed = await generateLeaderboardEmbed(message.guild, fullDb, tools)
+            const embed = await generateLeaderboardEmbed(message.guild, fullDb, tools, null, false, message.author.id)
 
             if (!embed) {
                 if (loadingMsg) await loadingMsg.edit({ content: "Failed to load leaderboard." }).catch(() => {})
