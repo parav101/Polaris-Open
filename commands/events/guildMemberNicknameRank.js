@@ -2,6 +2,7 @@ module.exports = {
     async run(client, int, tools) {
         try {
             const member = int.member;
+            if (!member.manageable) return;
             let db = await tools.fetchSettings(int.author.id, int.guild.id);
             if (!db?.settings?.enabled || !db.settings?.nicknameRank) return;
             if (member.id === int.guild.ownerId) return;
