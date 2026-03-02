@@ -1,5 +1,17 @@
 const Tools = require("./Tools.js")
 
+const RANK_EMOJIS = [
+    "<:1_:1477998075535429713>",
+    "<:2_:1477998064756326471>",
+    "<:3_:1477998056224985190>",
+    "<:4_:1477998060780126270>",
+    "<:5_:1477998058175205523>",
+    "<:6_:1477998062914895925>",
+    "<:7_:1477998069587902566>",
+    "<:8_:1477998071508893756>",
+    "<:9_:1477998073413111979>",
+]
+
 /**
  * Builds the activity leaderboard for a guild.
  *
@@ -67,6 +79,79 @@ async function buildActivityLeaderboard(guild, db) {
     return results
 }
 
+/**
+ * Shared function to generate the activity leaderboard embed.
+ * 
+ * @param {import("discord.js").Guild} guild
+ * @param {object} db  Full guild document
+ * @param {object} tools Global tools
+ * @param {string|null} highlightId User ID to highlight (slash command use case)
+ * @returns {Promise<import("discord.js").EmbedBuilder>}
+ */
+async function generateLeaderboardEmbed(guild, db, tools, highlightId = null) {
+    const settings = db.settings.activityLeaderboard
+    if (!settings?.enabled) return null
+
+    const rankings = await buildActivityLeaderboard(guild, db)
+
+    const intervalHours = snapInterval(settings.interval || 24)
+    const nextPost = nextAnchorUnix(Date.now(), intervalHours)
+    const _d = new Date()
+    const nextMidnight = Math.floor(Date.UTC(_d.getUTCFullYear(), _d.getUTCMonth(), _d.getUTCDate() + 1) / 1000)
+
+    const postLine = `\n\n<:progress:1466819928110792816> Next reward <t:${nextPost}:R>\n<:userxp:1466822701724340304> XP resets <t:${nextMidnight}:R>`
+
+    let description
+    if (!rankings.length) {
+        description = "<:info:1466817220687695967> No activity recorded today yet! Members need to chat or be in voice to appear here." + postLine
+    } else {
+        description = rankings.map((entry, i) => {
+            const rankEmoji = RANK_EMOJIS[i]
+            const isHighlight = entry.id === highlightId
+            const line = `${rankEmoji} <@${entry.id}> — **${tools.commafy(entry.activityXP)}** Daily XP`
+            return isHighlight ? `__${line}__` : line
+        }).join("\n")
+
+        // Winner line for auto-post results (when no highlightId is provided, suggesting post context)
+        // Or we could pass a flag. Let's keep it simple.
+        if (!highlightId) {
+            const topCredits = settings.topCredits || 0
+            const topRoleId  = settings.topRoleId  || ""
+            if (rankings[0] && (topCredits > 0 || topRoleId)) {
+                 description += `\n\n<:star:1475076863809294397> <@${rankings[0].id}> wins this interval's reward!`
+            }
+        }
+
+        description += postLine
+    }
+
+    // If requested member is outside top 9, append their position
+    let outsiderLine = ""
+    if (highlightId && !rankings.find(r => r.id === highlightId)) {
+        outsiderLine = `\n\n<:info:1466817220687695967> *<@${highlightId}> is not in the top 9 today.*`
+    }
+
+    const embed = tools.createEmbed({
+        color: tools.COLOR,
+        author: {
+            name: `Activity Leaderboard — ${guild.name}`,
+            iconURL: guild.iconURL()
+        },
+        description: description + outsiderLine
+    })
+
+    const topCredits = settings.topCredits || 0
+    const topRoleId  = settings.topRoleId  || ""
+    if (topCredits > 0 || topRoleId) {
+        const rewardParts = []
+        if (topCredits > 0) rewardParts.push(`<:extendedend:1466819484999225579><:gold:1472934905972527285> **${tools.commafy(topCredits)}** credits`)
+        if (topRoleId)      rewardParts.push(`<:extendedend:1466819484999225579><@&${topRoleId}>`)
+        embed.addFields([{ name: "<:info:1466817220687695967> Top User Reward", value: rewardParts.join("  ·  "), inline: false }])
+    }
+
+    return embed
+}
+
 const VALID_INTERVALS = [4, 6, 8, 12, 24]
 
 /**
@@ -104,4 +189,4 @@ function isDue(nowMs, lastPostedMs, intervalHours) {
     return Math.floor(nowMs / intervalMs) > Math.floor((lastPostedMs || 0) / intervalMs)
 }
 
-module.exports = { buildActivityLeaderboard, nextAnchorUnix, isDue, snapInterval }
+module.exports = { buildActivityLeaderboard, generateLeaderboardEmbed, nextAnchorUnix, isDue, snapInterval }
