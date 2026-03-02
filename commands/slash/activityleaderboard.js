@@ -54,7 +54,7 @@ async run(client, int, tools) {
     const lines = rankings.map((entry, i) => {
         const rankEmoji = RANK_EMOJIS[i]
         const isHighlight = entry.id === highlightId
-        const line = `${rankEmoji} <@${entry.id}> — **${tools.commafy(entry.activityXP)}** <:userxp:1466822701724340304>`
+        const line = `${rankEmoji} <@${entry.id}> — **${tools.commafy(entry.activityXP)}** Daily XP`
         return isHighlight ? `__${line}__` : line
     })
 

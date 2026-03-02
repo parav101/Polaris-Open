@@ -50,7 +50,7 @@ async run(client, message, tools) {
                 description = "<:info:1466817220687695967> No activity recorded today yet! Members need to chat or be in voice to appear here." + postLine
             } else {
                 description = rankings.map((entry, i) =>
-                    `${RANK_EMOJIS[i]} <@${entry.id}> — **${tools.commafy(entry.activityXP)}** <:userxp:1466822701724340304>`
+                    `${RANK_EMOJIS[i]} <@${entry.id}> — **${tools.commafy(entry.activityXP)}** Daily XP`
                 ).join("\n") + postLine
             }
 

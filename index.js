@@ -139,7 +139,7 @@ client.on("ready", async() => {
                             description = "<:info:1466817220687695967> No activity recorded this interval." + postLine
                         } else {
                             description = rankings.map((entry, i) =>
-                                `${RANK_EMOJIS[i]} <@${entry.id}> — **${tools.commafy(entry.activityXP)}** <:userxp:1466822701724340304>`
+                                `${RANK_EMOJIS[i]} <@${entry.id}> — **${tools.commafy(entry.activityXP)}** Daily XP`
                             ).join("\n") + winnerLine + postLine
                         }
 
