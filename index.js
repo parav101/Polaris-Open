@@ -122,7 +122,7 @@ client.on("ready", async() => {
                             if (!channel) return
 
                             const tools = client.globalTools
-                            const embed = await generateLeaderboardEmbed(guild, doc, tools)
+                            const embed = await generateLeaderboardEmbed(guild, doc, tools, null, true)
                             if (!embed) return
 
                             await channel.send({ embeds: [embed] }).catch(e => console.error(`[ActivityLB] Failed to post in ${guildId}:`, e.message))

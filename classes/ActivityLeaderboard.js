@@ -86,9 +86,10 @@ async function buildActivityLeaderboard(guild, db) {
  * @param {object} db  Full guild document
  * @param {object} tools Global tools
  * @param {string|null} highlightId User ID to highlight (slash command use case)
+ * @param {boolean} showWinner Whether to show the "winner" line (auto-post use case)
  * @returns {Promise<import("discord.js").EmbedBuilder>}
  */
-async function generateLeaderboardEmbed(guild, db, tools, highlightId = null) {
+async function generateLeaderboardEmbed(guild, db, tools, highlightId = null, showWinner = false) {
     const settings = db.settings.activityLeaderboard
     if (!settings?.enabled) return null
 
@@ -112,9 +113,8 @@ async function generateLeaderboardEmbed(guild, db, tools, highlightId = null) {
             return isHighlight ? `__${line}__` : line
         }).join("\n")
 
-        // Winner line for auto-post results (when no highlightId is provided, suggesting post context)
-        // Or we could pass a flag. Let's keep it simple.
-        if (!highlightId) {
+        // Winner line for auto-post results
+        if (showWinner) {
             const topCredits = settings.topCredits || 0
             const topRoleId  = settings.topRoleId  || ""
             if (rankings[0] && (topCredits > 0 || topRoleId)) {
