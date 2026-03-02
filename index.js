@@ -1,10 +1,11 @@
-const Discord = require("discord.js")
+﻿const Discord = require("discord.js")
 const fs = require("fs")
 
 const config = require("./config.json")
 
 const Tools = require("./classes/Tools.js")
 const Model = require("./classes/DatabaseModel.js")
+const { buildActivityLeaderboard, isDue, nextAnchorUnix, snapInterval } = require("./classes/ActivityLeaderboard.js")
 
 // automatic files: these handle discord status and version number, manage them with the dev commands
 const autoPath = "./json/auto/"
@@ -29,7 +30,8 @@ const client = new Discord.Client({
         Discord.GatewayIntentBits.DirectMessageReactions,
         Discord.GatewayIntentBits.GuildMessageReactions,
         Discord.GatewayIntentBits.GuildPresences,
-        Discord.GatewayIntentBits.GuildMembers 
+        Discord.GatewayIntentBits.GuildMembers,
+        Discord.GatewayIntentBits.MessageContent
     ],
     partials: [
         Discord.Partials.Channel,
@@ -84,6 +86,131 @@ client.on("ready", async() => {
 
     client.updateStatus()
     setInterval(client.updateStatus, 15 * 60000);
+
+    // activity leaderboard auto-post scheduler (shard 0 only, checks every 30 min)
+    if (client.shard.id == 0) {
+        setInterval(async () => {
+            try {
+                const guilds = await client.db.find({ "settings.activityLeaderboard.enabled": true })
+                for (const doc of guilds) {
+                    try {
+                        const guildId = doc._id
+                        const settings = doc.settings?.activityLeaderboard
+                        if (!settings?.enabled || !settings.channelId) continue
+
+                        const intervalHours = snapInterval(settings.interval || 24)
+                        const lastPosted = doc.info?.activityLastPosted || 0
+
+                        if (!isDue(Date.now(), lastPosted, intervalHours)) continue
+
+                        const guild = client.guilds.cache.get(guildId)
+                        if (!guild) continue // guild is on another shard or unavailable
+
+                        const channel = guild.channels.cache.get(settings.channelId)
+                        if (!channel) continue
+
+                        const rankings = await buildActivityLeaderboard(guild, doc)
+
+                        // --- Build and post the embed ---
+                        const tools = client.globalTools
+                        const RANK_EMOJIS = [
+                            "<:1_:1477998075535429713>",
+                            "<:2_:1477998064756326471>",
+                            "<:3_:1477998056224985190>",
+                            "<:4_:1477998060780126270>",
+                            "<:5_:1477998058175205523>",
+                            "<:6_:1477998062914895925>",
+                            "<:7_:1477998069587902566>",
+                            "<:8_:1477998071508893756>",
+                            "<:9_:1477998073413111979>",
+                        ]
+                        const nextPost = nextAnchorUnix(Date.now(), intervalHours)
+                        const _d = new Date()
+                        const nextMidnight = Math.floor(Date.UTC(_d.getUTCFullYear(), _d.getUTCMonth(), _d.getUTCDate() + 1) / 1000)
+
+                        const postLine = `\n\n<:progress:1466819928110792816> Next reward <t:${nextPost}:R>\n<:userxp:1466822701724340304> XP resets <t:${nextMidnight}:R>`
+                        const topEntry = rankings[0]
+                        let winnerLine = ""
+                        if (topEntry && (topCredits > 0 || topRoleId)) {
+                            winnerLine = `\n\n<:star:1475076863809294397> <@${topEntry.id}> wins this interval's reward!`
+                        }
+                        let description
+                        if (!rankings.length) {
+                            description = "<:info:1466817220687695967> No activity recorded this interval." + postLine
+                        } else {
+                            description = rankings.map((entry, i) =>
+                                `${RANK_EMOJIS[i]} <@${entry.id}> — **${tools.commafy(entry.activityXP)}** <:userxp:1466822701724340304>`
+                            ).join("\n") + winnerLine + postLine
+                        }
+
+                        const embed = tools.createEmbed({
+                            color: tools.COLOR,
+                            author: {
+                                name: `Activity Leaderboard — ${guild.name}`,
+                                iconURL: guild.iconURL()
+                            },
+                            description
+                        })
+
+                        const topCredits = settings.topCredits || 0
+                        const topRoleId  = settings.topRoleId  || ""
+                        if (topCredits > 0 || topRoleId) {
+                            const rewardParts = []
+                            if (topCredits > 0) rewardParts.push(`<:extendedend:1466819484999225579><:gold:1472934905972527285> **${tools.commafy(topCredits)}** credits`)
+                            if (topRoleId)      rewardParts.push(`<:extendedend:1466819484999225579><@&${topRoleId}>`)
+                            embed.addFields([{ name: "<:star:1475076863809294397> Top User Reward", value: rewardParts.join("  ·  "), inline: false }])
+                        }
+
+                        await channel.send({ embeds: [embed] }).catch(e => console.error(`[ActivityLB] Failed to post in ${guildId}:`, e.message))
+
+                        // --- Award top user ---
+                        const prevTopId = doc.info?.lastTopUserId || ""
+
+                        if (topEntry && (topCredits > 0 || topRoleId)) {
+                            const topMember = topEntry.member || await guild.members.fetch(topEntry.id).catch(() => null)
+
+                            // Give credits
+                            if (topMember && topCredits > 0) {
+                                const currentCredits = doc.users?.[topEntry.id]?.credits || 0
+                                await client.db.update(guildId, {
+                                    $set: { [`users.${topEntry.id}.credits`]: currentCredits + topCredits }
+                                }).exec().catch(() => {})
+                            }
+
+                            // Give top role
+                            if (topMember && topRoleId) {
+                                if (guild.members.me?.permissions.has("ManageRoles")) {
+                                    await topMember.roles.add(topRoleId).catch(() => {})
+                                }
+                            }
+                        }
+
+                        // --- Remove role from previous top user if different ---
+                        if (topRoleId && prevTopId && prevTopId !== topEntry?.id) {
+                            const prevMember = guild.members.cache.get(prevTopId)
+                                || await guild.members.fetch(prevTopId).catch(() => null)
+                            if (prevMember && guild.members.me?.permissions.has("ManageRoles")) {
+                                await prevMember.roles.remove(topRoleId).catch(() => {})
+                            }
+                        }
+
+                        // --- Update info only (no per-user writes needed) ---
+                        await client.db.update(guildId, {
+                            $set: {
+                                "info.activityLastPosted": Date.now(),
+                                "info.lastTopUserId": topEntry?.id || ""
+                            }
+                        }).exec().catch(e => console.error(`[ActivityLB] Info update failed for ${guildId}:`, e.message))
+
+                    } catch (guildErr) {
+                        console.error(`[ActivityLB] Error processing guild ${doc._id}:`, guildErr.message)
+                    }
+                }
+            } catch (err) {
+                console.error("[ActivityLB] Scheduler error:", err.message)
+            }
+        }, 30 * 60000)
+    }
 
     // run the web server
     if (client.shard.id == 0 && config.enableWebServer) require("./web_app.js")(client)

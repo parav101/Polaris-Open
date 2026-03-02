@@ -6,7 +6,8 @@
         { "emoji": "🎁", "name": "Levelling", "folder": "level" },
         { "emoji": "📊", "name": "Rank and Leaderboard", "folder": "rank" },
         { "emoji": "🤫", "name": "Confessions", "folder": "confession" },
-        { "emoji": "💰", "name": "Credit Shop", "folder": "shop" }
+        { "emoji": "💰", "name": "Credit Shop", "folder": "shop" },
+        { "emoji": "🏆", "name": "Activity Leaderboard", "folder": "activitylb" }
     ],
 
     "general": [
@@ -61,5 +62,15 @@
         { "db": "shop.enabled", "name": "Enable Shop", "desc": "Allows members to buy items with credits" },
         { "db": "streak.creditsPerClaim", "name": "Credits per claim", "desc": "Amount of credits earned for each daily streak claim", "str": "# credits" },
         { "db": "streak.minStreakForCredits", "name": "Min streak for credits", "desc": "Minimum streak required before earning credits", "str": "# days" }
+    ],
+
+    "activitylb": [
+        { "emoji": "⬅️", "name": "Back", "folder": "home", "groupName": "Activity Leaderboard settings" },
+        { "db": "activityLeaderboard.enabled", "name": "Enable Activity Leaderboard", "desc": "Automatically posts a top-9 leaderboard of most-active members each interval" },
+        { "db": "activityLeaderboard.channelId", "name": "Posting Channel ID", "desc": "Channel where the leaderboard will be auto-posted", "tip": "Right-click a channel → Copy ID and paste it here" },
+        { "db": "activityLeaderboard.interval", "name": "Post & Reward Interval", "desc": "How often the leaderboard is posted and rewards are given. XP always resets at midnight UTC regardless of this setting. Must be one of: 4, 6, 8, 12, 24.", "str": "Every # hours", "tip": "Valid values: 4, 6, 8, 12, 24" },
+        { "space": true },
+        { "db": "activityLeaderboard.topCredits", "name": "Top User Credits Reward", "desc": "Credits awarded to the #1 activity user each interval", "str": "# credits", "zeroText": "No reward" },
+        { "db": "activityLeaderboard.topRoleId", "name": "Top User Role ID", "desc": "Role given to the #1 activity user (removed from previous winner at next interval)", "tip": "Right-click a role in Server Settings → Copy ID and paste it here" }
     ]
 }

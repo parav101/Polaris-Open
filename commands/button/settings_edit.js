@@ -17,6 +17,7 @@ async run(client, int, tools, modal) {
 
     let isBool = setting.type == "bool"
     let isNumber = (setting.type == "int" || setting.type == "float")
+    let isString = setting.type == "string"
 
     if (!modal) {
         if (isNumber) {
@@ -35,7 +36,28 @@ async run(client, int, tools, modal) {
             let numRow = new Discord.ActionRowBuilder().addComponents(numOption)
             numModal.addComponents(numRow)
             return int.showModal(numModal);
-        }    
+        }
+
+        if (isString) {
+            let strModal = new Discord.ModalBuilder()
+            .setCustomId(`configmodal~${settingID}~${int.user.id}`)
+            .setTitle("Edit setting")
+
+            let strOption = new Discord.TextInputBuilder()
+            .setLabel("New value (leave blank to clear)")
+            .setStyle(Discord.TextInputStyle.Short)
+            .setCustomId("configmodal_value")
+            .setMaxLength(setting.maxlength || 200)
+            .setRequired(false)
+
+            if (setting.accept?.includes("discord:channel")) strOption.setPlaceholder("Paste a channel ID (right-click channel → Copy ID)")
+            else if (setting.accept?.includes("discord:role")) strOption.setPlaceholder("Paste a role ID (right-click role → Copy ID)")
+            else if (setting.default !== undefined && setting.default !== "") strOption.setPlaceholder(`Default: ${setting.default}`)
+
+            let strRow = new Discord.ActionRowBuilder().addComponents(strOption)
+            strModal.addComponents(strRow)
+            return int.showModal(strModal);
+        }
     }
 
 
@@ -64,6 +86,11 @@ async run(client, int, tools, modal) {
 
             newValue = num
         }
+    }
+
+    else if (isString) {
+        let modalVal = int.fields.getTextInputValue("configmodal_value").trim()
+        newValue = modalVal // allow clearing to empty string
     }
 
     if (newValue === undefined || newValue == oldValue) return int.deferUpdate()

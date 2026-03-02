@@ -162,6 +162,14 @@ const settings = {
         logChannelId: { type: "string", accept: ["discord:channel"] },
         maxLength: { type: "int", default: 2000, min: 1, max: 4000 },
         allowImages: { type: "bool", default: false }
+    },
+
+    activityLeaderboard: {
+        enabled: { type: "bool", default: false },
+        channelId: { type: "string", default: "", accept: ["discord:channel"] },
+        interval: { type: "int", default: 24, min: 4, max: 24, choices: [4, 6, 8, 12, 24] },
+        topCredits: { type: "int", default: 0, min: 0 },
+        topRoleId: { type: "string", default: "" }
     }
 }
 
@@ -215,6 +223,8 @@ const schema = {
     settings: settingsObj,
     info: {
         lastUpdate: { type: Number, default: 0 },
+        activityLastPosted: { type: Number, default: 0 },
+        lastTopUserId: { type: String, default: "" },
     },
     giveaways: [{
         messageId: String,

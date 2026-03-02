@@ -1,5 +1,18 @@
 const LevelUpMessage = require("../../classes/LevelUpMessage.js")
+const { buildActivityLeaderboard, nextAnchorUnix, snapInterval } = require("../../classes/ActivityLeaderboard.js")
 const config = require("../../config.json")
+
+const RANK_EMOJIS = [
+    "<:1_:1477998075535429713>",
+    "<:2_:1477998064756326471>",
+    "<:3_:1477998056224985190>",
+    "<:4_:1477998060780126270>",
+    "<:5_:1477998058175205523>",
+    "<:6_:1477998062914895925>",
+    "<:7_:1477998069587902566>",
+    "<:8_:1477998071508893756>",
+    "<:9_:1477998073413111979>",
+]
 
 module.exports = {
 
@@ -13,6 +26,61 @@ async run(client, message, tools) {
     if (!db || !db.settings?.enabled) return
     
     let settings = db.settings
+    // ,lb shortcut — only works in the configured activity leaderboard channel
+    if (message.content.trim().toLowerCase() === ",lb") {
+        const fullDb = await tools.fetchAll(message.guild.id).catch(() => null)
+        if (
+            fullDb?.settings?.activityLeaderboard?.enabled &&
+            fullDb.settings.activityLeaderboard.channelId === message.channel.id
+        ) {
+            const lbSettings = fullDb.settings.activityLeaderboard
+            const intervalHours = snapInterval(lbSettings.interval || 24)
+            const nextPost = nextAnchorUnix(Date.now(), intervalHours)
+            const _d = new Date()
+            const nextMidnight = Math.floor(Date.UTC(_d.getUTCFullYear(), _d.getUTCMonth(), _d.getUTCDate() + 1) / 1000)
+
+            const loadingMsg = await message.reply({ content: "<a:loading:1478025535975325738> Loading activity leaderboard..." }).catch(() => null)
+
+            const rankings = await buildActivityLeaderboard(message.guild, fullDb)
+
+            const postLine = `\n\n<:progress:1466819928110792816> Next reward <t:${nextPost}:R>\n<:userxp:1466822701724340304> XP resets <t:${nextMidnight}:R>`
+
+            let description
+            if (!rankings.length) {
+                description = "<:info:1466817220687695967> No activity recorded today yet! Members need to chat or be in voice to appear here." + postLine
+            } else {
+                description = rankings.map((entry, i) =>
+                    `${RANK_EMOJIS[i]} <@${entry.id}> — **${tools.commafy(entry.activityXP)}** <:userxp:1466822701724340304>`
+                ).join("\n") + postLine
+            }
+
+            const embed = tools.createEmbed({
+                color: tools.COLOR,
+                author: {
+                    name: `Activity Leaderboard — ${message.guild.name}`,
+                    iconURL: message.guild.iconURL()
+                },
+                description
+            })
+
+            const topCredits = lbSettings.topCredits || 0
+            const topRoleId  = lbSettings.topRoleId  || ""
+            if (topCredits > 0 || topRoleId) {
+                const rewardParts = []
+                if (topCredits > 0) rewardParts.push(`<:extendedend:1466819484999225579><:gold:1472934905972527285> **${tools.commafy(topCredits)}** credits`)
+                if (topRoleId)      rewardParts.push(`<:extendedend:1466819484999225579><@&${topRoleId}>`)
+                embed.addFields([{ name: "<:info:1466817220687695967> Top User Reward", value: rewardParts.join("  ·  "), inline: false }])
+            }
+
+            if (loadingMsg) {
+                await loadingMsg.edit({ content: "", embeds: [embed] }).catch(() => {})
+            } else {
+                await message.reply({ embeds: [embed] }).catch(() => {})
+            }
+            return
+        }
+        return
+    }
 
      // Update user streak based on message activity
     await tools.updateStreak(message.member, db, client, message.channel, message);
