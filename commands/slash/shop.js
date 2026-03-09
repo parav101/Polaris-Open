@@ -89,6 +89,13 @@ async run(client, int, tools) {
 
         let newCredits = currentCredits - item.price
         
+        // --- NEW: Reset daily XP snapshot if buying a multiplier role ---
+        // This ensures they don't get "free" activity XP from the new multiplier
+        // by locking in their current XP as the new baseline immediately.
+        if (freshDB.settings?.multipliers?.roles?.[item.roleId]) {
+            await tools.updateDailyXpSnapshot(i.member, freshDB, client, true);
+        }
+
         await client.db.update(int.guild.id, { 
             $set: { 
                 [`users.${int.user.id}.credits`]: newCredits,

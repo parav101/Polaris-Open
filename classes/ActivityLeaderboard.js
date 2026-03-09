@@ -62,13 +62,18 @@ async function buildActivityLeaderboardInternal(guild, db) {
         if (fetched) memberMap.set(id, fetched)
     }))
 
-    const results = candidates.map(({ id, rawDiff }) => {
+    const results = candidates.map(({ id, rawDiff, user }) => {
         const member = memberMap.get(id) || null
         let multiplier = 1
         if (member) {
             multiplier = tools.getMultiplier(member, db.settings, null).multiplier || 1
         }
-        return { id, activityXP: Math.floor(rawDiff / multiplier), member }
+        
+        // Activity XP = (Current Session XP / Multiplier) + Previously Saved XP before multiplier changes
+        const currentSessionXp = Math.floor(rawDiff / multiplier);
+        const accumulatedXp = user.activityXpAccumulated || 0;
+        
+        return { id, activityXP: currentSessionXp + accumulatedXp, member }
     })
     .filter(r => r.activityXP > 0)
     .sort((a, b) => b.activityXP - a.activityXP)
