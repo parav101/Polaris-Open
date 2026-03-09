@@ -103,6 +103,16 @@ async run(client, int, tools) {
             } 
         })
 
+        // --- NEW: Public announcement message ---
+        // Send a message to the channel to encourage others and show off the purchase
+        const announcementEmbed = tools.createEmbed({
+            color: tools.COLOR,
+            description: `🎉 <@${int.user.id}> just purchased **${item.emoji} ${item.name}** from the shop!\nEnjoy your new role for the next **${item.duration}** hours!`,
+        }).setThumbnail(int.user.displayAvatarURL({ dynamic: true }))
+
+        // We send it as a follow-up or a new message in the channel since the interaction reply is ephemeral
+        await int.channel.send({ embeds: [announcementEmbed] }).catch(() => {})
+
         return i.reply({ content: `✅ **Successfully purchased ${item.emoji} ${item.name}!**\nCredits remaining: **${tools.commafy(newCredits)}**\nExpires in: **${tools.time(item.duration * 3600000)}**`, ephemeral: true })
     })
 
