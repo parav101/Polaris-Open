@@ -92,7 +92,17 @@ async run(client, int, tools) {
         // --- NEW: Reset daily XP snapshot if buying a multiplier role ---
         // This ensures they don't get "free" activity XP from the new multiplier
         // by locking in their current XP as the new baseline immediately.
-        if (freshDB.settings?.multipliers?.roles?.[item.roleId]) {
+        let isMultiplierRole = false;
+        if (freshDB.settings?.multipliers?.roles) {
+            // Check if settings.multipliers.roles is an array or object
+            if (Array.isArray(freshDB.settings.multipliers.roles)) {
+                isMultiplierRole = freshDB.settings.multipliers.roles.some(r => r.roleId === item.roleId);
+            } else {
+                isMultiplierRole = !!freshDB.settings.multipliers.roles[item.roleId];
+            }
+        }
+
+        if (isMultiplierRole) {
             await tools.updateDailyXpSnapshot(i.member, freshDB, client, true);
         }
 

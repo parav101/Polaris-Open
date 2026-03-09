@@ -681,7 +681,13 @@ class Tools {
                 userData.lastDailyUpdate = now.getTime();
                 
                 db.users[member.id] = userData;
-                await client.db.update(member.guild.id, { $set: { [`users.${member.id}`]: db.users[member.id] } }).exec();
+                await client.db.update(member.guild.id, { 
+                    $set: { 
+                        [`users.${member.id}.xpAtDayStart`]: currentXP,
+                        [`users.${member.id}.lastDailyUpdate`]: now.getTime(),
+                        [`users.${member.id}.activityXpAccumulated`]: userData.activityXpAccumulated || 0
+                    } 
+                }).exec();
             }
         }
 
@@ -698,8 +704,12 @@ class Tools {
             let multiplierChanged = false;
             const settings = db.settings;
             if (settings?.multipliers?.roles) {
+                const rolesData = settings.multipliers.roles;
+                const isArray = Array.isArray(rolesData);
                 for (const role of expiredRoles) {
-                    if (settings.multipliers.roles[role.roleId]) {
+                    if (isArray) {
+                        if (rolesData.some(r => r.roleId === role.roleId)) { multiplierChanged = true; break; }
+                    } else if (rolesData[role.roleId]) {
                         multiplierChanged = true;
                         break;
                     }
@@ -719,12 +729,27 @@ class Tools {
             // This prevents the "activity XP" from jumping or dropping incorrectly
             if (multiplierChanged) {
                 await this.updateDailyXpSnapshot(member, db, client, true);
+                
+                // Fetch the updated user data to make sure we don't overwrite the newly saved accumulation
+                const updatedSettings = await this.fetchSettings(member.id);
+                if (updatedSettings.users[member.id]) {
+                    userData.activityXpAccumulated = updatedSettings.users[member.id].activityXpAccumulated;
+                    userData.xpAtDayStart = updatedSettings.users[member.id].xpAtDayStart;
+                    userData.lastDailyUpdate = updatedSettings.users[member.id].lastDailyUpdate;
+                }
             }
 
             // Update user data in DB
             userData.tempRoles = userData.tempRoles.filter(role => role.expires > now);
             db.users[member.id] = userData;
-            await client.db.update(member.guild.id, { $set: { [`users.${member.id}`]: db.users[member.id] } }).exec();
+            await client.db.update(member.guild.id, { 
+                $set: { 
+                    [`users.${member.id}.tempRoles`]: userData.tempRoles,
+                    [`users.${member.id}.activityXpAccumulated`]: userData.activityXpAccumulated || 0,
+                    [`users.${member.id}.xpAtDayStart`]: userData.xpAtDayStart || 0,
+                    [`users.${member.id}.lastDailyUpdate`]: userData.lastDailyUpdate || 0
+                } 
+            }).exec();
         }
 
 
