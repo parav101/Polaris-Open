@@ -61,6 +61,9 @@ async run(client, message, tools) {
     if (xpGained > 0) userData.xp += Math.round(xpGained)
     else return
     
+    // add to daily raw xp
+    userData.activityXpAccumulated = (userData.activityXpAccumulated || 0) + (xpGained / multiplierData.multiplier)
+
     // set xp cooldown
     if (settings.gain.time > 0) userData.cooldown = Date.now() + (settings.gain.time * 1000)
     

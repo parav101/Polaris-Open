@@ -127,6 +127,10 @@ client.on("ready", async() => {
 
                             await channel.send({ embeds: [embed] }).catch(e => console.error(`[ActivityLB] Failed to post in ${guildId}:`, e.message))
 
+                            // --- Reward Logging ---
+                            const logChannelId = settings.rewardLogChannelId
+                            const logChannel = logChannelId ? (guild.channels.cache.get(logChannelId) || await guild.channels.fetch(logChannelId).catch(() => null)) : null
+
                             // --- Award top user ---
                             const rankings = await buildActivityLeaderboard(guild, doc)
                             const topEntry = rankings[0]
@@ -144,6 +148,17 @@ client.on("ready", async() => {
                                     await client.db.update(guildId, {
                                         $set: { [`users.${topEntry.id}.credits`]: currentCredits + topCredits }
                                     }).exec().catch(() => {})
+                                    
+                                    if (logChannel) {
+                                        await logChannel.send({
+                                            embeds: [tools.createEmbed({
+                                                title: "Activity Reward: Credits",
+                                                description: `**${topMember.user.tag}** has been awarded **${tools.commafy(topCredits)} credits** for being #1 on the activity leaderboard!`,
+                                                color: tools.COLOR,
+                                                timestamp: true
+                                            })]
+                                        }).catch(() => {})
+                                    }
                                 }
 
                                 // Give top role
@@ -151,6 +166,17 @@ client.on("ready", async() => {
                                     const botMember = guild.members.me || await guild.members.fetch(client.user.id).catch(() => null)
                                     if (botMember?.permissions.has("ManageRoles")) {
                                         await topMember.roles.add(topRoleId).catch(() => {})
+                                        
+                                        if (logChannel) {
+                                            await logChannel.send({
+                                                embeds: [tools.createEmbed({
+                                                    title: "Activity Reward: Role",
+                                                    description: `**${topMember.user.tag}** has been given the <@&${topRoleId}> role for being #1 on the activity leaderboard!`,
+                                                    color: tools.COLOR,
+                                                    timestamp: true
+                                                })]
+                                            }).catch(() => {})
+                                        }
                                     }
                                 }
                             }
@@ -162,6 +188,17 @@ client.on("ready", async() => {
                                 const botMember = guild.members.me || await guild.members.fetch(client.user.id).catch(() => null)
                                 if (prevMember && botMember?.permissions.has("ManageRoles")) {
                                     await prevMember.roles.remove(topRoleId).catch(() => {})
+                                    
+                                    if (logChannel) {
+                                        await logChannel.send({
+                                            embeds: [tools.createEmbed({
+                                                title: "Activity Reward: Role Removed",
+                                                description: `<@&${topRoleId}> has been removed from **${prevMember.user.tag}** as they are no longer #1.`,
+                                                color: 0xff4444,
+                                                timestamp: true
+                                            })]
+                                        }).catch(() => {})
+                                    }
                                 }
                             }
 

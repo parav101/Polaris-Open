@@ -167,6 +167,7 @@ const settings = {
     activityLeaderboard: {
         enabled: { type: "bool", default: false },
         channelId: { type: "string", default: "", accept: ["discord:channel"] },
+        rewardLogChannelId: { type: "string", default: "", accept: ["discord:channel"] },
         interval: { type: "int", default: 24, min: 4, max: 24, choices: [4, 6, 8, 12, 24] },
         topCredits: { type: "int", default: 0, min: 0 },
         topRoleId: { type: "string", default: "" }

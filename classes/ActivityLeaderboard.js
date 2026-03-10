@@ -43,13 +43,13 @@ async function buildActivityLeaderboardInternal(guild, db) {
                 lastUpdate.getUTCFullYear() === now.getUTCFullYear() &&
                 lastUpdate.getUTCMonth()    === now.getUTCMonth()    &&
                 lastUpdate.getUTCDate()     === now.getUTCDate()
-            if (!isActiveToday) return { id: user.id, rawDiff: 0, user }
-            const baseline = user.xpAtDayStart ?? user.xp ?? 0
-            const rawDiff = Math.max(0, (user.xp || 0) - baseline)
-            return { id: user.id, rawDiff, user }
+            if (!isActiveToday) return { id: user.id, activityXP: 0, user }
+            
+            const activityXP = Math.floor(user.activityXpAccumulated || 0)
+            return { id: user.id, activityXP, user }
         })
-        .filter(u => u.rawDiff > 0)
-        .sort((a, b) => b.rawDiff - a.rawDiff)
+        .filter(u => u.activityXP > 0)
+        .sort((a, b) => b.activityXP - a.activityXP)
 
     if (!candidates.length) return []
 
@@ -62,19 +62,10 @@ async function buildActivityLeaderboardInternal(guild, db) {
         if (fetched) memberMap.set(id, fetched)
     }))
 
-    const results = candidates.map(({ id, rawDiff, user }) => {
+    const results = candidates.map(({ id, activityXP, user }) => {
         const member = memberMap.get(id) || null
-        let multiplier = 1
-        if (member) {
-            multiplier = tools.getMultiplier(member, db.settings, null).multiplier || 1
-        }
-        
-        // Activity XP = (Current Session XP / Multiplier)
-        const activityXP = Math.floor(rawDiff / multiplier);
-        
         return { id, activityXP, member }
     })
-    .filter(r => r.activityXP > 0)
     .sort((a, b) => b.activityXP - a.activityXP)
 
     return results

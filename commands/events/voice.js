@@ -46,6 +46,9 @@ module.exports = {
                     xpGained = Math.round(xpGained * voiceTime / 60000); // xp per minute
                     if (xpGained > 0) userData.xp += Math.round(xpGained)
                     
+                    // add to daily raw xp
+                    userData.activityXpAccumulated = (userData.activityXpAccumulated || 0) + (xpGained / multiplierData.multiplier)
+
                     userData.cooldown = Date.now() + (settings.gain.time * 1000)
                     userData.voiceTime = 0;
 
