@@ -643,40 +643,21 @@ class Tools {
         }
 
         // Function to update daily XP starting point (snapshot)
-        // This is called when a new day starts, OR when a multiplier changes (like getting an XP booster)
-        // to prevent "fake" activity XP gains from the multiplier increase.
-        this.updateDailyXpSnapshot = async function(member, db, client, force = false) {
+        this.updateDailyXpSnapshot = async function(member, db, client) {
             const now = new Date();
             const userData = db.users[member.id];
-            if (!userData) return; // User has no data yet, nothing to snapshot.
+            if (!userData) return;
 
             const currentXP = userData.xp || 0;
             const lastUpdate = userData.lastDailyUpdate ? new Date(userData.lastDailyUpdate) : null;
 
-            // Check if it's a new day OR if we are forcing a snapshot (e.g. multiplier changed)
+            // Only update on new day reset
             const isNewDay = !lastUpdate || 
                             lastUpdate.getUTCFullYear() !== now.getUTCFullYear() || 
                             lastUpdate.getUTCMonth() !== now.getUTCMonth() || 
                             lastUpdate.getUTCDate() !== now.getUTCDate();
 
-            if (isNewDay || force) {
-                // If it's a new day, we reset the accumulation
-                if (isNewDay) {
-                    userData.activityXpAccumulated = 0;
-                } else if (force) {
-                    // If it's a force update mid-day (multiplier change), we save what was earned so far
-                    // correctly using the CURRENT multiplier before it switches/expired.
-                    const baseline = userData.xpAtDayStart ?? currentXP ?? 0;
-                    const rawDiff = Math.max(0, currentXP - baseline);
-                    
-                    // Get current multiplier
-                    const multiplier = this.getMultiplier(member, db.settings, null).multiplier || 1;
-                    const earnedSoFar = Math.floor(rawDiff / multiplier);
-                    
-                    userData.activityXpAccumulated = (userData.activityXpAccumulated || 0) + earnedSoFar;
-                }
-
-                // Record the current XP as the new baseline for the next segment of the day.
+            if (isNewDay) {
                 userData.xpAtDayStart = currentXP;
                 userData.lastDailyUpdate = now.getTime();
                 
@@ -685,7 +666,7 @@ class Tools {
                     $set: { 
                         [`users.${member.id}.xpAtDayStart`]: currentXP,
                         [`users.${member.id}.lastDailyUpdate`]: now.getTime(),
-                        [`users.${member.id}.activityXpAccumulated`]: userData.activityXpAccumulated || 0
+                        [`users.${member.id}.activityXpAccumulated`]: 0
                     } 
                 }).exec();
             }
@@ -700,22 +681,6 @@ class Tools {
             const expiredRoles = userData.tempRoles.filter(role => role.expires <= now);
             if (expiredRoles.length === 0) return;
 
-            // Check if any of these expired roles are XP multipliers
-            let multiplierChanged = false;
-            const settings = db.settings;
-            if (settings?.multipliers?.roles) {
-                const rolesData = settings.multipliers.roles;
-                const isArray = Array.isArray(rolesData);
-                for (const role of expiredRoles) {
-                    if (isArray) {
-                        if (rolesData.some(r => r.roleId === role.roleId)) { multiplierChanged = true; break; }
-                    } else if (rolesData[role.roleId]) {
-                        multiplierChanged = true;
-                        break;
-                    }
-                }
-            }
-
             // Remove roles from member
             for (const role of expiredRoles) {
                 try {
@@ -725,29 +690,12 @@ class Tools {
                 }
             }
 
-            // If a multiplier disappeared, snapshot the XP NOW before they gain any more
-            // This prevents the "activity XP" from jumping or dropping incorrectly
-            if (multiplierChanged) {
-                await this.updateDailyXpSnapshot(member, db, client, true);
-                
-                // Fetch the updated user data to make sure we don't overwrite the newly saved accumulation
-                const updatedSettings = await this.fetchSettings(member.id);
-                if (updatedSettings.users[member.id]) {
-                    userData.activityXpAccumulated = updatedSettings.users[member.id].activityXpAccumulated;
-                    userData.xpAtDayStart = updatedSettings.users[member.id].xpAtDayStart;
-                    userData.lastDailyUpdate = updatedSettings.users[member.id].lastDailyUpdate;
-                }
-            }
-
             // Update user data in DB
             userData.tempRoles = userData.tempRoles.filter(role => role.expires > now);
             db.users[member.id] = userData;
             await client.db.update(member.guild.id, { 
                 $set: { 
-                    [`users.${member.id}.tempRoles`]: userData.tempRoles,
-                    [`users.${member.id}.activityXpAccumulated`]: userData.activityXpAccumulated || 0,
-                    [`users.${member.id}.xpAtDayStart`]: userData.xpAtDayStart || 0,
-                    [`users.${member.id}.lastDailyUpdate`]: userData.lastDailyUpdate || 0
+                    [`users.${member.id}.tempRoles`]: userData.tempRoles 
                 } 
             }).exec();
         }

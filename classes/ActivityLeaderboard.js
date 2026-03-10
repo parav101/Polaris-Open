@@ -69,11 +69,10 @@ async function buildActivityLeaderboardInternal(guild, db) {
             multiplier = tools.getMultiplier(member, db.settings, null).multiplier || 1
         }
         
-        // Activity XP = (Current Session XP / Multiplier) + Previously Saved XP before multiplier changes
-        const currentSessionXp = Math.floor(rawDiff / multiplier);
-        const accumulatedXp = user.activityXpAccumulated || 0;
+        // Activity XP = (Current Session XP / Multiplier)
+        const activityXP = Math.floor(rawDiff / multiplier);
         
-        return { id, activityXP: currentSessionXp + accumulatedXp, member }
+        return { id, activityXP, member }
     })
     .filter(r => r.activityXP > 0)
     .sort((a, b) => b.activityXP - a.activityXP)
