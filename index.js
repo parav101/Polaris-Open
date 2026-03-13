@@ -87,7 +87,7 @@ client.on("ready", async() => {
     client.updateStatus()
     setInterval(client.updateStatus, 15 * 60000);
 
-    // activity leaderboard auto-post scheduler (shard 0 only, checks every 30 min)
+    // activity leaderboard auto-post scheduler (shard 0 only, checks every 1 min for precise timing)
     if (client.shard.id == 0) {
         setInterval(async () => {
             try {
@@ -203,9 +203,13 @@ client.on("ready", async() => {
                             }
 
                             // --- Update info only (no per-user writes needed) ---
+                            // Ensure activityLastPosted is aligned with the interval anchor (UTC midnight relative)
+                            const intervalMs = intervalHours * 3600000
+                            const currentIntervalStart = Math.floor(Date.now() / intervalMs) * intervalMs
+                            
                             await client.db.update(guildId, {
                                 $set: {
-                                    "info.activityLastPosted": Date.now(),
+                                    "info.activityLastPosted": currentIntervalStart,
                                     "info.lastTopUserId": topEntry?.id || ""
                                 }
                             }).exec().catch(e => console.error(`[ActivityLB] Info update failed for ${guildId}:`, e.message))
@@ -217,7 +221,7 @@ client.on("ready", async() => {
             } catch (err) {
                 console.error("[ActivityLB] Scheduler error:", err.message)
             }
-        }, 30 * 60000)
+        }, 60000)
     }
 
     // run the web server

@@ -646,22 +646,26 @@ class Tools {
         this.updateDailyXpSnapshot = async function(member, db, client) {
             const now = new Date();
             const userData = db.users[member.id];
-            if (!userData) return;
+            
+            // If No userData exists, we still need to initialize it for the snapshot
+            // so they don't start with 0 activity XP if they chat exactly at midnight.
+            const currentXP = userData?.xp || 0;
+            const lastUpdate = userData?.lastDailyUpdate ? new Date(userData.lastDailyUpdate) : null;
 
-            const currentXP = userData.xp || 0;
-            const lastUpdate = userData.lastDailyUpdate ? new Date(userData.lastDailyUpdate) : null;
-
-            // Only update on new day reset
+            // Only update on new day reset (UTC midnight alignment)
             const isNewDay = !lastUpdate || 
                             lastUpdate.getUTCFullYear() !== now.getUTCFullYear() || 
                             lastUpdate.getUTCMonth() !== now.getUTCMonth() || 
                             lastUpdate.getUTCDate() !== now.getUTCDate();
 
             if (isNewDay) {
-                userData.xpAtDayStart = currentXP;
-                userData.lastDailyUpdate = now.getTime();
-                
-                db.users[member.id] = userData;
+                if (userData) {
+                    userData.xpAtDayStart = currentXP;
+                    userData.lastDailyUpdate = now.getTime();
+                    userData.activityXpAccumulated = 0;
+                    db.users[member.id] = userData;
+                }
+
                 await client.db.update(member.guild.id, { 
                     $set: { 
                         [`users.${member.id}.xpAtDayStart`]: currentXP,
