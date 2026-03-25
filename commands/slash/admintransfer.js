@@ -1,0 +1,91 @@
+const Discord = require('discord.js');
+
+module.exports = {
+  metadata: {
+    permission: 'ManageGuild', // Restricts this command to Admins/Moderators
+    name: 'admintransfer',
+    description: 'Admin command to force transfer credits between two members',
+    args:[
+      { type: 'user', name: 'sender', description: 'The member to take credits from', required: true },
+      { type: 'user', name: 'recipient', description: 'The member to give credits to', required: true },
+      { type: 'integer', name: 'amount', description: 'Amount to transfer', min: 1, required: true }
+    ]
+  },
+
+  async run(client, int, tools) {
+    // The sender is chosen from the command options, NOT the person typing the command
+    const sender = int.options.get('sender')?.member;
+    const recipient = int.options.get('recipient')?.member;
+    const amount = int.options.get('amount')?.value;
+
+    if (!sender || !recipient || !amount) {
+      return tools.warn('Invalid arguments provided');
+    }
+
+    if (sender.id === recipient.id) {
+      return tools.warn('Cannot transfer to the same person.');
+    }
+
+    if (sender.user.bot) {
+      return tools.warn('Cannot take credits from a bot');
+    }
+
+    if (recipient.user.bot) {
+      return tools.warn('Cannot transfer to a bot');
+    }
+
+    // Using the corrected math from before (20% tax)
+    const taxRate = 0.2; 
+    const tax = Math.round(amount * taxRate);
+    const netAmount = amount - tax;
+    const totalDeduction = amount; 
+
+    // Fetch sender data
+    const senderDb = await tools.fetchSettings(sender.id, int.guild.id);
+    if (!senderDb) {
+      return tools.warn(`*noData for sender ${sender.displayName}`);
+    }
+
+    const senderUserData = senderDb.users[sender.id] || { credits: 0 };
+    const senderCredits = senderUserData.credits || 0;
+
+    // Make sure the forced sender actually has enough money
+    if (senderCredits < totalDeduction) {
+      return tools.warn(`Insufficient credits! ${sender.displayName} only has ${tools.commafy(senderCredits)} credits.`);
+    }
+
+    // Fetch recipient data
+    const recipientDb = await tools.fetchSettings(recipient.id, int.guild.id);
+    const recipientUserData = recipientDb.users[recipient.id] || { credits: 0 };
+    const recipientCredits = recipientUserData.credits || 0;
+
+    // Update sender
+    const newSenderCredits = senderCredits - totalDeduction;
+    await client.db.update(int.guild.id, {
+      $set: {[`users.${sender.id}.credits`]: newSenderCredits }
+    });
+
+    // Update recipient
+    const newRecipientCredits = recipientCredits + netAmount;
+    await client.db.update(int.guild.id, {
+      $set: { [`users.${recipient.id}.credits`]: newRecipientCredits }
+    });
+
+    // Send confirmation embed
+    const embed = new Discord.EmbedBuilder()
+      .setTitle('🛡️ Admin Forced Transfer')
+      .setDescription(`Transfer successful! Executed by Admin: ${int.member.displayName}`)
+      .setColor(0xff3333) // Red color to indicate an admin action
+      .addFields(
+        { name: '📤 Sender', value: `${sender.displayName}`, inline: true },
+        { name: '📥 Recipient', value: `${recipient.displayName}`, inline: true },
+        { name: '💰 Amount Taken', value: `${tools.commafy(totalDeduction)} credits`, inline: false },
+        { name: '💈 Tax Deducted (20%)', value: `${tools.commafy(tax)} credits`, inline: true },
+        { name: '💵 Net Received', value: `${tools.commafy(netAmount)} credits`, inline: true },
+        { name: '📊 New Balances', value: `${sender.displayName}: ${tools.commafy(newSenderCredits)}\n${recipient.displayName}: ${tools.commafy(newRecipientCredits)}`, inline: false }
+      )
+      .setTimestamp();
+
+    await int.reply({ embeds: [embed] });
+  }
+};

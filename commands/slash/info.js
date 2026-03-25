@@ -103,7 +103,7 @@ async run(client, int, tools) {
         color: memberColor,
         fields: [
             { name: `Level: ${levelData.level}`, value: "\u200b", inline: true },
-            { name: `Total XP: ${tools.commafy(xp)}`, value: "\u200b", inline: true },
+            { name: `Remaing XP: ${tools.commafy(remaining)}`, value: "\u200b", inline: true },
         ],
         footer: {
             text: randomTip,
@@ -115,7 +115,7 @@ async run(client, int, tools) {
     if (multiplier !== 1 && !db.settings.hideMultipliers) {
         embed.addFields([{ 
             name: `XP Boost: ${multiplier * 100}%`, 
-            value: multiplierData.roleList.length ? multiplierData.roleList.map(role => `<@&${role.id}>`).join(", ") : "\u200b", 
+            value: multiplierData.roleList.length ? multiplierData.roleList.map(role => `boosting role: <@&${role.id}>`).join(", ") : "\u200b", 
             inline: true 
         }])
     } else {
@@ -125,7 +125,7 @@ async run(client, int, tools) {
     //add Daily xp snapshot info
     const dailyXp = xp - (currentXP.xpAtDayStart ?? xp);
     const lastUpdate = currentXP.lastDailyUpdate ? `<t:${Math.floor(currentXP.lastDailyUpdate / 1000)}:R>` : "Now";
-    embed.addFields({ name: `XP Gained: ${tools.commafy(dailyXp)}`, value: `since ${lastUpdate}`, inline: true });
+    embed.addFields({ name: `XP Earned Today: ${tools.commafy(dailyXp)}`, value: `this is boosted from current xp boost on your profile`, inline: true });
 
     if (streakText) {
         embed.addFields({ name: "Streak Info", value: streakText, inline: true });

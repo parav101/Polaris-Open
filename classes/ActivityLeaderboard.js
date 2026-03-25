@@ -152,9 +152,9 @@ async function generateLeaderboardEmbed(guild, db, tools, highlightId = null, sh
     const topRoleId  = settings.topRoleId  || ""
     if (topCredits > 0 || topRoleId) {
         const rewardParts = []
-        if (topCredits > 0) rewardParts.push(`<:extendedend:1466819484999225579><:gold:1472934905972527285> **${tools.commafy(topCredits)}** credits`)
+        if (topCredits > 0) rewardParts.push(`<:extendedend:1466819484999225579><:gold:1472934905972527285> **${tools.commafy(topCredits)}**`)
         if (topRoleId)      rewardParts.push(`<:extendedend:1466819484999225579><@&${topRoleId}>`)
-        embed.addFields([{ name: "<:info:1466817220687695967> Top User Reward", value: rewardParts.join("  ·  "), inline: false }])
+        embed.addFields([{ name: "<:info:1466817220687695967> Top User Reward", value: rewardParts.join("    "), inline: false }])
     }
 
     return embed

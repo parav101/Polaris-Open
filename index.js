@@ -205,7 +205,7 @@ client.on("ready", async() => {
                             // --- Update info only (no per-user writes needed) ---
                             // Ensure activityLastPosted is aligned with the interval anchor (UTC midnight relative)
                             const intervalMs = intervalHours * 3600000
-                            const currentIntervalStart = Math.floor(Date.now() / intervalMs) * intervalMs
+                            const currentIntervalStart = (Math.floor(Date.now() / intervalMs) * intervalMs) + (5 * 60 * 1000)
                             
                             await client.db.update(guildId, {
                                 $set: {
