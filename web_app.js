@@ -356,6 +356,15 @@ app.post("/api/settings", async function(req, res) {
     // prevent 0 curve
     if (dbObj["settings.curve.3"] == 0 && dbObj["settings.curve.2"] == 0 && dbObj["settings.curve.1"] == 0) dbObj["settings.curve.1"] = 1
 
+    // prevent chests xpMin > xpMax
+    if (dbObj["settings.chests.items"] && Array.isArray(dbObj["settings.chests.items"])) {
+        dbObj["settings.chests.items"].forEach(item => {
+            if (item.xpMin > item.xpMax) {
+                [item.xpMin, item.xpMax] = [item.xpMax, item.xpMin]
+            }
+        })
+    }
+
     dbObj['info.lastUpdate'] = Date.now()
 
     client.db.update(guildID, { $set: dbObj }).exec().then(() => {

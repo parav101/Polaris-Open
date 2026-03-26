@@ -151,6 +151,17 @@ const settings = {
             duration: { type: "float", min: 0 },
             emoji: { type: "string", maxlength: 100 }
         }}
+    },
+
+    chests: {
+        enabled: { type: "bool", default: false },
+        items: { type: "collection", values: {
+            name: { type: "string", maxlength: 100 },
+            price: { type: "int", min: 0 },
+            xpMin: { type: "int", min: 0, max: 1000000 },
+            xpMax: { type: "int", min: 0, max: 1000000 },
+            emoji: { type: "string", maxlength: 100 }
+        }}
     }
 ,
     

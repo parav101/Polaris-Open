@@ -59,6 +59,9 @@ async run(client, int, tools) {
 
         if (!item) return i.reply({ content: "Item not found!", ephemeral: true })
 
+        // Defer reply early to avoid interaction timeouts during role granting and DB updates
+        try { await i.deferReply({ ephemeral: true }) } catch (e) {}
+
         // Re-fetch user data to ensure up-to-date credits
         let freshDB = await tools.fetchSettings(int.user.id)
         let freshUserData = freshDB.users[int.user.id] || { credits: 0 }
@@ -106,7 +109,12 @@ async run(client, int, tools) {
         // We send it as a follow-up or a new message in the channel since the interaction reply is ephemeral
         await int.channel.send({ embeds: [announcementEmbed] }).catch(() => {})
 
-        return i.reply({ content: `✅ **Successfully purchased ${item.emoji} ${item.name}!**\nCredits remaining: **${tools.commafy(newCredits)}**\nExpires in: **${tools.time(item.duration * 3600000)}**`, ephemeral: true })
+        // Edit the previously deferred reply with the result
+        try {
+            await i.editReply({ content: `✅ **Successfully purchased ${item.emoji} ${item.name}!**\nCredits remaining: **${tools.commafy(newCredits)}**\nExpires in: **${tools.time(item.duration * 3600000)}**` })
+        } catch (err) {
+            try { await i.followUp({ content: `✅ Successfully purchased ${item.emoji} ${item.name}!`, ephemeral: true }) } catch (e) {}
+        }
     })
 
     collector.on("end", () => {

@@ -7,6 +7,7 @@
         { "emoji": "📊", "name": "Rank and Leaderboard", "folder": "rank" },
         { "emoji": "🤫", "name": "Confessions", "folder": "confession" },
         { "emoji": "💰", "name": "Credit Shop", "folder": "shop" },
+        { "emoji": "📦", "name": "Chests", "folder": "chests" },
         { "emoji": "🏆", "name": "Activity Leaderboard", "folder": "activitylb" }
     ],
 
@@ -72,5 +73,10 @@
         { "space": true },
         { "db": "activityLeaderboard.topCredits", "name": "Top User Credits Reward", "desc": "Credits awarded to the #1 activity user each interval", "str": "# credits", "zeroText": "No reward" },
         { "db": "activityLeaderboard.topRoleId", "name": "Top User Role ID", "desc": "Role given to the #1 activity user (removed from previous winner at next interval)", "tip": "Right-click a role in Server Settings → Copy ID and paste it here" }
+    ],
+
+    "chests": [
+        { "emoji": "⬅️", "name": "Back", "folder": "home", "groupName": "Chests settings" },
+        { "db": "chests.enabled", "name": "Enable Chests", "desc": "Allows members to buy chests with credits to gain XP" }
     ]
 }

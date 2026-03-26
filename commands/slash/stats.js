@@ -94,7 +94,8 @@ module.exports = {
         let buttons = tools.button([
             { style: "Success", label: "Progress", customId: `stats_view~progress~${member.id}`, emoji: "<:progress:1466819928110792816>" },
             { style: "Secondary", label: "Info", customId: `stats_view~info~${member.id}`, emoji: "<:info:1466817220687695967>" },
-            { style: "Primary", label: "Shop", customId: "shop", emoji: "<:gold:1472934905972527285>" }
+            { style: "Primary", label: "Shop", customId: "shop", emoji: "<:gold:1472934905972527285>" },
+            { style: "Primary", label: "Chests", customId: "chests", emoji: "<:chest:1486740653067997394>" }
         ])
 
         // const endTime = Date.now();
