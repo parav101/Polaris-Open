@@ -47,6 +47,7 @@ module.exports = {
 
         const topCredits = settings.topCredits || 0;
         const topRoleId  = settings.topRoleId  || "";
+        let rewardGiven = false;
 
         if (topEntry && (topCredits > 0 || topRoleId)) {
             const topMember = topEntry.member || await int.guild.members.fetch(topEntry.id).catch(() => null);
@@ -68,6 +69,7 @@ module.exports = {
                         })]
                     }).catch(() => {});
                 }
+                rewardGiven = true;
             }
 
             // Give top role
@@ -86,12 +88,13 @@ module.exports = {
                             })]
                         }).catch(() => {});
                     }
+                    rewardGiven = true;
                 }
             }
         }
 
         // --- Remove role from previous top user if different ---
-        if (topRoleId && prevTopId && prevTopId !== topEntry?.id) {
+        if (topRoleId && rewardGiven && prevTopId && prevTopId !== topEntry?.id) {
             const prevMember = int.guild.members.cache.get(prevTopId)
                 || await int.guild.members.fetch(prevTopId).catch(() => null);
             const botMember = int.guild.members.me || await int.guild.members.fetch(client.user.id).catch(() => null);
