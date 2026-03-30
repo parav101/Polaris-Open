@@ -14,7 +14,7 @@ async run(client, int, tools, selected) {
     let buttonData = [];
     if (int.isButton) {
         buttonData = int.customId.split("~")
-        if (buttonData[2] && buttonData[2] != int.user.id) return int.deferUpdate() 
+        if (buttonData[2] && buttonData[2] != int.user.id) return await int.deferUpdate() 
     }
 
     let db = await tools.fetchSettings()

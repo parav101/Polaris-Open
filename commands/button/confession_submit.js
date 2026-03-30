@@ -7,7 +7,7 @@ module.exports = {
     async run(client, int, tools) {
         // Check if it's the right user
         let modalData = int.customId.split("~");
-        if (modalData[1] != int.user.id) return int.deferUpdate();
+        if (modalData[1] != int.user.id) return await int.deferUpdate();
 
         // Acknowledge the interaction immediately to prevent timeout
         await int.deferReply({ ephemeral: true });

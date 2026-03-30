@@ -18,8 +18,12 @@
         { "db": "gain.max", "name": "Max XP", "desc": "Maximum amount of XP to earn per message", "tip": "Each message gives a random amount of XP, this changes the upper bound" },
         { "db": "gain.time", "name": "XP Cooldown", "desc": "Members must wait this many seconds before they can gain XP again", "tip": "Messages sent during the cooldown period will not gain", "str": "# seconds" },
         { "db": "maxLevel", "name": "Level cap", "desc": "The highest level members can reach", "tip": "Members can still gain XP past this, unless you reward a role with a 0x multiplier" },
+        { "space": true },
         { "db": "enabledVoiceXp", "name": "Enable Voice XP", "desc": "Allows members to gain Voice XP", "tip": "Disabling will prevent anyone from gaining Voice XP, but will not reset or remove existing Voice XP." },
-        { "db": "voice.multiplier", "name": "Min XP", "desc": "Multiplier for vc xp to message xp", "tip": "0 means no xp, 1 means equal xp" }
+        { "db": "voice.multiplier", "name": "Voice XP Multiplier", "desc": "Multiplier for voice xp relative to message xp", "tip": "0.5 means voice XP is half of message XP" },
+        { "db": "voice.interval", "name": "Voice XP Interval", "desc": "How often (in seconds) to give voice XP", "tip": "Default is 300 seconds (5 minutes)", "str": "# seconds" },
+        { "db": "voice.mutedMultiplier", "name": "Muted Penalty", "desc": "XP multiplier when user is muted", "tip": "0.5 means 50% XP reduction when muted" },
+        { "db": "voice.deafMultiplier", "name": "Deafened Penalty", "desc": "XP multiplier when user is deafened", "tip": "0.3 means 70% XP reduction when deafened" }
     ],
     "level": [
         { "emoji": "⬅️", "name": "Back", "folder": "home", "groupName": "Levelling settings" },

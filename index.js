@@ -227,6 +227,136 @@ client.on("ready", async() => {
         }, 60000)
     }
 
+    // voice xp scheduler (shard 0 only, runs every 5 minutes to distribute voice XP)
+    if (client.shard.id == 0) {
+        setInterval(async () => {
+            try {
+                const guilds = await client.db.find({ "settings.enabledVoiceXp": true })
+                for (const guildDoc of guilds) {
+                    try {
+                        const guildId = guildDoc._id
+                        const settings = guildDoc.settings
+                        if (!settings?.enabledVoiceXp || !guildDoc.voiceSessions?.length) continue
+
+                        const guild = client.guilds.cache.get(guildId) 
+                            || await client.guilds.fetch(guildId).catch(() => null)
+                        if (!guild) continue
+
+                        const tools = client.globalTools
+                        const updates = {}
+                        const now = Date.now()
+
+                        // Process each active voice session
+                        for (const session of guildDoc.voiceSessions) {
+                            try {
+                                const userId = session.userId
+                                const lastXpTime = session.lastXpTime || session.joinTime
+                                const timeSinceLastXp = now - lastXpTime
+
+                                // Only give XP if configured interval has passed
+                                if (timeSinceLastXp < (settings.voice.interval * 1000)) continue
+
+                                // Fetch member from guild
+                                const member = guild.members.cache.get(userId) 
+                                    || await guild.members.fetch(userId).catch(() => null)
+                                
+                                // Remove session if member not found or not in voice
+                                if (!member?.voice?.channel) {
+                                    guildDoc.voiceSessions = guildDoc.voiceSessions.filter(s => s.userId !== userId)
+                                    continue
+                                }
+
+                                // Get user data
+                                let userData = guildDoc.users?.[userId] || { xp: 0, cooldown: 0 }
+
+                                // Check cooldown from messages (voice shouldn't bypass message cooldown)
+                                if (userData.cooldown > now) continue
+
+                                // Get multiplier based on role and channel
+                                const multiplierData = tools.getMultiplier(member, settings, member.voice.channel)
+                                if (multiplierData.multiplier <= 0) continue
+
+                                // Apply mute/deaf penalties
+                                let statusMultiplier = 1
+                                if (member.voice.selfMute) {
+                                    statusMultiplier *= settings.voice.mutedMultiplier
+                                }
+                                if (member.voice.selfDeaf) {
+                                    statusMultiplier *= settings.voice.deafMultiplier
+                                }
+
+                                // Calculate XP for this interval
+                                let xpRange = [settings.gain.min, settings.gain.max].map(x => 
+                                    Math.round(x * multiplierData.multiplier)
+                                )
+                                let xpGained = tools.rng(...xpRange)
+                                xpGained = Math.round(settings.voice.multiplier * xpGained * statusMultiplier)
+
+                                if (xpGained > 0) {
+                                    const oldXP = userData.xp
+                                    const oldLevel = tools.getLevel(oldXP, settings)
+                                    
+                                    userData.xp += xpGained
+
+                                    // Add to raw activity XP (for activity leaderboard) - remove all multipliers to get raw XP
+                                    userData.activityXpAccumulated = (userData.activityXpAccumulated || 0) + (xpGained / (multiplierData.multiplier * settings.voice.multiplier * statusMultiplier))
+
+                                    // Track last XP gain time
+                                    userData.lastXpGain = now
+
+                                    // Unhide if hidden
+                                    if (userData.hidden) userData.hidden = false
+
+                                    // Check for level up
+                                    const newLevel = tools.getLevel(userData.xp, settings)
+                                    const levelUp = newLevel > oldLevel
+
+                                    // Auto sync roles on level up
+                                    if (levelUp) {
+                                        let syncMode = settings.rewardSyncing.sync
+                                        if (syncMode == "xp" || syncMode == "level") {
+                                            let roleCheck = tools.checkLevelRoles(
+                                                guild.roles.cache,
+                                                member.roles.cache,
+                                                newLevel,
+                                                settings.rewards,
+                                                null,
+                                                oldLevel
+                                            )
+                                            tools.syncLevelRoles(member, roleCheck).catch(() => {})
+                                        }
+                                    }
+
+                                    updates[`users.${userId}`] = userData
+                                }
+
+                                // Update session's lastXpTime
+                                const sessionIndex = guildDoc.voiceSessions.findIndex(s => s.userId === userId)
+                                if (sessionIndex >= 0) {
+                                    guildDoc.voiceSessions[sessionIndex].lastXpTime = now
+                                }
+                            } catch (sessionErr) {
+                                console.error(`[VoiceXP] Error processing session for user ${session.userId} in guild ${guildId}:`, sessionErr.message)
+                            }
+                        }
+
+                        // Perform all updates at once
+                        if (Object.keys(updates).length > 0 || JSON.stringify(guildDoc.voiceSessions) !== JSON.stringify((await client.db.fetch(guildId))?.voiceSessions || [])) {
+                            const updateData = { ...updates, voiceSessions: guildDoc.voiceSessions }
+                            const setObj = updates
+                            setObj.voiceSessions = guildDoc.voiceSessions
+                            await client.db.update(guildId, { $set: setObj }).exec().catch(e => console.error(`[VoiceXP] DB update failed for ${guildId}:`, e.message))
+                        }
+                    } catch (guildErr) {
+                        console.error(`[VoiceXP] Error processing guild ${guildDoc._id}:`, guildErr.message)
+                    }
+                }
+            } catch (err) {
+                console.error("[VoiceXP] Scheduler error:", err.message)
+            }
+        }, 5 * 60000) // Run every 5 minutes
+    }
+
     // run the web server
     if (client.shard.id == 0 && config.enableWebServer) require("./web_app.js")(client)
 })

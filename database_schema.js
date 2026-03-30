@@ -24,6 +24,9 @@ const settings = {
     voice: {
         multiplier: { type: "float", precision: 2, default: 1, min: 0, max: 1 },
         hoursLimit: { type: "float", precision: 2, default: 1, min: 0, max: 24 },
+        interval: { type: "int", default: 300, min: 60, max: 3600 },
+        mutedMultiplier: { type: "float", precision: 2, default: 0.5, min: 0, max: 1 },
+        deafMultiplier: { type: "float", precision: 2, default: 0.3, min: 0, max: 1 },
     },
 
     curve: {
@@ -263,6 +266,12 @@ const schema = {
         rerollCount: { type: Number, default: 0 },   // Track how many times it's been rerolled
         previousWinners: [[String]],                 // Track previous winners for reference
         createdAt: Number
+    }],
+    voiceSessions: [{
+        userId: String,
+        joinTime: Number,
+        lastXpTime: Number,
+        shardId: Number
     }]
 }
 

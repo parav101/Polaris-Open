@@ -15,75 +15,46 @@ module.exports = {
         if (!db || !db.settings?.enabled || !db.settings.enabledVoiceXp) return
 
         let settings = db.settings
-        if(settings.enabledVoiceXp == false) return
 
         // Handle joining/leaving voice channels
         const joinedVoice = !oldState.channelId && newState.channelId
         const leftVoice = oldState.channelId && !newState.channelId
-        const movedChannel = oldState.channelId && newState.channelId && oldState.channelId !== newState.channelId
 
-        // Get user data
-        let userData = db.users[userId] || { xp: 0, cooldown: 0, voiceTime: 0 }
-            
-        // Calculate voice time and XP
-        if (leftVoice || movedChannel) {
-            // Check if user is on cooldown
-            if (userData.voiceTime > 30000) {
-                // Calculate XP gain based on voice time
-                const multiplierData = tools.getMultiplier(oldState.member, settings, oldState.channel)
-                if (multiplierData.multiplier > 0) {
-                    // Add XP and set cooldown
-                    const oldXP = userData.xp
-                    let xpRange = [settings.gain.min, settings.gain.max].map(x => Math.round(x * multiplierData.multiplier))
-                    let xpGained = tools.rng(...xpRange) // number between min and max, inclusive
-                    xpGained = Math.round(settings.voice.multiplier * xpGained)
-                    
-                    let voiceTime = 0;
-                    if(settings.voice.hoursLimit > 0 && Date.now() - userData.voiceTime > settings.voice.hoursLimit * 3600000)
-                    voiceTime = settings.voice.hoursLimit * 3600000
-                    else
-                    voiceTime = Date.now() - userData.voiceTime;
-                    xpGained = Math.round(xpGained * voiceTime / 60000); // xp per minute
-                    if (xpGained > 0) userData.xp += Math.round(xpGained)
-                    
-                    // add to daily raw xp
-                    userData.activityXpAccumulated = (userData.activityXpAccumulated || 0) + (xpGained / multiplierData.multiplier)
+        // User joined voice - add session to database
+        if (joinedVoice) {
+            // Update user streak based on voice activity
+            await tools.updateStreak(newState.member, db, client, newState.channel, null)
+            await tools.updateDailyXpSnapshot(newState.member, db, client)
 
-                    userData.cooldown = Date.now() + (settings.gain.time * 1000)
-                    userData.voiceTime = 0;
-
-                    // Update user data
-                    client.db.update(guildId, { $set: { [`users.${userId}`]: userData } }).exec()
-
-                    // Check for level up
-                    const oldLevel = tools.getLevel(oldXP, settings)
-                    const newLevel = tools.getLevel(userData.xp, settings)
-
-                    // Handle level up
-                    if (newLevel > oldLevel) {
-                        // Sync roles if needed
-                        let syncMode = settings.rewardSyncing.sync
-                        if (syncMode == "xp" || (syncMode == "level")) {
-                            let roleCheck = tools.checkLevelRoles(oldState.guild.roles.cache, oldState.member.roles.cache, newLevel, settings.rewards, null, oldLevel)
-                            tools.syncLevelRoles(oldState.member, roleCheck).catch(() => {})
-                        }
-                    }
-                }
+            // Add voice session to database
+            const voiceSession = {
+                userId: userId,
+                joinTime: Date.now(),
+                lastXpTime: Date.now(),
+                shardId: client.shard.id
             }
-            else{
-                userData.voiceTime = 0;
-                client.db.update(guildId, { $set: { [`users.${userId}`]: userData } }).exec()
+
+            // Find and update existing session or create new one
+            const existingSession = db.voiceSessions?.findIndex(s => s.userId === userId)
+            if (existingSession >= 0) {
+                db.voiceSessions[existingSession] = voiceSession
+            } else {
+                if (!db.voiceSessions) db.voiceSessions = []
+                db.voiceSessions.push(voiceSession)
             }
+
+            client.db.update(guildId, { $set: { voiceSessions: db.voiceSessions } }).exec()
         }
 
-        // Update voice time on join
-        if (joinedVoice || movedChannel) {
-            userData.voiceTime = Date.now()
-            client.db.update(guildId, { $set: { [`users.${userId}`]: userData } }).exec()
-            // Update user streak based on voice activity
-            await tools.updateStreak(newState.member, db, client, newState.channel,null);
-            await tools.updateDailyXpSnapshot(newState.member, db, client);
-
+        // User left voice - remove session from database
+        if (leftVoice) {
+            if (db.voiceSessions) {
+                const sessionIndex = db.voiceSessions.findIndex(s => s.userId === userId)
+                if (sessionIndex >= 0) {
+                    db.voiceSessions.splice(sessionIndex, 1)
+                    client.db.update(guildId, { $set: { voiceSessions: db.voiceSessions } }).exec()
+                }
+            }
         }
     }
 }

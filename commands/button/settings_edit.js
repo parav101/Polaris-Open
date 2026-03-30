@@ -9,7 +9,7 @@ metadata: {
 async run(client, int, tools, modal) {
 
     let buttonData = int.customId.split("~")
-    if (!modal && buttonData[2] != int.user.id) return int.deferUpdate() 
+    if (!modal && buttonData[2] != int.user.id) return await int.deferUpdate() 
 
     let settingID = modal || buttonData[1]
     let setting = schema[settingID]
@@ -60,6 +60,8 @@ async run(client, int, tools, modal) {
         }
     }
 
+    // Defer immediately for modal submissions
+    await int.deferUpdate()
 
     let db = await tools.fetchSettings()
     if (!db) return tools.warn("*noData")
@@ -77,7 +79,7 @@ async run(client, int, tools, modal) {
 
         if (modalVal) {
             let num = Number(modalVal)
-            if (isNaN(num)) return int.deferUpdate()
+            if (isNaN(num)) return
 
             if (setting.type == "int") num = Math.round(num)
 
@@ -93,7 +95,7 @@ async run(client, int, tools, modal) {
         newValue = modalVal // allow clearing to empty string
     }
 
-    if (newValue === undefined || newValue == oldValue) return int.deferUpdate()
+    if (newValue === undefined || newValue == oldValue) return
 
     client.db.update(int.guild.id, { $set: { [`settings.${settingID}`]: newValue, 'info.lastUpdate': Date.now() }}).then(() => {
         client.commands.get("button:settings_view").run(client, int, tools, ["val", null, settingID])

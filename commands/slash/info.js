@@ -19,16 +19,22 @@ async run(client, int, tools) {
     if (foundUser) member = foundUser.member
     if (!member) return tools.warn("That member couldn't be found!")
 
-    // fetch server xp settings
+    // Get hidden flag from command option (sync check before deferring)
+    const commandHidden = !!int.options.get("hidden")?.value
+
+    // DEFER IMMEDIATELY before any async operations (Discord has 3-second timeout)
+    if (!int.deferred && !int.replied) {
+        await int.deferReply({ ephemeral: commandHidden });
+    }
+
+    // NOW fetch server xp settings after deferring
     let db = await tools.fetchSettings(member.id)
 
     if (!db) return tools.warn("*noData")
     else if (!db.settings.enabled) return tools.warn("*xpDisabled")
 
-    let isHidden = db.settings.rankCard.ephemeral || !!int.options.get("hidden")?.value
-    if (!int.deferred && !int.replied) {
-        await int.deferReply({ ephemeral: isHidden });
-    }
+    // Use server's ephemeral preference if set, otherwise use command option
+    let isHidden = db.settings.rankCard.ephemeral || commandHidden
 
     let currentXP = db.users[member.id]
 
@@ -72,6 +78,53 @@ async run(client, int, tools) {
     let memberAvatar = member.displayAvatarURL()
     let memberColor = cardCol || member.displayColor || await member.user.fetch().then(x => x.accentColor)
     
+    // ===== CALCULATE RANK POSITION =====
+    const allUsers = db.users || {}
+    const memberIdStr = String(member.id)
+    
+    // Create rankings excluding users with no/invalid XP
+    const userRankings = Object.entries(allUsers)
+        .filter(([userId, userData]) => {
+            return userData && 
+                   typeof userData.xp === 'number' && 
+                   userData.xp > 0
+        })
+        .map(([userId, userData]) => ({
+            id: String(userId),
+            xp: userData.xp
+        }))
+        .sort((a, b) => b.xp - a.xp) // Sort by XP descending (highest first)
+    
+    // Find user's rank - only count users this guild with higher XP
+    const userRankIndex = userRankings.findIndex(u => u.id === memberIdStr)
+    let userRank = userRankIndex !== -1 ? userRankIndex + 1 : "?"
+    const totalRanked = userRankings.length
+    
+    // Debug logging if user not found
+    if (userRankIndex === -1 && currentXP?.xp > 0) {
+        console.warn(`[Info Rank Debug] User ${memberIdStr} with XP ${currentXP.xp} not found in rankings. Total users: ${totalRanked}`)
+        console.warn(`[Info Rank Debug] User ID type: ${typeof member.id}, memberIdStr type: ${typeof memberIdStr}`)
+        console.warn(`[Info Rank Debug] Current XP data:`, { id: currentXP.id, xp: currentXP.xp, name: member.user?.username })
+    }
+
+    // ===== CALCULATE TIME TO NEXT LEVEL =====
+    let timeToNextLevel = "Unknown"
+    if (!maxLevel && currentXP.lastDailyUpdate) {
+        const dailyXp = xp - (currentXP.xpAtDayStart ?? xp)
+        const xpNeeded = remaining
+        if (dailyXp > 0) {
+            const daysNeeded = (xpNeeded / dailyXp).toFixed(1)
+            timeToNextLevel = daysNeeded <= 1 ? "Less than a day" : `~${daysNeeded} days`
+        }
+    }
+
+    // ===== COUNT REWARD ROLES =====
+    const userRewards = tools.getRolesForLevel(levelData.level, db.settings.rewards)
+    const rewardsEarned = userRewards.length
+
+    // ===== LAST XP GAIN =====
+    const lastXpGain = currentXP.lastXpGain ? `<t:${Math.floor(currentXP.lastXpGain / 1000)}:R>` : "Never"
+    
     // Prepare streak info for footer if enabled
     let streakText = null;
     if (db.settings.streak?.enabled) {
@@ -102,8 +155,8 @@ async run(client, int, tools) {
         thumbnail: memberAvatar,
         color: memberColor,
         fields: [
-            { name: `Level: ${levelData.level}`, value: "\u200b", inline: true },
-            { name: `Remaing XP: ${tools.commafy(remaining)}`, value: "\u200b", inline: true },
+            { name: `Level: ${levelData.level}`, value: `**Rank:** unknown`, inline: true },
+            { name: `Remaining XP: ${tools.commafy(remaining)}`, value: `**To Next:** ${timeToNextLevel}`, inline: true },
         ],
         footer: {
             text: randomTip,
@@ -122,10 +175,24 @@ async run(client, int, tools) {
         embed.addFields([{ name: "XP Boost: 100%", value: "No Boost Role", inline: true }])
     }
 
-    //add Daily xp snapshot info
+    // Add Daily XP snapshot info
     const dailyXp = xp - (currentXP.xpAtDayStart ?? xp);
     const lastUpdate = currentXP.lastDailyUpdate ? `<t:${Math.floor(currentXP.lastDailyUpdate / 1000)}:R>` : "Now";
-    embed.addFields({ name: `XP Earned Today: ${tools.commafy(dailyXp)}`, value: `this is boosted from current xp boost on your profile`, inline: true });
+    embed.addFields({ name: `Daily XP: ${tools.commafy(dailyXp)}`, value: `Earned today (boosted)`, inline: true });
+
+    // Add Rewards Earned (highest reward role)
+    embed.addFields({ 
+        name: `Active Reward: ${rewardsEarned > 0 ? "✅" : "❌"}`, 
+        value: rewardsEarned > 0 ? userRewards[0] ? `<@&${userRewards[0].id}>` : "None" : "None yet", 
+        inline: true 
+    });
+
+    // Add Total XP
+    embed.addFields({ 
+        name: `Total XP: ${tools.commafy(xp)}`, 
+        value: `Last gain: ${lastXpGain}`, 
+        inline: true 
+    });
 
     if (streakText) {
         embed.addFields({ name: "Streak Info", value: streakText, inline: true });

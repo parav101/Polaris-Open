@@ -17,7 +17,7 @@ async run(client, int, tools) {
         `**XP per message:** ${settings.gain.min == settings.gain.max ? tools.commafy(settings.gain.min) : `${tools.commafy(settings.gain.min)} - ${tools.commafy(settings.gain.max)}`}`,
         `**XP cooldown:** ${tools.commafy(settings.gain.time)} ${tools.extraS("sec", settings.gain.time)}`,
         `**XP curve:** ${settings.curve[3]}x³ + ${settings.curve[2]}x² + ${settings.curve[1]}x`,
-        `**Vc multiplier:** ${settings.voice.multiplier}`,
+        `**Voice XP Settings:** Multiplier: ${settings.voice.multiplier}x | Interval: ${settings.voice.interval}s | Muted penalty: ${(1 - settings.voice.mutedMultiplier) * 100}% | Deafened penalty: ${(1 - settings.voice.deafMultiplier) * 100}%`,
         `**Level up message:** ${settings.levelUp.enabled && settings.levelUp.message ? (settings.levelUp.embed ? "Enabled (embed)" : "Enabled") : "Disabled"}`,
         `**Rank cards:** ${settings.rankCard.disabled ? "Disabled" : settings.rankCard.ephemeral ? "Enabled (forced hidden)" : "Enabled"}`,
         `**Leaderboard:** ${settings.leaderboard.disabled ? "Disabled" : `[${settings.leaderboard.private ? "Private" : "Public"}](<${tools.WEBSITE}/leaderboard/${int.guild.id}>)`}`,

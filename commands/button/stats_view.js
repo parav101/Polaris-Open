@@ -25,11 +25,11 @@ module.exports = {
             case "progress": cmdName = "stats"; break;
             case "info": cmdName = "info"; break;
 
-            default: return int.deferUpdate();
+            default: return await int.deferUpdate();
         }
 
         const command = client.commands.get(cmdName)
-        if (!command) return int.deferUpdate()
+        if (!command) return await int.deferUpdate()
 
         // Create a fake options object that returns the target member
         if (!int.options) {

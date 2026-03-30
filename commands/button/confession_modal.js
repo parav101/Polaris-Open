@@ -9,7 +9,7 @@ module.exports = {
 
         // Check if it's the right user
         let [setting, userId] = modalData;
-        if (userId != int.user.id) return int.deferUpdate();
+        if (userId != int.user.id) return await int.deferUpdate();
 
         // Fetch server settings
         let db = await tools.fetchSettings(int.user.id);
