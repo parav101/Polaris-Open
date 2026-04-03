@@ -20,16 +20,26 @@ async run(client, int, tools) {
 
     let embed = tools.createEmbed({
         title: "Credit Shop",
-        description: `Welcome to the shop! You have **${tools.commafy(credits)}** credits.\n\nBrowse items below and use the menu to purchase.`,
+        description: `You have **${tools.commafy(credits)}** credits.\nUse the menu below to buy an item.`,
         color: tools.COLOR,
         thumbnail: int.guild.iconURL({ dynamic: true })
     })
 
-    let shopList = shopItems.map(item => {
-        return `${item.emoji} **${item.name}**\nPrice: ${tools.commafy(item.price)} credits | Duration: ${item.duration}h\n<@&${item.roleId}>`
-    }).join("\n\n")
+    let compactItems = shopItems.map(item => {
+        return `${item.emoji} **${item.name}** • ${tools.commafy(item.price)}<:gold:1472934905972527285> • ${item.duration}h • <@&${item.roleId}>`
+    })
 
-    embed.addFields([{ name: "Items for Sale", value: shopList }])
+    let chunkSize = 8
+    let itemChunks = []
+    for (let i = 0; i < compactItems.length; i += chunkSize) {
+        itemChunks.push(compactItems.slice(i, i + chunkSize))
+    }
+
+    embed.addFields(itemChunks.map((chunk, index) => ({
+        name: index === 0 ? "Items" : "More Items",
+        value: chunk.join("\n"),
+        inline: true
+    })))
 
     let selectMenu = new Discord.StringSelectMenuBuilder()
         .setCustomId("shop_buy")

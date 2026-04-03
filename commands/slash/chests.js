@@ -20,16 +20,26 @@ async run(client, int, tools) {
 
     let embed = tools.createEmbed({
         title: "Chests",
-        description: `Welcome to the chest shop! You have **${tools.commafy(credits)}** credits.\n\nBrowse chests below and use the menu to purchase.`,
+        description: `You have **${tools.commafy(credits)}** credits.\nUse the menu below to buy a chest.`,
         color: tools.COLOR,
         thumbnail: int.guild.iconURL({ dynamic: true })
     })
 
-    let chestList = chestItems.map(item => {
-        return `${item.emoji} **${item.name}**\nPrice: ${tools.commafy(item.price)} credits | XP: ${tools.commafy(item.xpMin)} - ${tools.commafy(item.xpMax)}`
-    }).join("\n\n")
+    let compactChests = chestItems.map(item => {
+        return `${item.emoji} **${item.name}** • ${tools.commafy(item.price)}<:gold:1472934905972527285> • ${tools.commafy(item.xpMin)}-${tools.commafy(item.xpMax)} XP`
+    })
 
-    embed.addFields([{ name: "Available Chests", value: chestList }])
+    let chunkSize = 8
+    let chestChunks = []
+    for (let i = 0; i < compactChests.length; i += chunkSize) {
+        chestChunks.push(compactChests.slice(i, i + chunkSize))
+    }
+
+    embed.addFields(chestChunks.map((chunk, index) => ({
+        name: index === 0 ? "Chests" : "More Chests",
+        value: chunk.join("\n"),
+        inline: true
+    })))
 
     let selectMenu = new Discord.StringSelectMenuBuilder()
         .setCustomId("chests_buy")
