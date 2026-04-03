@@ -107,7 +107,7 @@ client.on("ready", async() => {
                         if (existing.has(member.id)) continue
                         sessions.push({ userId: member.id, joinTime: Date.now(), lastXpTime: Date.now(), shardId: client.shard.id })
                         existing.add(member.id)
-                        console.log(`[VoiceXP] Seeded voice session for ${member.id} in guild ${guildId}`)
+                        // console.log(`[VoiceXP] Seeded voice session for ${member.id} in guild ${guildId}`)
                     }
                 }
 

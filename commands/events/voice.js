@@ -2,29 +2,35 @@ const config = require("../../config.json")
 
 module.exports = {
     async run(client, oldState, newState, tools) {
+        const member = newState.member || oldState.member
+        const guild = newState.guild || oldState.guild
+        if (!member || !guild) return
+
         // Ignore bots
-        if (oldState.member.user.bot) return
-        if (config.lockBotToDevOnly && !tools.isDev(oldState.member.user)) return
+        if (member.user.bot) return
+        if (config.lockBotToDevOnly && !tools.isDev(member.user)) return
 
         // Get user and guild info
-        const userId = oldState.member.user.id
-        const guildId = oldState.guild.id
+        const userId = member.user.id
+        const guildId = guild.id
 
-        // fetch server xp settings
-        let db = await tools.fetchSettings(userId, guildId)
+        // fetch full guild document (we need voiceSessions)
+        let db = await tools.fetchAll(guildId)
         if (!db || !db.settings?.enabled || !db.settings.enabledVoiceXp) return
 
         let settings = db.settings
 
         // Handle joining/leaving voice channels
-        const joinedVoice = !oldState.channelId && newState.channelId
-        const leftVoice = oldState.channelId && !newState.channelId
+        const oldChannel = oldState?.channelId
+        const newChannel = newState?.channelId
+        const joinedVoice = !oldChannel && newChannel
+        const leftVoice = oldChannel && !newChannel
 
         // User joined voice - add session to database
         if (joinedVoice) {
             // Update user streak based on voice activity
-            await tools.updateStreak(newState.member, db, client, newState.channel, null)
-            await tools.updateDailyXpSnapshot(newState.member, db, client)
+            await tools.updateStreak(member, db, client, newState.channel, null)
+            await tools.updateDailyXpSnapshot(member, db, client)
 
             // Add voice session to database
             const voiceSession = {
