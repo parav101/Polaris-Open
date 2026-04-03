@@ -87,6 +87,39 @@ client.on("ready", async() => {
     client.updateStatus()
     setInterval(client.updateStatus, 15 * 60000);
 
+    // Seed voice sessions for members already in VC after restart
+    (async function seedVoiceSessions() {
+        try {
+            for (const guild of client.guilds.cache.values()) {
+                const guildId = guild.id
+                const guildDoc = await client.db.fetch(guildId).catch(() => null) || {}
+                const settings = guildDoc.settings
+                if (!settings?.enabled || !settings.enabledVoiceXp) continue
+
+                const sessions = guildDoc.voiceSessions ? [...guildDoc.voiceSessions] : []
+                const existing = new Set(sessions.map(s => s.userId))
+
+                for (const ch of guild.channels.cache.values()) {
+                    if (typeof ch.isVoiceBased === 'function' && !ch.isVoiceBased()) continue
+                    if (!ch.members || ch.members.size === 0) continue
+                    for (const member of ch.members.values()) {
+                        if (member.user.bot) continue
+                        if (existing.has(member.id)) continue
+                        sessions.push({ userId: member.id, joinTime: Date.now(), lastXpTime: Date.now(), shardId: client.shard.id })
+                        existing.add(member.id)
+                        console.log(`[VoiceXP] Seeded voice session for ${member.id} in guild ${guildId}`)
+                    }
+                }
+
+                if (sessions.length !== (guildDoc.voiceSessions || []).length) {
+                    await client.db.update(guildId, { $set: { voiceSessions: sessions } }).exec().catch(e => console.error(`[VoiceXP] seed update failed for ${guildId}:`, e.message))
+                }
+            }
+        } catch (e) {
+            console.error("[VoiceXP] seedVoiceSessions failed:", e.message)
+        }
+    })()
+
     // activity leaderboard auto-post scheduler (shard 0 only, checks every 1 min for precise timing)
     if (client.shard.id == 0) {
         setInterval(async () => {
@@ -290,7 +323,7 @@ client.on("ready", async() => {
                                     Math.round(x * multiplierData.multiplier)
                                 )
                                 let xpGained = tools.rng(...xpRange)
-                                xpGained = Math.round(settings.voice.multiplier * xpGained * statusMultiplier)
+                                xpGained = Math.round(settings.voice.multiplier * xpGained * statusMultiplier * settings.voice.interval / 60) // scale by interval (assuming base is per minute)
 
                                 if (xpGained > 0) {
                                     const oldXP = userData.xp
@@ -354,7 +387,7 @@ client.on("ready", async() => {
             } catch (err) {
                 console.error("[VoiceXP] Scheduler error:", err.message)
             }
-        }, 5 * 60000) // Run every 5 minutes
+        },  60000) // Run every  minutes
     }
 
     // run the web server
