@@ -89,9 +89,7 @@ function clearDeletedData(settings, roles, channels) {
     return settings
 }
 
-app.use("/assets", express.static(__dirname + '/app/assets'));
-app.use("/css", express.static(__dirname + '/app/css'));
-app.use("/polaris.js", express.static(__dirname + '/app/js/extras.js'));
+app.use(express.static(__dirname + '/dashboard/build'));
 
 app.use(function(req, res, next) {
     res.apiError = function(message, code) {
@@ -101,13 +99,6 @@ app.use(function(req, res, next) {
     }
     next()
 })
-
-app.get("/servers", (req, res) => sendPage(res, "servers"))
-app.get("/settings/:id", (req, res) => sendPage(res, "config"))
-app.get("/leaderboard/:id", (req, res) => sendPage(res, "leaderboard"))
-app.get("/", (req, res) => sendPage(res, "home"))
-
-app.get(["/settings", "/leaderboard", "/servers"], (req, res) => sendRedirect(res, "/servers"))
 
 if (auth.supportURL) app.get("/support", (req, res) => res.redirect(auth.supportURL))
 if (auth.changelogURL) app.get("/changelog", (req, res) => res.redirect(auth.changelogURL))
@@ -925,8 +916,6 @@ app.get("/logout", async function(req, res) {
 
 app.get("/api", function(req, res) { res.send("ඞ") })
 
-app.get("*", function(req, res) { res.status(404); sendPage(res, "404") })
-
 app.use(function (err, req, res, next) {
     if (err && err.message == "Response timeout") res.status(500).send({ apiError: true, internalError: true, message: 'Internal server error! (Timed out)'})
     else {
@@ -937,6 +926,11 @@ app.use(function (err, req, res, next) {
 
 process.on('uncaughtException', (e) => { console.warn(e) });
 process.on('unhandledRejection', (e, p) => { console.warn(e) });
+
+// SvelteKit SPA fallback — must be last, after all API routes
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'dashboard/build/404.html'))
+})
 
 app.listen(auth.serverPort, () => console.log(`Web server online at http://localhost:${auth.serverPort} (${+process.uptime().toFixed(2)} secs)`));
 

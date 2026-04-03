@@ -282,11 +282,10 @@ input:checked + .sliderspan:before {
 
 .box {
     background-color: var(--lighterfg);
-    border: 1px solid rgba(0, 0, 0, 0.7);
-    border-radius: 8px;
+    border: 1px solid black;
+    border-radius: 5px;
     padding: 10px 20px 30px 20px;
     margin: 20px 10px;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
 }
 
 .details {
@@ -324,15 +323,6 @@ input:checked + .sliderspan:before {
 .categoryBox img {
     height: 50px;
     margin-right: 18px;
-}
-
-.categoryBox .catIcon {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-right: 18px;
-    flex-shrink: 0;
-    opacity: 0.9;
 }
 
 .fulllength {
@@ -455,15 +445,13 @@ input:checked + .sliderspan:before {
 }
 
 #sidebar div {
-    height: 54px;
+    height: 70px;
     display: flex;
     flex-direction: row;
     align-items: center;
     justify-content: flex-start;
-    padding-left: 12px;
+    padding-left: 15px;
     cursor: pointer;
-    border-left: 3px solid transparent;
-    transition: background-color 0.15s ease;
 }
 
 #sidebar div:focus-visible  {
@@ -478,26 +466,12 @@ input:checked + .sliderspan:before {
     color: var(--colon);
     font-weight: bold;
     background-color: var(--lighterfg);
-    border-left-color: var(--colon);
 }
 
 #sidebar div img {
-    width: 28px;
-    height: 28px;
-    margin-right: 14px;
-    flex-shrink: 0;
-}
-
-#sidebar div svg {
-    width: 20px;
-    height: 20px;
-    margin-right: 14px;
-    flex-shrink: 0;
-    opacity: 0.75;
-}
-
-#sidebar div.current svg {
-    opacity: 1;
+    width: 32px;
+    height: 32px;
+    margin-right: 16px;
 }
 
 #unsavedWarning {
@@ -576,23 +550,6 @@ input:checked + .sliderspan:before {
     background-color: var(--lighterfg);
     white-space: nowrap;
     overflow: hidden;
-    height: 40px;
-    box-sizing: border-box;
-}
-
-.flexTable div p:has(> input),
-.flexTable div p:has(> select) {
-    padding: 3px 8px;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-}
-
-.flexTable input {
-    height: 34px;
-    font-size: 15px;
-    padding-left: 6px;
-    padding-right: 4px;
 }
 
 .flexTable div p:nth-child(2n) {
@@ -689,13 +646,12 @@ input:checked + .sliderspan:before {
     min-width: 500px;
     max-width: 1500px;
     background-color: var(--lighterfg);
-    border: 1px solid rgba(0, 0, 0, 0.7);
-    border-radius: 10px;
+    border: 1px solid black;
+    border-radius: 8px;
     margin: auto;
     display: flex;
     flex-direction: column;
     padding: 0px 10px;
-    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
 }
 
 .leaderboardSlot {
@@ -855,16 +811,15 @@ input:checked + .sliderspan:before {
 .hiddenMemberSlot {
     display: flex;
     flex-direction: column;
-    align-items: center;
     justify-content: center;
     background-color: var(--lighterfg);
-    border: 1px solid rgba(0, 0, 0, 0.5);
+    border: 1px solid black;
     text-align: center;
-    border-radius: 8px;
-    width: 220px;
-    padding: 16px 12px;
+    border-radius: 5px;
+    width: 275px;
+    height: 140px;
     overflow: hidden;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+    margin: 10px 10px;
 }
 
 .hiddenMemberSlot p[lb="unhide"] {
@@ -878,53 +833,14 @@ input:checked + .sliderspan:before {
     text-decoration: underline; 
 }
 
-.unhideBtn {
-    margin-top: 8px;
-    height: 32px;
-    min-width: 80px;
-    font-size: 15px;
-    font-weight: bold;
-    background-color: var(--emojigreen);
-    border-radius: 6px;
-    padding: 0 14px;
-}
-
-#lbButtons {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 8px;
-}
-
 #lbButtons button {
-    display: inline-flex;
-    align-items: center;
-    margin: 0;
-    padding: 0 18px;
-    height: 38px;
-    min-width: 0;
-    width: auto;
-    font-size: 15px;
-    font-weight: 600;
-    border-radius: 999px;
-    background-color: var(--lightererfg);
-    border: 1px solid rgba(255,255,255,0.08);
-    transition: background-color 0.15s ease, border-color 0.15s ease;
-}
-
-#lbButtons button:hover:not(:disabled) {
-    background-color: var(--evenlighterfg);
-    border-color: rgba(255,255,255,0.18);
-    filter: none;
-}
-
-#lbButtons button.selectedlb {
+    margin: 0px 10px;
+    width: 170px;
     background-color: var(--emojiblue);
-    border-color: transparent;
 }
 
 #lbButtons button:not(.selectedlb) {
-    background-color: var(--lightererfg);
+    background-color: #20384b;
 }
 
 #uhoh #errorhelp {
