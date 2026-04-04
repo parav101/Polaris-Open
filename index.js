@@ -332,7 +332,7 @@ client.on("ready", async() => {
                                     userData.xp += xpGained
 
                                     // Add to raw activity XP (for activity leaderboard) - remove all multipliers to get raw XP
-                                    userData.activityXpAccumulated = (userData.activityXpAccumulated || 0) + (xpGained / (multiplierData.multiplier * settings.voice.multiplier * statusMultiplier))
+                                    userData.activityXpAccumulated = (userData.activityXpAccumulated || 0) + (xpGained / (multiplierData.multiplier))
 
                                     // Track last XP gain time
                                     userData.lastXpGain = now
