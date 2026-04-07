@@ -87,6 +87,16 @@ client.on("ready", async() => {
     client.updateStatus()
     setInterval(client.updateStatus, 15 * 60000);
 
+    // Recover active credit giveaways after restart
+    try {
+        const creditGiveaway = client.commands.get("creditgiveaway");
+        if (creditGiveaway?.recoverActiveGiveaways) {
+            await creditGiveaway.recoverActiveGiveaways(client, client.globalTools);
+        }
+    } catch (e) {
+        console.error("[CreditGiveaway] Recovery bootstrap failed:", e);
+    }
+
     // Seed voice sessions for members already in VC after restart
     (async function seedVoiceSessions() {
         try {

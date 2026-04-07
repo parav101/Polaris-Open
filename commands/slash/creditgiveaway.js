@@ -181,30 +181,101 @@ module.exports = {
 
             await int.reply({ content: `✅ Giveaway started in ${targetChannel}!`, ephemeral: true });
 
-            const collector = msg.createMessageComponentCollector({ time: durationMs });
-
-            collector.on('collect', async (bInt) => {
-                const data = activeGiveaways.get(bInt.channel.id);
-                if (!data) return bInt.reply({ content: "Giveaway ended.", ephemeral: true });
-
-                if (bInt.customId === 'cg_enter') {
-                    await handleEnter(client, bInt, tools, data);
-                } else if (bInt.customId === 'cg_list') {
-                    await handleList(client, bInt, tools, data);
-                } else if (bInt.customId === 'cg_cancel') {
-                    await handleCancel(client, bInt, tools, data);
-                }
-            });
-
-            setTimeout(() => endGiveaway(client, tools, giveawayData), durationMs);
+            attachCollector(msg, client, tools, giveawayData);
+            scheduleGiveawayEnd(client, tools, giveawayData);
             startTimer(client, tools, giveawayData);
 
         } catch (e) {
             console.error(e);
             return int.reply({ content: "Error starting giveaway.", ephemeral: true });
         }
+    },
+
+    async recoverActiveGiveaways(client, tools) {
+        if (client._creditGiveawayRecoveryDone) return;
+        client._creditGiveawayRecoveryDone = true;
+
+        let recovered = 0;
+        for (const guild of client.guilds.cache.values()) {
+            try {
+                const doc = await client.db.fetch(guild.id, ["giveaways"]).catch(() => null);
+                const giveaways = Array.isArray(doc?.giveaways) ? doc.giveaways : [];
+                const active = giveaways.filter((g) => !g?.ended && Number(g?.endTime) > 0);
+                if (active.length === 0) continue;
+
+                for (const g of active) {
+                    try {
+                        if (!g.id) {
+                            g.id = `${g.messageId || g.channelId || guild.id}-${g.endTime || Date.now()}`;
+                            await client.db.update(guild.id, {
+                                $set: { "giveaways.$[elem].id": g.id }
+                            }, {
+                                arrayFilters: [{ "elem.messageId": g.messageId }]
+                            });
+                        }
+
+                        const channel = await client.channels.fetch(g.channelId).catch(() => null);
+                        if (!channel) continue;
+                        const message = await channel.messages.fetch(g.messageId).catch(() => null);
+                        if (!message) continue;
+
+                        g.guildId = g.guildId || guild.id;
+                        g.participants = Array.isArray(g.participants) ? g.participants : [];
+                        g.winnerCount = Number(g.winnerCount ?? 1);
+                        g.minParticipants = Number(g.minParticipants ?? 1);
+                        g.visuals = getVisuals(client, guild);
+
+                        activeGiveaways.set(g.channelId, g);
+                        await updateMsg(client, tools, g);
+                        attachCollector(message, client, tools, g);
+
+                        const remaining = Number(g.endTime) - Date.now();
+                        if (remaining <= 0) await endGiveaway(client, tools, g);
+                        else {
+                            scheduleGiveawayEnd(client, tools, g);
+                            startTimer(client, tools, g);
+                        }
+                        console.log(`[CreditGiveaway] Recovered giveaway ${g.id} in guild ${guild.id} (channel ${g.channelId}, message ${g.messageId}, ends ${Math.max(0, Math.floor(remaining / 1000))}s)`);
+                        recovered++;
+                    } catch (error) {
+                        console.error("[CreditGiveaway] Failed to recover giveaway:", error);
+                    }
+                }
+            } catch (error) {
+                console.error(`[CreditGiveaway] Recovery failed for guild ${guild.id}:`, error);
+            }
+        }
+
+        if (recovered > 0) console.log(`[CreditGiveaway] Recovered ${recovered} active giveaway(s).`);
     }
 };
+
+function attachCollector(message, client, tools, data) {
+    const remaining = Math.max(1000, Number(data?.endTime || Date.now()) - Date.now());
+    const collector = message.createMessageComponentCollector({ time: remaining });
+    collector.on('collect', async (bInt) => {
+        const data = activeGiveaways.get(bInt.channel.id);
+        if (!data) return bInt.reply({ content: "Giveaway ended.", ephemeral: true });
+        if (bInt.message.id !== data.messageId) return bInt.deferUpdate();
+
+        if (bInt.customId === 'cg_enter') {
+            await handleEnter(client, bInt, tools, data);
+        } else if (bInt.customId === 'cg_list') {
+            await handleList(client, bInt, tools, data);
+        } else if (bInt.customId === 'cg_cancel') {
+            await handleCancel(client, bInt, tools, data);
+        }
+    });
+}
+
+function scheduleGiveawayEnd(client, tools, data) {
+    const remaining = Number(data.endTime) - Date.now();
+    if (remaining <= 0) {
+        endGiveaway(client, tools, data);
+        return;
+    }
+    setTimeout(() => endGiveaway(client, tools, data), remaining);
+}
 
 async function createGiveawayEmbed(data, tools) {
     const visuals = data.visuals || EMOJIS;
