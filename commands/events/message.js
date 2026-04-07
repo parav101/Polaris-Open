@@ -1,76 +1,128 @@
 const LevelUpMessage = require("../../classes/LevelUpMessage.js")
+const Discord = require("discord.js")
 const { generateLeaderboardEmbed } = require("../../classes/ActivityLeaderboard.js")
 const config = require("../../config.json")
 
-function getBumpUserId(message) {
-    const interactionUserId = message.interactionMetadata?.user?.id
-    if (interactionUserId) return interactionUserId
+const CLAIM_WINDOW_MS = 60 * 1000
 
-    const firstMention = message.mentions?.users?.first?.()
-    if (firstMention && !firstMention.bot) return firstMention.id
-
-    return null
+function buildClaimRow(disabled = false) {
+    const button = new Discord.ButtonBuilder()
+        .setCustomId("bump_claim")
+        .setLabel("Claim Reward")
+        .setStyle(Discord.ButtonStyle.Success)
+        .setEmoji("💰")
+        .setDisabled(disabled)
+    return new Discord.ActionRowBuilder().addComponents(button)
 }
 
-function isSuccessfulBumpMessage(message) {
-    const content = (message.content || "").toLowerCase()
-    const embeds = message.embeds || []
-
-    if (content.includes("bump done")) return true
-    if (content.includes("successfully bumped")) return true
-
-    return embeds.some(embed => {
-        const title = (embed.title || "").toLowerCase()
-        const description = (embed.description || "").toLowerCase()
-        const footer = (embed.footer?.text || "").toLowerCase()
-
-        return (
-            title.includes("bump done") ||
-            description.includes("bump done") ||
-            description.includes("successfully bumped") ||
-            footer.includes("bump done")
-        )
-    })
+function buildClaimEmbed(tools, rewardCredits, expiresAtUnix) {
+    return new Discord.EmbedBuilder()
+        .setColor(tools.COLOR)
+        .setTitle("Bump Reward")
+        .setDescription(`First person to claim gets **${tools.commafy(rewardCredits)}** credits.\nExpires ${`<t:${expiresAtUnix}:R>`}.`)
 }
 
 async function handleBumpReward(client, message, tools, db) {
+    if (!message.author?.bot) return
+
     const bumpSettings = db.settings?.bump
     if (!bumpSettings?.enabled) return
     if (!bumpSettings.channelId || message.channel.id !== bumpSettings.channelId) return
 
-    const disboardBotId = bumpSettings.disboardBotId || "302050872383242240"
-    if (message.author.id !== disboardBotId) return
-    if (!isSuccessfulBumpMessage(message)) return
-
-    const bumperId = getBumpUserId(message)
-    if (!bumperId) return
+    const expectedBotId = bumpSettings.disboardBotId || "302050872383242240"
+    if (message.author.id !== expectedBotId) return
 
     const rewardCredits = Math.max(0, Number(bumpSettings.rewardCredits || 0))
     if (rewardCredits <= 0) return
 
-    const cooldownSeconds = Math.max(0, Number(bumpSettings.cooldownSeconds || 0))
-    const now = Date.now()
-    const userData = db.users?.[bumperId] || { xp: 0, cooldown: 0, voiceTime: 0 }
-    const bumpCooldownUntil = Number(userData.bumpCooldownUntil || 0)
+    const expiresAtUnix = Math.floor((Date.now() + CLAIM_WINDOW_MS) / 1000)
+    const claimMsg = await message.channel.send({
+        embeds: [buildClaimEmbed(tools, rewardCredits, expiresAtUnix)],
+        components: [buildClaimRow(false)]
+    }).catch(() => null)
 
-    if (bumpCooldownUntil > now) return
+    if (!claimMsg) return
 
-    userData.credits = (userData.credits || 0) + rewardCredits
-    userData.bumpCooldownUntil = now + (cooldownSeconds * 1000)
-    db.users[bumperId] = userData
+    let claimed = false
+    const collector = claimMsg.createMessageComponentCollector({
+        componentType: Discord.ComponentType.Button,
+        time: CLAIM_WINDOW_MS
+    })
 
-    await client.db.update(message.guild.id, {
-        $set: {
-            [`users.${bumperId}`]: userData,
-            "info.lastUpdate": now
+    collector.on("collect", async (btnInt) => {
+        if (btnInt.customId !== "bump_claim") return btnInt.deferUpdate().catch(() => {})
+
+        if (claimed) {
+            return btnInt.reply({ content: "This reward is already claimed.", ephemeral: true }).catch(() => {})
         }
-    }).exec()
 
-    await tools.addCreditLog(client.db, message.guild.id, bumperId, {
-        type: "bump",
-        amount: rewardCredits,
-        balance: userData.credits,
-        note: "DISBOARD bump reward"
+        const deferred = await btnInt.deferReply({ ephemeral: true }).then(() => true).catch(() => false)
+        if (!deferred) return
+
+        const fresh = await tools.fetchSettings(btnInt.user.id, message.guild.id).catch(() => null)
+        if (!fresh?.settings?.bump?.enabled) {
+            return btnInt.editReply({ content: "Bump rewards are currently disabled." }).catch(() => {})
+        }
+
+        const freshReward = Math.max(0, Number(fresh.settings.bump.rewardCredits || 0))
+        const cooldownSeconds = Math.max(0, Number(fresh.settings.bump.cooldownSeconds || 0))
+        const now = Date.now()
+        const claimantId = btnInt.user.id
+        const userData = fresh.users?.[claimantId] || { xp: 0, cooldown: 0, voiceTime: 0 }
+        const bumpCooldownUntil = Number(userData.bumpCooldownUntil || 0)
+
+        if (bumpCooldownUntil > now) {
+            return btnInt.editReply({
+                content: `You are on bump reward cooldown for another **${tools.time(bumpCooldownUntil - now, 1)}**.`
+            }).catch(() => {})
+        }
+
+        userData.credits = (userData.credits || 0) + freshReward
+        userData.bumpCooldownUntil = now + (cooldownSeconds * 1000)
+
+        await client.db.update(message.guild.id, {
+            $set: {
+                [`users.${claimantId}`]: userData,
+                "info.lastUpdate": now
+            }
+        }).exec()
+
+        await tools.addCreditLog(client.db, message.guild.id, claimantId, {
+            type: "bump",
+            amount: freshReward,
+            balance: userData.credits,
+            note: "Bump reward claim"
+        })
+
+        claimed = true
+        collector.stop("claimed")
+
+        await claimMsg.edit({
+            embeds: [
+                new Discord.EmbedBuilder()
+                    .setColor(0x2ecc71)
+                    .setTitle("Bump Reward Claimed")
+                    .setDescription(`<@${claimantId}> claimed **${tools.commafy(freshReward)}** credits.`)
+                    .setTimestamp()
+            ],
+            components: [buildClaimRow(true)]
+        }).catch(() => {})
+
+        await btnInt.editReply({ content: `You claimed **${tools.commafy(freshReward)}** credits.` }).catch(() => {})
+    })
+
+    collector.on("end", async (_, reason) => {
+        if (claimed || reason === "claimed") return
+        await claimMsg.edit({
+            embeds: [
+                new Discord.EmbedBuilder()
+                    .setColor(0xe67e22)
+                    .setTitle("Bump Reward Expired")
+                    .setDescription("No one claimed the reward in time.")
+                    .setTimestamp()
+            ],
+            components: [buildClaimRow(true)]
+        }).catch(() => {})
     })
 }
 
@@ -79,13 +131,16 @@ module.exports = {
 async run(client, message, tools) {
 
     if (config.lockBotToDevOnly && !tools.isDev(message.author)) return
+    if (message.system) return
+    else if (!message.guild) return // dm stuff
 
-    // fetch server xp settings, this can probably be optimized with caching but shrug
+    // fetch server settings, this can probably be optimized with caching but shrug
     let author = message.author.id
     let db = await tools.fetchSettings(author, message.guild.id)
     if (!db) return
 
     await handleBumpReward(client, message, tools, db).catch(() => {})
+    if (message.author.bot) return
     if (!db.settings?.enabled) return
 
     let settings = db.settings

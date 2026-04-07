@@ -430,12 +430,12 @@ client.on("ready", async() => {
 
 // on message
 client.on("messageCreate", async message => {
-    if (message.system || message.author.bot) return
-    else if (!message.guild || !message.member) return // dm stuff
+    if (message.system) return
+    else if (!message.guild) return // dm stuff
     else {
         client.commands.get("message").run(client, message, client.globalTools)
         // client.commands.get("xpChest").run(client, message, client.globalTools)
-        client.commands.get("guildMemberNicknameRank").run(client, message, client.globalTools)
+        if (!message.author.bot && message.member) client.commands.get("guildMemberNicknameRank").run(client, message, client.globalTools)
     }
 })
 
