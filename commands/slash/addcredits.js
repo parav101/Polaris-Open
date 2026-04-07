@@ -42,7 +42,15 @@ async run(client, int, tools) {
 
     let diff = newCredits - oldCredits
 
-    client.db.update(int.guild.id, { $set: { [`users.${user.id}.credits`]: newCredits } }).then(() => {
+    client.db.update(int.guild.id, { $set: { [`users.${user.id}.credits`]: newCredits } }).then(async () => {
+        // Log the credit change
+        const opLabel = operation === "set" ? "set to" : (diff >= 0 ? "added" : "removed")
+        await tools.addCreditLog(client.db, int.guild.id, user.id, {
+            type: "addcredits",
+            amount: diff,
+            balance: newCredits,
+            note: `Admin ${opLabel} ${tools.commafy(Math.abs(diff))} credits (by ${int.member.displayName})`
+        })
         int.reply(`${newCredits > oldCredits ? "⏫" : "⏬"} ${user.displayName} now has **${tools.commafy(newCredits)}** credits! (previously ${tools.commafy(oldCredits)}, ${diff >= 0 ? "+" : ""}${tools.commafy(diff)})`)
     }).catch(() => tools.warn("Something went wrong while trying to modify credits!"))
 

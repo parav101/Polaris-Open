@@ -606,6 +606,13 @@ class Tools {
             // Add Credits for streak
             if (settings.creditsPerClaim > 0 && userStreak.count >= (settings.minStreakForCredits || 0)) {
                 userData.credits = (userData.credits || 0) + settings.creditsPerClaim;
+                // Queue a credit log after the main DB write (done below)
+                userData._pendingCreditLog = {
+                    type: "streak",
+                    amount: settings.creditsPerClaim,
+                    balance: userData.credits,
+                    note: `Daily streak claimed (day ${userStreak.count})`
+                }
             }
 
             // Check for milestones
@@ -638,8 +645,17 @@ class Tools {
                 }
             }
 
+            // Strip the pending log flag before writing to DB
+            const pendingLog = userData._pendingCreditLog
+            delete userData._pendingCreditLog
+
             db.users[member.id] = { ...userData, streak: userStreak };
             await client.db.update(member.guild.id, { $set: { [`users.${member.id}`]: db.users[member.id] } }).exec();
+
+            // Write credit log after main write so balance is accurate
+            if (pendingLog) {
+                await this.addCreditLog(client.db, member.guild.id, member.id, pendingLog)
+            }
         }
 
         // Function to update daily XP starting point (snapshot)
@@ -838,6 +854,38 @@ class Tools {
                 xpStuff.forEach(x => users[x.id] = { xp: x.xp });
                 client.db.update(serverID, { $set: { users } }).exec().then(() => { int.channel.send({ content: "Success!" }) })
             }).catch(e => { int.channel.send({ content: "Failed! " + e.message }) })
+        }
+
+        // ─── Credit Log Helper ───────────────────────────────────────────────
+        // Appends a credit transaction log entry to a user's creditLogs array.
+        // Keeps only the most recent `maxLogs` entries (default 5, configurable).
+        //
+        // entry: { type, amount, balance, note }
+        //   type    – one of: "streak" | "transfer_in" | "transfer_out" |
+        //             "admin" | "giveaway" | "activity" | "shop" | "addcredits"
+        //   amount  – signed integer (positive = earned, negative = spent)
+        //   balance – new balance after the transaction
+        //   note    – short human-readable description (max ~60 chars)
+        this.addCreditLog = async function(dbClient, guildId, userId, entry, maxLogs = 5) {
+            const log = {
+                type:    entry.type    || "unknown",
+                amount:  entry.amount  || 0,
+                balance: entry.balance ?? 0,
+                note:    entry.note    || "",
+                ts:      Date.now()
+            }
+            // Fetch current logs, append, trim to maxLogs (keep newest)
+            try {
+                const doc = await dbClient.fetch(guildId, [`users.${userId}`])
+                const existing = doc?.users?.[userId]?.creditLogs || []
+                const updated = [...existing, log].slice(-maxLogs)
+                await dbClient.update(guildId, {
+                    $set: { [`users.${userId}.creditLogs`]: updated }
+                }).exec()
+            } catch (e) {
+                // Non-fatal — log silently
+                console.warn(`[CreditLog] Failed to write log for ${userId} in ${guildId}:`, e.message)
+            }
         }
 
     }

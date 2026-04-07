@@ -313,11 +313,27 @@ async function endGiveaway(client, tools, data) {
         }
 
         const prize = data.currentCredits;
-        // Direct DB update for winners
+        // Direct DB update for winners + log
         for (const wId of winners) {
-            await client.db.update(data.guildId, { 
-                $inc: { [`users.${wId}.credits`]: prize } 
+            // Fetch current balance for accurate log
+            const wDoc = await client.db.fetch(data.guildId, [`users.${wId}`]).catch(() => null)
+            const wOldCredits = wDoc?.users?.[wId]?.credits || 0
+            const wNewCredits = wOldCredits + prize
+
+            await client.db.update(data.guildId, {
+                $set: { [`users.${wId}.credits`]: wNewCredits }
             });
+
+            // Log the giveaway win
+            const globalTools = client.globalTools
+            if (globalTools?.addCreditLog) {
+                await globalTools.addCreditLog(client.db, data.guildId, wId, {
+                    type: "giveaway",
+                    amount: prize,
+                    balance: wNewCredits,
+                    note: `Won credit giveaway (${data.participants.length} participants)`
+                })
+            }
         }
 
         // Finalize in DB

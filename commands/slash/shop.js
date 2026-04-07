@@ -102,11 +102,19 @@ async run(client, int, tools) {
 
         let newCredits = currentCredits - item.price
         
-        await client.db.update(int.guild.id, { 
-            $set: { 
+        await client.db.update(int.guild.id, {
+            $set: {
                 [`users.${int.user.id}.credits`]: newCredits,
                 [`users.${int.user.id}.tempRoles`]: newTempRoles
-            } 
+            }
+        })
+
+        // Log the shop purchase
+        await tools.addCreditLog(client.db, int.guild.id, int.user.id, {
+            type: "shop",
+            amount: -item.price,
+            balance: newCredits,
+            note: `Bought ${item.name} from shop (${item.duration}h)`
         })
 
         // --- NEW: Public announcement message ---

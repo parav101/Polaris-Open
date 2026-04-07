@@ -63,6 +63,20 @@ module.exports = {
       $set: {[`users.${recipient.id}.credits`]: newRecipientCredits }
     });
 
+    // Log credit transactions
+    await tools.addCreditLog(client.db, int.guild.id, sender.id, {
+      type: "transfer_out",
+      amount: -totalDeduction,
+      balance: newSenderCredits,
+      note: `Sent to ${recipient.displayName} (20% tax applied)`
+    })
+    await tools.addCreditLog(client.db, int.guild.id, recipient.id, {
+      type: "transfer_in",
+      amount: netAmount,
+      balance: newRecipientCredits,
+      note: `Received from ${sender.displayName}`
+    })
+
     // Send confirmation embed
     const embed = new Discord.EmbedBuilder()
       .setTitle('💸 Credit Transfer')

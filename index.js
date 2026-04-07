@@ -179,9 +179,18 @@ client.on("ready", async() => {
                                 // Give credits
                                 if (topMember && topCredits > 0) {
                                     const currentCredits = doc.users?.[topEntry.id]?.credits || 0
+                                    const newActivityCredits = currentCredits + topCredits
                                     await client.db.update(guildId, {
-                                        $set: { [`users.${topEntry.id}.credits`]: currentCredits + topCredits }
+                                        $set: { [`users.${topEntry.id}.credits`]: newActivityCredits }
                                     }).exec().catch(() => {})
+
+                                    // Log the activity leaderboard credit reward
+                                    await tools.addCreditLog(client.db, guildId, topEntry.id, {
+                                        type: "activity",
+                                        amount: topCredits,
+                                        balance: newActivityCredits,
+                                        note: `#1 on activity leaderboard reward`
+                                    }).catch(() => {})
                                     
                                     if (logChannel) {
                                         await logChannel.send({
@@ -217,23 +226,38 @@ client.on("ready", async() => {
                                 }
                             }
 
-                            // --- Remove role from previous top user if different ---
-                            if (topRoleId && rewardGiven && prevTopId && prevTopId !== topEntry.id) {
-                                const prevMember = guild.members.cache.get(prevTopId)
-                                    || await guild.members.fetch(prevTopId).catch(() => null)
+                            // --- Remove reward role from anyone who is NOT the new top user ---
+                            // This runs independently of rewardGiven so the role is always exclusive,
+                            // even if the new winner couldn't be fetched or the add failed.
+                            if (topRoleId) {
                                 const botMember = guild.members.me || await guild.members.fetch(client.user.id).catch(() => null)
-                                if (prevMember && botMember?.permissions.has("ManageRoles")) {
-                                    await prevMember.roles.remove(topRoleId).catch(() => {})
-                                    
-                                    if (logChannel) {
-                                        await logChannel.send({
-                                            embeds: [tools.createEmbed({
-                                                title: "Activity Reward: Role Removed",
-                                                description: `<@&${topRoleId}> has been removed from **${prevMember.user.tag}** as they are no longer #1.`,
-                                                color: 0xff4444,
-                                                timestamp: true
-                                            })]
-                                        }).catch(() => {})
+                                if (botMember?.permissions.has("ManageRoles")) {
+                                    const newTopId = topEntry?.id || ""
+
+                                    // Collect all member IDs that currently hold the role
+                                    let roleHolders = guild.roles.cache.get(topRoleId)?.members
+                                    if (!roleHolders) {
+                                        // Role not in cache — fetch it
+                                        const fetchedRole = await guild.roles.fetch(topRoleId).catch(() => null)
+                                        roleHolders = fetchedRole?.members
+                                    }
+
+                                    if (roleHolders) {
+                                        for (const [memberId, holder] of roleHolders) {
+                                            if (memberId === newTopId) continue // keep it on the winner
+                                            await holder.roles.remove(topRoleId).catch(() => {})
+
+                                            if (logChannel) {
+                                                await logChannel.send({
+                                                    embeds: [tools.createEmbed({
+                                                        title: "Activity Reward: Role Removed",
+                                                        description: `<@&${topRoleId}> has been removed from **${holder.user.tag}** as they are no longer #1.`,
+                                                        color: 0xff4444,
+                                                        timestamp: true
+                                                    })]
+                                                }).catch(() => {})
+                                            }
+                                        }
                                     }
                                 }
                             }

@@ -1,5 +1,22 @@
 const multiplierModes = require("../../json/multiplier_modes.json")
 
+// ─── Credit Log Display Config ───────────────────────────────────────────────
+// How many recent logs to show in /info (change this number to show more/fewer)
+const CREDIT_LOG_DISPLAY_COUNT = 5
+
+// Emoji + label per transaction type
+const LOG_TYPE_META = {
+    streak:       { emoji: "🔥", label: "Daily Streak"    },
+    transfer_in:  { emoji: "<:gold:1472934905972527285>",  label: "Received"       },
+    transfer_out: { emoji: "📤", label: "Sent"            },
+    admin:        { emoji: "🛡️", label: "Admin"           },
+    addcredits:   { emoji: "⚙️", label: "Admin Adjust"    },
+    giveaway:     { emoji: "🎉", label: "Giveaway"        },
+    activity:     { emoji: "<:progress:1466819928110792816>", label: "Activity #1" },
+    shop:         { emoji: "<:chest:1486740653067997394>", label: "Shop"           },
+    unknown:      { emoji: "❓", label: "Other"           },
+}
+
 module.exports = {
 metadata: {
     name: "info",
@@ -11,8 +28,6 @@ metadata: {
 },
 
 async run(client, int, tools) {
-    // const startTime = Date.now(); // Start timing
-
     // fetch member
     let member = int.member
     let foundUser = int.options.get("user") || int.options.get("member") // option is "user" if from context menu
@@ -52,21 +67,51 @@ async run(client, int, tools) {
     let levelPercent = maxLevel ? 100 : (xp - levelData.previousLevel) / (levelData.xpRequired - levelData.previousLevel) * 100
 
     let multiplierData = tools.getMultiplier(member, db.settings)
-    // let rewardRole = tools.getRolesForLevel(levelData.level, db.settings.rewards)
     let multiplier = multiplierData.multiplier
 
-    // Tips for the footer
+    // ===== RANK (use existing tools.getRank — no duplicate sort needed) =====
+    const allUsers = db.users || {}
+    const userRank = tools.getRank(member.id, allUsers)
+    const totalRanked = Object.values(allUsers).filter(u => u && typeof u.xp === 'number' && u.xp > 0).length
+    const rankDisplay = userRank > 0 ? `#${userRank} / ${totalRanked}` : "?"
+
+    // Tips for the footer — expanded pool covering all features
     const tips = [
+        // XP & leveling
         "Tip: You get XP from both chatting and being in voice channels!",
-        "Tip: Spamming won't get you XP faster. XP is awarded periodically.",
+        "Tip: Spamming won't get you XP faster — XP is awarded periodically.",
         "Tip: Use /rank to see your rank card.",
         "Tip: Use /leaderboards to see how you stack up against others!",
         "Tip: Want to know how much XP you need for a level? Use /calculate.",
+        // Streaks
         "Tip: Maintain your daily chat streak to climb the /streakleaderboard!",
-        "Tip: Don't forget to chat daily, or your streak will reset to 0!"
+        "Tip: Don't forget to claim your streak daily, or it resets to 0!",
+        "Tip: Higher streaks unlock milestone roles — check /streak for details.",
+        "Tip: Your streak earns you bonus XP every day you claim it!",
+        // Credits & shop
+        "Tip: Spend your credits in /shop to unlock exclusive roles!",
+        "Tip: Open /chests for a chance at bonus XP rewards!",
+        "Tip: Credits are earned from streaks, giveaways, and activity rewards.",
+        "Tip: Use /transfer to send credits to other members.",
+        // Voice XP
+        "Tip: Staying active in voice channels earns you XP too!",
+        "Tip: Voice XP keeps ticking while you're in a channel — stay connected!",
+        // General motivation
+        "Tip: Check /stats to see your full milestone progress.",
+        "Tip: Reward roles are automatically synced as you level up!",
+        "Tip: The more active you are, the faster you climb the leaderboard!",
     ];
 
-    const randomTip = tips[Math.floor(Math.random() * tips.length)];
+    // Filter tips based on what's enabled in this server
+    const activeTips = tips.filter(tip => {
+        if (tip.includes("streak") || tip.includes("Streak")) return db.settings.streak?.enabled !== false
+        if (tip.includes("/shop") || tip.includes("credits") || tip.includes("Credits") || tip.includes("/transfer")) return db.settings.shop?.enabled || db.settings.streak?.enabled
+        if (tip.includes("/chests") || tip.includes("Chests")) return db.settings.chests?.enabled || db.settings.chestDrops?.enabled
+        if (tip.includes("voice") || tip.includes("Voice")) return db.settings.enabledVoiceXp
+        return true
+    })
+    const tipPool = activeTips.length > 0 ? activeTips : tips
+    const randomTip = tipPool[Math.floor(Math.random() * tipPool.length)]
 
     let barSize = 33    // how many characters the xp bar is
     let barRepeat = Math.round(levelPercent / (100 / barSize)) // .round() so bar can sometimes display as completely full and completely empty
@@ -77,35 +122,6 @@ async run(client, int, tools) {
 
     let memberAvatar = member.displayAvatarURL()
     let memberColor = cardCol || member.displayColor || await member.user.fetch().then(x => x.accentColor)
-    
-    // ===== CALCULATE RANK POSITION =====
-    const allUsers = db.users || {}
-    const memberIdStr = String(member.id)
-    
-    // Create rankings excluding users with no/invalid XP
-    const userRankings = Object.entries(allUsers)
-        .filter(([userId, userData]) => {
-            return userData && 
-                   typeof userData.xp === 'number' && 
-                   userData.xp > 0
-        })
-        .map(([userId, userData]) => ({
-            id: String(userId),
-            xp: userData.xp
-        }))
-        .sort((a, b) => b.xp - a.xp) // Sort by XP descending (highest first)
-    
-    // Find user's rank - only count users this guild with higher XP
-    const userRankIndex = userRankings.findIndex(u => u.id === memberIdStr)
-    let userRank = userRankIndex !== -1 ? userRankIndex + 1 : "?"
-    const totalRanked = userRankings.length
-    
-    // Debug logging if user not found
-    if (userRankIndex === -1 && currentXP?.xp > 0) {
-        console.warn(`[Info Rank Debug] User ${memberIdStr} with XP ${currentXP.xp} not found in rankings. Total users: ${totalRanked}`)
-        console.warn(`[Info Rank Debug] User ID type: ${typeof member.id}, memberIdStr type: ${typeof memberIdStr}`)
-        console.warn(`[Info Rank Debug] Current XP data:`, { id: currentXP.id, xp: currentXP.xp, name: member.user?.username })
-    }
 
     // ===== CALCULATE TIME TO NEXT LEVEL =====
     let timeToNextLevel = "Unknown"
@@ -118,14 +134,41 @@ async run(client, int, tools) {
         }
     }
 
-    // ===== COUNT REWARD ROLES =====
+    // ===== REWARD ROLES =====
     const userRewards = tools.getRolesForLevel(levelData.level, db.settings.rewards)
     const rewardsEarned = userRewards.length
+
+    // Build reward roles display — show all earned keep-roles, not just the first
+    let rewardRolesValue
+    if (rewardsEarned === 0) {
+        rewardRolesValue = "None yet"
+    } else {
+        // Show up to 3 earned roles to avoid field overflow
+        const displayRoles = userRewards.slice(0, 3)
+        rewardRolesValue = displayRoles.map(r => `<@&${r.id}>`).join("\n")
+        if (userRewards.length > 3) rewardRolesValue += `\n_+${userRewards.length - 3} more_`
+    }
 
     // ===== LAST XP GAIN =====
     const lastXpGain = currentXP.lastXpGain ? `<t:${Math.floor(currentXP.lastXpGain / 1000)}:R>` : "Never"
     
-    // Prepare streak info for footer if enabled
+    // ===== MULTIPLIER DISPLAY =====
+    // Format as "1.5×" instead of "150%"
+    const multiplierFormatted = `${multiplier}×`
+    let boostRoleValue
+    if (multiplier !== 1 && !db.settings.hideMultipliers) {
+        if (multiplierData.roleList.length > 0) {
+            boostRoleValue = multiplierData.roleList.map(role => `<@&${role.id}>`).join(", ")
+        } else {
+            boostRoleValue = "\u200b"
+        }
+    } else if (multiplier === 1) {
+        boostRoleValue = "No Boost Role"
+    } else {
+        boostRoleValue = "Hidden"
+    }
+
+    // ===== STREAK INFO =====
     let streakText = null;
     if (db.settings.streak?.enabled) {
         if (!db.users[member.id].streak) {
@@ -141,11 +184,27 @@ async run(client, int, tools) {
         if (userStreak.lastClaim > 0) {
             streakInfo.push(`**Last claim:** <t:${Math.floor(userStreak.lastClaim / 1000)}:R>`);
         }
+
+        // Show next streak milestone (mirrors /streak command behaviour)
+        const milestones = db.settings.streak.milestones || []
+        if (milestones.length > 0) {
+            const nextMilestone = milestones
+                .filter(m => m.days > userStreak.count)
+                .sort((a, b) => a.days - b.days)[0]
+            if (nextMilestone) {
+                const daysLeft = nextMilestone.days - userStreak.count
+                streakInfo.push(`**Next milestone:** ${tools.commafy(nextMilestone.days)} days${nextMilestone.roleId ? ` (<@&${nextMilestone.roleId}>)` : ""} — ${daysLeft} to go`)
+            }
+        }
         
         streakText = streakInfo.join('\n');
     }
 
-    // Create the new embed format
+    // ===== VOICE XP INDICATOR =====
+    // Append a small note to the daily XP field if voice XP is enabled
+    const voiceXpNote = db.settings.enabledVoiceXp ? " _(+ voice XP)_" : ""
+
+    // Create the embed
     let embed = tools.createEmbed({
         author: { 
             name: member.user.displayName,
@@ -155,8 +214,16 @@ async run(client, int, tools) {
         thumbnail: memberAvatar,
         color: memberColor,
         fields: [
-            { name: `Level: ${levelData.level}`, value: `**Rank:** unknown`, inline: true },
-            { name: `Remaining XP: ${tools.commafy(remaining)}`, value: `**To Next:** ${timeToNextLevel}`, inline: true },
+            { 
+                name: `Level: ${levelData.level}`, 
+                value: `**Rank:** ${rankDisplay}`, 
+                inline: true 
+            },
+            { 
+                name: `Remaining XP: ${tools.commafy(remaining)}`, 
+                value: `**To Next:** ${timeToNextLevel}`, 
+                inline: true 
+            },
         ],
         footer: {
             text: randomTip,
@@ -164,26 +231,29 @@ async run(client, int, tools) {
         }
     })
     
-    // Add XP Boost field
+    // Add XP Boost field — show multiplier as "1.5×" format
     if (multiplier !== 1 && !db.settings.hideMultipliers) {
         embed.addFields([{ 
-            name: `XP Boost: ${multiplier * 100}%`, 
-            value: multiplierData.roleList.length ? multiplierData.roleList.map(role => `boosting role: <@&${role.id}>`).join(", ") : "\u200b", 
+            name: `XP Boost: ${multiplierFormatted}`, 
+            value: boostRoleValue, 
             inline: true 
         }])
     } else {
-        embed.addFields([{ name: "XP Boost: 100%", value: "No Boost Role", inline: true }])
+        embed.addFields([{ name: `XP Boost: ${multiplierFormatted}`, value: boostRoleValue, inline: true }])
     }
 
-    // Add Daily XP snapshot info
+    // Add Daily XP snapshot info (with voice XP note if enabled)
     const dailyXp = xp - (currentXP.xpAtDayStart ?? xp);
-    const lastUpdate = currentXP.lastDailyUpdate ? `<t:${Math.floor(currentXP.lastDailyUpdate / 1000)}:R>` : "Now";
-    embed.addFields({ name: `Daily XP: ${tools.commafy(dailyXp)}`, value: `Earned today (boosted)`, inline: true });
-
-    // Add Rewards Earned (highest reward role)
     embed.addFields({ 
-        name: `Active Reward: ${rewardsEarned > 0 ? "✅" : "❌"}`, 
-        value: rewardsEarned > 0 ? userRewards[0] ? `<@&${userRewards[0].id}>` : "None" : "None yet", 
+        name: `Daily XP: ${tools.commafy(dailyXp)}`, 
+        value: `Earned today (boosted)${voiceXpNote}`, 
+        inline: true 
+    });
+
+    // Add Rewards Earned — show all earned keep-roles
+    embed.addFields({ 
+        name: `Active Reward${rewardsEarned !== 1 ? "s" : ""}: ${rewardsEarned > 0 ? "✅" : "❌"}`, 
+        value: rewardRolesValue, 
         inline: true 
     });
 
@@ -195,8 +265,42 @@ async run(client, int, tools) {
     });
 
     if (streakText) {
-        embed.addFields({ name: "Streak Info", value: streakText, inline: true });
+        embed.addFields({ name: "🔥 Streak Info", value: streakText, inline: true });
     }
+
+    // ─── Credit Transaction Log ───────────────────────────────────────────────
+    const credits = currentXP.credits || 0
+    const rawLogs = (currentXP.creditLogs || []).slice(-CREDIT_LOG_DISPLAY_COUNT).reverse() // newest first
+
+    let creditLogField
+    if (rawLogs.length === 0) {
+        // No logs yet — show balance with a hint
+        creditLogField = `<:gold:1472934905972527285> **Balance: ${tools.commafy(credits)}**\n<:extendedend:1466819484999225579>_No transactions recorded yet._`
+    } else {
+        // Header line: current balance
+        const balanceLine = `<:gold:1472934905972527285> **Balance: ${tools.commafy(credits)}**`
+
+        // Build each log row
+        const logLines = rawLogs.map((log, i) => {
+            const meta   = LOG_TYPE_META[log.type] || LOG_TYPE_META.unknown
+            const sign   = log.amount >= 0 ? "+" : ""
+            const amt    = `${sign}${tools.commafy(log.amount)}`
+            const isLast = i === rawLogs.length - 1
+            // ├ for middle rows, └ for last row (Unicode box-drawing, renders in Discord monospace)
+            const tree   = isLast ? "└" : "├"
+            const time   = log.ts ? `<t:${Math.floor(log.ts / 1000)}:R>` : ""
+            // e.g.  ├ 🔥 +10  Daily Streak  •  2h ago
+            return `\`${tree}\` ${meta.emoji} \`${amt.padStart(7)}\` **${meta.label}**${time ? `  •  ${time}` : ""}`
+        })
+
+        creditLogField = `${balanceLine}\n${logLines.join("\n")}`
+    }
+
+    embed.addFields({
+        name: `<:info:1466817220687695967> Credit History  (last ${CREDIT_LOG_DISPLAY_COUNT})`,
+        value: creditLogField,
+        inline: false
+    })
 
     // Navigation Buttons
     let buttons = tools.button([
@@ -206,11 +310,6 @@ async run(client, int, tools) {
         { style: "Primary", label: "Chests", customId: "chests", emoji: "<:chest:1486740653067997394>" }
     ])
 
-
     const reply = await int.editReply({embeds: [embed], components: tools.row(buttons)});
-
-    // const endTime = Date.now();
-    // const executionTime = endTime - startTime;
-    // console.log(`Execution time for /info command: ${executionTime} ms`);
     return reply;
 }}
