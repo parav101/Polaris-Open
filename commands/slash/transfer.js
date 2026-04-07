@@ -11,6 +11,10 @@ module.exports = {
   },
 
   async run(client, int, tools) {
+    if (!int.deferred && !int.replied) {
+      await int.deferReply();
+    }
+
     const sender = int.member;
     const recipient = int.options.get('recipient')?.member;
     const amount = int.options.get('amount')?.value;
@@ -92,6 +96,6 @@ module.exports = {
       )
       .setTimestamp();
 
-    await int.reply({ embeds:[embed] });
+    await int.editReply({ embeds:[embed] });
   }
 };
