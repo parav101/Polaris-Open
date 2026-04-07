@@ -24,6 +24,35 @@ const EMOJIS = {
     DIVIDER: "<:extendedend:1466819484999225579>"
 };
 
+function resolveEmoji(client, guild, candidates, fallback) {
+    const names = Array.isArray(candidates) ? candidates : [candidates];
+    const lowerNames = names.map((n) => String(n).toLowerCase());
+    const fromGuild = guild?.emojis?.cache?.find((e) => lowerNames.includes(e.name.toLowerCase()));
+    if (fromGuild) return `<:${fromGuild.name}:${fromGuild.id}>`;
+
+    const fromClient = client?.emojis?.cache?.find((e) => lowerNames.includes(e.name.toLowerCase()));
+    if (fromClient) return `<:${fromClient.name}:${fromClient.id}>`;
+
+    return fallback;
+}
+
+function getVisuals(client, guild) {
+    return {
+        GOLD: resolveEmoji(client, guild, ["gold", "credits", "coin"], EMOJIS.GOLD),
+        INFO: resolveEmoji(client, guild, ["info", "information"], EMOJIS.INFO),
+        PROGRESS: resolveEmoji(client, guild, ["progress", "loading"], EMOJIS.PROGRESS),
+        LEVEL: resolveEmoji(client, guild, ["level", "lvl"], EMOJIS.LEVEL),
+        XP: resolveEmoji(client, guild, ["userxp", "xp"], EMOJIS.XP),
+        STREAK: resolveEmoji(client, guild, ["streak", "fire"], EMOJIS.STREAK),
+        DIVIDER: resolveEmoji(client, guild, ["extendedend", "divider"], EMOJIS.DIVIDER),
+        ENTER: resolveEmoji(client, guild, ["party", "giveaway", "gift"], "🎉"),
+        PEOPLE: resolveEmoji(client, guild, ["users", "members", "people"], "👥"),
+        CANCEL: resolveEmoji(client, guild, ["trash", "delete", "cancel"], "🗑️"),
+        TIME: resolveEmoji(client, guild, ["time", "clock"], "⏱️"),
+        TROPHY: resolveEmoji(client, guild, ["trophy", "winner"], "🏆")
+    };
+}
+
 /**
  * Parse duration string into milliseconds
  */
@@ -91,6 +120,7 @@ module.exports = {
         }
 
         const endTime = Date.now() + durationMs;
+        const visuals = getVisuals(client, int.guild);
         const giveawayData = {
             id: Date.now().toString(), // Using time as unique ID
             messageId: null,
@@ -111,7 +141,10 @@ module.exports = {
             currentCredits: baseCredits,
             winnerIds: [],
             winnerCount: winnersCount,
-            participantRewardPercent: 5 // 5% participation bonus
+            participantRewardPercent: 5, // 5% participation bonus
+            cancelled: false,
+            createdAt: Date.now(),
+            visuals
         };
 
         const embed = await createGiveawayEmbed(giveawayData, tools);
@@ -121,21 +154,21 @@ module.exports = {
                 new Discord.ActionRowBuilder().addComponents(
                     new Discord.ButtonBuilder()
                         .setCustomId('cg_enter')
-                        .setLabel('Enter Giveaway')
+                        .setLabel('Join Giveaway')
                         .setStyle(Discord.ButtonStyle.Success)
-                        .setEmoji('🎉'),
+                        .setEmoji(visuals.ENTER),
                     new Discord.ButtonBuilder()
                         .setCustomId('cg_list')
-                        .setLabel('View Participants')
+                        .setLabel('Participants')
                         .setStyle(Discord.ButtonStyle.Secondary)
-                        .setEmoji('👥')
+                        .setEmoji(visuals.PEOPLE)
                 ),
                 new Discord.ActionRowBuilder().addComponents(
                     new Discord.ButtonBuilder()
                         .setCustomId('cg_cancel')
                         .setLabel('Cancel')
                         .setStyle(Discord.ButtonStyle.Danger)
-                        .setEmoji('🗑️')
+                        .setEmoji(visuals.CANCEL)
                 )
             ];
 
@@ -174,7 +207,17 @@ module.exports = {
 };
 
 async function createGiveawayEmbed(data, tools) {
-    const { baseCredits, creditsPerUser, maxCredits, participants, endTime, minParticipants, requiredLevel, requiredRoleId, requiredStreak, winnerCount } = data;
+    const visuals = data.visuals || EMOJIS;
+    const baseCredits = Number(data.baseCredits ?? data.baseGold ?? 0);
+    const creditsPerUser = Number(data.creditsPerUser ?? data.goldPerUser ?? 0);
+    const maxCredits = Number(data.maxCredits ?? data.maxGold ?? 0);
+    const participants = Array.isArray(data.participants) ? data.participants : [];
+    const endTime = data.endTime;
+    const minParticipants = Number(data.minParticipants ?? 1);
+    const requiredLevel = Number(data.requiredLevel ?? 0);
+    const requiredRoleId = data.requiredRoleId;
+    const requiredStreak = Number(data.requiredStreak ?? 0);
+    const winnerCount = Number(data.winnerCount ?? 1);
 
     let total = baseCredits + (participants.length * creditsPerUser);
     if (maxCredits > 0 && total > maxCredits) total = maxCredits;
@@ -185,26 +228,26 @@ async function createGiveawayEmbed(data, tools) {
 
     let reqs = [];
     if (minParticipants > 1) reqs.push(`• Min ${minParticipants} participants`);
-    if (requiredLevel > 0) reqs.push(`${EMOJIS.LEVEL} Level ${requiredLevel}+`);
+    if (requiredLevel > 0) reqs.push(`${visuals.LEVEL} Level ${requiredLevel}+`);
     if (requiredRoleId) reqs.push(`• <@&${requiredRoleId}> role`);
-    if (requiredStreak > 0) reqs.push(`${EMOJIS.STREAK} Streak ${requiredStreak}+`);
+    if (requiredStreak > 0) reqs.push(`${visuals.STREAK} Streak ${requiredStreak}+`);
 
     const embed = new Discord.EmbedBuilder()
-        .setTitle('🎉 Credit Giveaway 🎉')
-        .setDescription(`${data.description}\n\n${EMOJIS.DIVIDER}`)
-        .setColor(0x00AE86)
+        .setTitle(`${visuals.ENTER} Credit Giveaway`)
+        .setDescription(`${data.description}\n\n${visuals.DIVIDER} Hosted by <@${data.hostId}>`)
+        .setColor(0xf1c40f)
         .addFields(
-            { name: `${EMOJIS.GOLD} Prize Pool`, value: `**${tools.commafy(total)}** credits\n(${winnerCount} winners)`, inline: true },
-            { name: `👥 Participants`, value: `**${participants.length}** entered${minParticipants > 1 ? ` (Min: ${minParticipants})` : ''}`, inline: true },
-            { name: `⏱️ Ends`, value: timeStr, inline: true }
+            { name: `${visuals.GOLD} Prize Pool`, value: `**${tools.commafy(total)}** credits\n${visuals.TROPHY} ${winnerCount} winner${winnerCount > 1 ? "s" : ""}`, inline: true },
+            { name: `${visuals.PEOPLE} Participants`, value: `**${participants.length}** joined${minParticipants > 1 ? `\nMin: **${minParticipants}**` : ''}`, inline: true },
+            { name: `${visuals.TIME} Ends`, value: timeStr, inline: true }
         )
-        .setFooter({ text: tools.choose(tips), iconURL: "https://cdn3.emoji.gg/emojis/9385-sparkles-pinkpastel.gif" })
+        .setFooter({ text: tools.choose(tips) })
         .setTimestamp();
 
-    if (reqs.length > 0) embed.addFields({ name: `${EMOJIS.INFO} Requirements`, value: reqs.join('\n') });
+    if (reqs.length > 0) embed.addFields({ name: `${visuals.INFO} Requirements`, value: reqs.join('\n') });
 
     embed.addFields({
-        name: '📈 Growth Info',
+        name: `${visuals.PROGRESS} Growth`,
         value: `Starts at **${tools.commafy(baseCredits)}** credits\n+**${tools.commafy(creditsPerUser)}** per user${maxCredits > 0 ? `\nMax: **${tools.commafy(maxCredits)}**` : ''}`
     });
 
@@ -312,7 +355,7 @@ async function endGiveaway(client, tools, data) {
             winners.push(pool.splice(idx, 1)[0]);
         }
 
-        const prize = data.currentCredits;
+        const prize = Number(data.currentCredits ?? data.currentGold ?? 0);
         // Direct DB update for winners + log
         for (const wId of winners) {
             // Fetch current balance for accurate log
@@ -344,11 +387,11 @@ async function endGiveaway(client, tools, data) {
 
         const winnerMentions = winners.map(id => `<@${id}>`).join(', ');
         const endEmbed = new Discord.EmbedBuilder()
-            .setTitle('🎊 Giveaway Ended 🎊')
+            .setTitle(`${data.visuals?.TROPHY || "🏆"} Giveaway Ended`)
             .setColor(0x00FF00)
             .addFields(
-                { name: '🏆 Winners', value: winnerMentions || "None" },
-                { name: `${EMOJIS.GOLD} Prize`, value: `${tools.commafy(prize)} credits each` }
+                { name: `${data.visuals?.TROPHY || "🏆"} Winners`, value: winnerMentions || "None" },
+                { name: `${data.visuals?.GOLD || EMOJIS.GOLD} Prize`, value: `${tools.commafy(prize)} credits each` }
             );
 
         await m.edit({ embeds: [endEmbed], components: [] });
