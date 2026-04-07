@@ -2,6 +2,78 @@ const LevelUpMessage = require("../../classes/LevelUpMessage.js")
 const { generateLeaderboardEmbed } = require("../../classes/ActivityLeaderboard.js")
 const config = require("../../config.json")
 
+function getBumpUserId(message) {
+    const interactionUserId = message.interactionMetadata?.user?.id
+    if (interactionUserId) return interactionUserId
+
+    const firstMention = message.mentions?.users?.first?.()
+    if (firstMention && !firstMention.bot) return firstMention.id
+
+    return null
+}
+
+function isSuccessfulBumpMessage(message) {
+    const content = (message.content || "").toLowerCase()
+    const embeds = message.embeds || []
+
+    if (content.includes("bump done")) return true
+    if (content.includes("successfully bumped")) return true
+
+    return embeds.some(embed => {
+        const title = (embed.title || "").toLowerCase()
+        const description = (embed.description || "").toLowerCase()
+        const footer = (embed.footer?.text || "").toLowerCase()
+
+        return (
+            title.includes("bump done") ||
+            description.includes("bump done") ||
+            description.includes("successfully bumped") ||
+            footer.includes("bump done")
+        )
+    })
+}
+
+async function handleBumpReward(client, message, tools, db) {
+    const bumpSettings = db.settings?.bump
+    if (!bumpSettings?.enabled) return
+    if (!bumpSettings.channelId || message.channel.id !== bumpSettings.channelId) return
+
+    const disboardBotId = bumpSettings.disboardBotId || "302050872383242240"
+    if (message.author.id !== disboardBotId) return
+    if (!isSuccessfulBumpMessage(message)) return
+
+    const bumperId = getBumpUserId(message)
+    if (!bumperId) return
+
+    const rewardCredits = Math.max(0, Number(bumpSettings.rewardCredits || 0))
+    if (rewardCredits <= 0) return
+
+    const cooldownSeconds = Math.max(0, Number(bumpSettings.cooldownSeconds || 0))
+    const now = Date.now()
+    const userData = db.users?.[bumperId] || { xp: 0, cooldown: 0, voiceTime: 0 }
+    const bumpCooldownUntil = Number(userData.bumpCooldownUntil || 0)
+
+    if (bumpCooldownUntil > now) return
+
+    userData.credits = (userData.credits || 0) + rewardCredits
+    userData.bumpCooldownUntil = now + (cooldownSeconds * 1000)
+    db.users[bumperId] = userData
+
+    await client.db.update(message.guild.id, {
+        $set: {
+            [`users.${bumperId}`]: userData,
+            "info.lastUpdate": now
+        }
+    }).exec()
+
+    await tools.addCreditLog(client.db, message.guild.id, bumperId, {
+        type: "bump",
+        amount: rewardCredits,
+        balance: userData.credits,
+        note: "DISBOARD bump reward"
+    })
+}
+
 module.exports = {
 
 async run(client, message, tools) {
@@ -11,9 +83,13 @@ async run(client, message, tools) {
     // fetch server xp settings, this can probably be optimized with caching but shrug
     let author = message.author.id
     let db = await tools.fetchSettings(author, message.guild.id)
-    if (!db || !db.settings?.enabled) return
-    
+    if (!db) return
+
+    await handleBumpReward(client, message, tools, db).catch(() => {})
+    if (!db.settings?.enabled) return
+
     let settings = db.settings
+
     // ,lb shortcut — only works in the configured activity leaderboard channel
     if (message.content.trim().toLowerCase() === ",lb") {
         const fullDb = await tools.fetchAll(message.guild.id).catch(() => null)

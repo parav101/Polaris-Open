@@ -8,7 +8,8 @@
         { "emoji": "🤫", "name": "Confessions", "folder": "confession" },
         { "emoji": "💰", "name": "Credit Shop", "folder": "shop" },
         { "emoji": "📦", "name": "Chests", "folder": "chests" },
-        { "emoji": "🏆", "name": "Activity Leaderboard", "folder": "activitylb" }
+        { "emoji": "🏆", "name": "Activity Leaderboard", "folder": "activitylb" },
+        { "emoji": "📣", "name": "Bump Rewards", "folder": "bump" }
     ],
 
     "general": [
@@ -77,6 +78,15 @@
         { "space": true },
         { "db": "activityLeaderboard.topCredits", "name": "Top User Credits Reward", "desc": "Credits awarded to the #1 activity user each interval", "str": "# credits", "zeroText": "No reward" },
         { "db": "activityLeaderboard.topRoleId", "name": "Top User Role ID", "desc": "Role given to the #1 activity user (removed from previous winner at next interval)", "tip": "Right-click a role in Server Settings → Copy ID and paste it here" }
+    ],
+
+    "bump": [
+        { "emoji": "⬅️", "name": "Back", "folder": "home", "groupName": "Bump reward settings" },
+        { "db": "bump.enabled", "name": "Enable Bump Rewards", "desc": "Give credits to users when a valid DISBOARD bump is detected" },
+        { "db": "bump.channelId", "name": "Bump Channel ID", "desc": "Channel where DISBOARD bump success messages are sent" },
+        { "db": "bump.rewardCredits", "name": "Credits Per Bump", "desc": "Credits awarded for each valid bump", "str": "# credits", "zeroText": "Disabled" },
+        { "db": "bump.cooldownSeconds", "name": "Bump Cooldown", "desc": "Cooldown time between bump rewards for the same user (seconds)", "str": "# seconds" },
+        { "db": "bump.disboardBotId", "name": "DISBOARD Bot ID", "desc": "Bot user ID used for bump detection (default DISBOARD bot)" }
     ],
 
     "chests": [

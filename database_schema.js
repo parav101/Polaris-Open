@@ -185,6 +185,14 @@ const settings = {
         interval: { type: "int", default: 24, min: 4, max: 24, choices: [4, 6, 8, 12, 24] },
         topCredits: { type: "int", default: 0, min: 0 },
         topRoleId: { type: "string", default: "" }
+    },
+
+    bump: {
+        enabled: { type: "bool", default: false },
+        channelId: { type: "string", default: "1280913100924653608", accept: ["discord:channel"] },
+        rewardCredits: { type: "int", default: 5, min: 0, max: 1000000 },
+        cooldownSeconds: { type: "int", default: 7200, min: 0, max: 31536000 },
+        disboardBotId: { type: "string", default: "302050872383242240" }
     }
 }
 

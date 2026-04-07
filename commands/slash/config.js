@@ -21,7 +21,8 @@ async run(client, int, tools) {
         `**Level up message:** ${settings.levelUp.enabled && settings.levelUp.message ? (settings.levelUp.embed ? "Enabled (embed)" : "Enabled") : "Disabled"}`,
         `**Rank cards:** ${settings.rankCard.disabled ? "Disabled" : settings.rankCard.ephemeral ? "Enabled (forced hidden)" : "Enabled"}`,
         `**Leaderboard:** ${settings.leaderboard.disabled ? "Disabled" : `[${settings.leaderboard.private ? "Private" : "Public"}](<${tools.WEBSITE}/leaderboard/${int.guild.id}>)`}`,
-        `**Activity Reward Logs:** ${settings.activityLeaderboard?.rewardLogChannelId ? `<#${settings.activityLeaderboard.rewardLogChannelId}>` : "Disabled"}`
+        `**Activity Reward Logs:** ${settings.activityLeaderboard?.rewardLogChannelId ? `<#${settings.activityLeaderboard.rewardLogChannelId}>` : "Disabled"}`,
+        `**Bump Rewards:** ${settings.bump?.enabled ? `On • ${tools.commafy(settings.bump.rewardCredits || 0)} credits • ${tools.commafy(settings.bump.cooldownSeconds || 0)}s cooldown` : "Off"}`
     ]
 
     let embed = tools.createEmbed({
