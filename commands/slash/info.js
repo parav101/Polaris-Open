@@ -2,19 +2,20 @@ const multiplierModes = require("../../json/multiplier_modes.json")
 
 // ─── Credit Log Display Config ───────────────────────────────────────────────
 // How many recent logs to show in /info (change this number to show more/fewer)
-const CREDIT_LOG_DISPLAY_COUNT = 5
+const CREDIT_LOG_DISPLAY_COUNT = 7
 
 // Emoji + label per transaction type
 const LOG_TYPE_META = {
-    streak:       { emoji: "🔥", label: "Daily Streak"    },
-    transfer_in:  { emoji: "<:gold:1472934905972527285>",  label: "Received"       },
-    transfer_out: { emoji: "📤", label: "Sent"            },
-    admin:        { emoji: "🛡️", label: "Admin"           },
-    addcredits:   { emoji: "⚙️", label: "Admin Adjust"    },
-    giveaway:     { emoji: "🎉", label: "Giveaway"        },
-    activity:     { emoji: "<:progress:1466819928110792816>", label: "Activity #1" },
-    shop:         { emoji: "<:chest:1486740653067997394>", label: "Shop"           },
-    unknown:      { emoji: "❓", label: "Other"           },
+    streak:       { emoji: "🔥",                                 label: "Daily streak reward"     },
+    transfer_in:  { emoji: "<:gold:1472934905972527285>",        label: "Received from member"    },
+    transfer_out: { emoji: "📤",                                 label: "Sent to member"          },
+    admin:        { emoji: "🛡️",                                 label: "Admin adjustment"        },
+    addcredits:   { emoji: "⚙️",                                 label: "Admin adjustment"        },
+    giveaway:     { emoji: "🎉",                                 label: "Giveaway win"            },
+    activity:     { emoji: "<:progress:1466819928110792816>",    label: "Activity reward"         },
+    shop:         { emoji: "<:chest:1486740653067997394>",       label: "Shop purchase"           },
+    bump:         { emoji: "💰",                                 label: "Bump reward"             },
+    unknown:      { emoji: "❓",                                 label: "Other (ask staff if unsure)" },
 }
 
 module.exports = {
@@ -289,11 +290,18 @@ async run(client, int, tools) {
             // ├ for middle rows, └ for last row (Unicode box-drawing, renders in Discord monospace)
             const tree   = isLast ? "└" : "├"
             const time   = log.ts ? `<t:${Math.floor(log.ts / 1000)}:R>` : ""
-            // e.g.  ├ 🔥 +10  Daily Streak  •  2h ago
-            return `\`${tree}\` ${meta.emoji} \`${amt.padStart(7)}\` **${meta.label}**${time ? `  •  ${time}` : ""}`
+
+            const rawNote = (log.note || "").trim()
+            const note = rawNote ? tools.limitLength(rawNote, 80, "…") : ""
+            const noteSegment = note ? `  ·  _${note}_` : ""
+
+            // e.g.  ├ 🔥 +10  Daily streak reward  •  2h ago · _Claimed daily streak (day 3)_
+            return `\`${tree}\` ${meta.emoji} \`${amt.padStart(7)}\` **${meta.label}**${time ? `  •  ${time}` : ""}${noteSegment}`
         })
 
-        creditLogField = `${balanceLine}\n${logLines.join("\n")}`
+        const footerLine = `<:extendedend:1466819484999225579>_Showing last ${rawLogs.length} transaction${rawLogs.length === 1 ? "" : "s"}._`
+
+        creditLogField = `${balanceLine}\n${logLines.join("\n")}\n${footerLine}`
     }
 
     embed.addFields({

@@ -72,13 +72,13 @@ module.exports = {
       type: "transfer_out",
       amount: -totalDeduction,
       balance: newSenderCredits,
-      note: `Sent to ${recipient.displayName} (20% tax applied)`
+      note: `Sent ${tools.commafy(totalDeduction)} credits to ${recipient.displayName} (20% tax: ${tools.commafy(tax)})`
     })
     await tools.addCreditLog(client.db, int.guild.id, recipient.id, {
       type: "transfer_in",
       amount: netAmount,
       balance: newRecipientCredits,
-      note: `Received from ${sender.displayName}`
+      note: `Received ${tools.commafy(netAmount)} credits from ${sender.displayName}`
     })
 
     // Send confirmation embed

@@ -611,7 +611,7 @@ class Tools {
                     type: "streak",
                     amount: settings.creditsPerClaim,
                     balance: userData.credits,
-                    note: `Daily streak claimed (day ${userStreak.count})`
+                    note: `Claimed daily streak reward (day ${userStreak.count})`
                 }
             }
 

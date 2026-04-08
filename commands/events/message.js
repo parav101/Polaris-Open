@@ -91,7 +91,7 @@ async function handleBumpReward(client, message, tools, db) {
             type: "bump",
             amount: freshReward,
             balance: userData.credits,
-            note: "Bump reward claim"
+            note: `Claimed bump reward (${tools.commafy(freshReward)} credits)`
         })
 
         claimed = true
