@@ -246,10 +246,17 @@ async run(client, int, tools) {
     // Add Daily XP snapshot info (with voice XP note if enabled)
     const dailyXp = xp - (currentXP.xpAtDayStart ?? xp);
     embed.addFields({ 
-        name: `Daily XP: ${tools.commafy(dailyXp)}`, 
+        name: `Daily Boost XP: ${tools.commafy(dailyXp)}`, 
         value: `Earned today (boosted)${voiceXpNote}`, 
         inline: true 
     });
+
+    const rawDailyXp = Math.floor(currentXP.activityXpAccumulated || 0)
+    embed.addFields({
+        name: `Daily Raw XP: ${tools.commafy(rawDailyXp)}`,
+        value: `Earned today (unboosted)`,
+        inline: true
+    })
 
     // Add Rewards Earned — show all earned keep-roles
     embed.addFields({ 

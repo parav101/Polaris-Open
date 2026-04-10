@@ -603,16 +603,18 @@ class Tools {
                 userData.xp = (userData.xp || 0) + xpWithMultiplier;
             }
 
-            // Add Credits for streak
+            // Add Credits for streak and store the log inline so follow-up writes preserve it.
             if (settings.creditsPerClaim > 0 && userStreak.count >= (settings.minStreakForCredits || 0)) {
                 userData.credits = (userData.credits || 0) + settings.creditsPerClaim;
-                // Queue a credit log after the main DB write (done below)
-                userData._pendingCreditLog = {
+                const streakCreditLog = {
                     type: "streak",
                     amount: settings.creditsPerClaim,
                     balance: userData.credits,
-                    note: `Claimed daily streak reward (day ${userStreak.count})`
+                    note: `Claimed daily streak reward (day ${userStreak.count})`,
+                    ts: Date.now()
                 }
+                const existingLogs = userData.creditLogs || []
+                userData.creditLogs = [...existingLogs, streakCreditLog].slice(-5)
             }
 
             // Check for milestones
@@ -645,17 +647,8 @@ class Tools {
                 }
             }
 
-            // Strip the pending log flag before writing to DB
-            const pendingLog = userData._pendingCreditLog
-            delete userData._pendingCreditLog
-
             db.users[member.id] = { ...userData, streak: userStreak };
             await client.db.update(member.guild.id, { $set: { [`users.${member.id}`]: db.users[member.id] } }).exec();
-
-            // Write credit log after main write so balance is accurate
-            if (pendingLog) {
-                await this.addCreditLog(client.db, member.guild.id, member.id, pendingLog)
-            }
         }
 
         // Function to update daily XP starting point (snapshot)
