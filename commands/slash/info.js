@@ -2,7 +2,7 @@ const multiplierModes = require("../../json/multiplier_modes.json")
 
 // ─── Credit Log Display Config ───────────────────────────────────────────────
 // How many recent logs to show in /info (change this number to show more/fewer)
-const CREDIT_LOG_DISPLAY_COUNT = 7
+const CREDIT_LOG_DISPLAY_COUNT = 5
 
 // Emoji + label per transaction type
 const LOG_TYPE_META = {
@@ -70,12 +70,6 @@ async run(client, int, tools) {
     let multiplierData = tools.getMultiplier(member, db.settings)
     let multiplier = multiplierData.multiplier
 
-    // ===== RANK (use existing tools.getRank — no duplicate sort needed) =====
-    const allUsers = db.users || {}
-    const userRank = tools.getRank(member.id, allUsers)
-    const totalRanked = Object.values(allUsers).filter(u => u && typeof u.xp === 'number' && u.xp > 0).length
-    const rankDisplay = userRank > 0 ? `#${userRank} / ${totalRanked}` : "?"
-
     // Tips for the footer — expanded pool covering all features
     const tips = [
         // XP & leveling
@@ -123,17 +117,6 @@ async run(client, int, tools) {
 
     let memberAvatar = member.displayAvatarURL()
     let memberColor = cardCol || member.displayColor || await member.user.fetch().then(x => x.accentColor)
-
-    // ===== CALCULATE TIME TO NEXT LEVEL =====
-    let timeToNextLevel = "Unknown"
-    if (!maxLevel && currentXP.lastDailyUpdate) {
-        const dailyXp = xp - (currentXP.xpAtDayStart ?? xp)
-        const xpNeeded = remaining
-        if (dailyXp > 0) {
-            const daysNeeded = (xpNeeded / dailyXp).toFixed(1)
-            timeToNextLevel = daysNeeded <= 1 ? "Less than a day" : `~${daysNeeded} days`
-        }
-    }
 
     // ===== REWARD ROLES =====
     const userRewards = tools.getRolesForLevel(levelData.level, db.settings.rewards)
@@ -201,10 +184,6 @@ async run(client, int, tools) {
         streakText = streakInfo.join('\n');
     }
 
-    // ===== VOICE XP INDICATOR =====
-    // Append a small note to the daily XP field if voice XP is enabled
-    const voiceXpNote = db.settings.enabledVoiceXp ? " _(+ voice XP)_" : ""
-
     const makeMiniBar = (percent, size = 10) => {
         const safePercent = Math.max(0, Math.min(100, percent || 0))
         const filled = Math.round((safePercent / 100) * size)
@@ -223,12 +202,12 @@ async run(client, int, tools) {
         fields: [
             { 
                 name: `Level: ${levelData.level}`, 
-                value: `**Rank:** ${rankDisplay}`, 
+                value: "\u200b", 
                 inline: true 
             },
             { 
                 name: `Remaining XP: ${tools.commafy(remaining)}`, 
-                value: `**To Next:** ${timeToNextLevel}`, 
+                value: "\u200b", 
                 inline: true 
             },
         ],
@@ -249,11 +228,11 @@ async run(client, int, tools) {
         embed.addFields([{ name: `XP Boost: ${multiplierFormatted}`, value: boostRoleValue, inline: true }])
     }
 
-    // Add Daily XP snapshot info (with voice XP note if enabled)
+    // Add Daily boosted XP snapshot info
     const dailyXp = xp - (currentXP.xpAtDayStart ?? xp);
     embed.addFields({ 
-        name: `Daily Boost XP: ${tools.commafy(dailyXp)}`, 
-        value: `Earned today (boosted)${voiceXpNote}`, 
+        name: `Daily Boosted XP: ${tools.commafy(dailyXp)}`, 
+        value: `Last gain: ${lastXpGain}`, 
         inline: true 
     });
 
@@ -291,13 +270,6 @@ async run(client, int, tools) {
     embed.addFields({ 
         name: `Active Reward${rewardsEarned !== 1 ? "s" : ""}: ${rewardsEarned > 0 ? "✅" : "❌"}`, 
         value: rewardRolesValue, 
-        inline: true 
-    });
-
-    // Add Total XP
-    embed.addFields({ 
-        name: `Total XP: ${tools.commafy(xp)}`, 
-        value: `Last gain: ${lastXpGain}`, 
         inline: true 
     });
 
