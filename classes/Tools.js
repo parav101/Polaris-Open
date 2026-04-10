@@ -672,6 +672,7 @@ class Tools {
                     userData.xpAtDayStart = currentXP;
                     userData.lastDailyUpdate = now.getTime();
                     userData.activityXpAccumulated = 0;
+                    userData.msgXp = 0;
                     db.users[member.id] = userData;
                 }
 
@@ -679,7 +680,8 @@ class Tools {
                     $set: { 
                         [`users.${member.id}.xpAtDayStart`]: currentXP,
                         [`users.${member.id}.lastDailyUpdate`]: now.getTime(),
-                        [`users.${member.id}.activityXpAccumulated`]: 0
+                        [`users.${member.id}.activityXpAccumulated`]: 0,
+                        [`users.${member.id}.msgXp`]: 0
                     } 
                 }).exec();
             }

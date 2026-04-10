@@ -205,6 +205,12 @@ async run(client, int, tools) {
     // Append a small note to the daily XP field if voice XP is enabled
     const voiceXpNote = db.settings.enabledVoiceXp ? " _(+ voice XP)_" : ""
 
+    const makeMiniBar = (percent, size = 10) => {
+        const safePercent = Math.max(0, Math.min(100, percent || 0))
+        const filled = Math.round((safePercent / 100) * size)
+        return `${"▓".repeat(filled)}${"░".repeat(size - filled)}`
+    }
+
     // Create the embed
     let embed = tools.createEmbed({
         author: { 
@@ -252,11 +258,34 @@ async run(client, int, tools) {
     });
 
     const rawDailyXp = Math.floor(currentXP.activityXpAccumulated || 0)
-    embed.addFields({
-        name: `Daily Raw XP: ${tools.commafy(rawDailyXp)}`,
-        value: `Earned today (unboosted)`,
-        inline: true
-    })
+    const msgXp = Math.floor(currentXP.msgXp || 0)
+    const safeMsgXp = Math.min(msgXp, rawDailyXp)
+    const vcXp = Math.max(0, rawDailyXp - safeMsgXp)
+    const msgPercent = rawDailyXp > 0 ? (safeMsgXp / rawDailyXp) * 100 : 0
+    const vcPercent = rawDailyXp > 0 ? (vcXp / rawDailyXp) * 100 : 0
+
+    if (db.settings.enabledVoiceXp) {
+        const activityValue = rawDailyXp > 0
+            ? [
+                `💬 \`${makeMiniBar(msgPercent)}\` **${msgPercent.toFixed(1)}%**  ·  ${tools.commafy(safeMsgXp)} msg XP`,
+                `🎙 \`${makeMiniBar(vcPercent)}\` **${vcPercent.toFixed(1)}%**  ·  ${tools.commafy(vcXp)} vc XP`
+            ].join("\n")
+            : "No XP earned today yet."
+
+        embed.addFields({
+            name: `Today's Activity: ${tools.commafy(rawDailyXp)} raw XP`,
+            value: activityValue,
+            inline: true
+        })
+    } else {
+        embed.addFields({
+            name: `Today's Activity: ${tools.commafy(rawDailyXp)} raw XP`,
+            value: rawDailyXp > 0
+                ? `💬 Message XP only (voice XP disabled)\n\`${makeMiniBar(100)}\` **100.0%**  ·  ${tools.commafy(rawDailyXp)} msg XP`
+                : "No XP earned today yet.",
+            inline: true
+        })
+    }
 
     // Add Rewards Earned — show all earned keep-roles
     embed.addFields({ 

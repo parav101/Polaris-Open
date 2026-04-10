@@ -194,6 +194,7 @@ async run(client, message, tools) {
     
     // add to daily raw xp
     userData.activityXpAccumulated = (userData.activityXpAccumulated || 0) + (xpGained / multiplierData.multiplier)
+    userData.msgXp = (userData.msgXp || 0) + (xpGained / multiplierData.multiplier)
 
     // track last xp gain time
     userData.lastXpGain = Date.now()
