@@ -470,9 +470,9 @@ class Tools {
         this.editOrReply = function(data, forceReply) {
             if (forceReply) int.reply(data).catch(() => null)
     
-            else int.message.edit(data).catch(() => {
-                int.reply(data).catch(() => null)
-            }).then(() => int.deferUpdate())
+            else int.message.edit(data)
+                .then(() => int.deferUpdate().catch(() => null))
+                .catch(() => { int.reply(data).catch(() => null) })
         }
 
         // xp is stored as an object, convert to array

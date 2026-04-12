@@ -105,7 +105,7 @@ class PageEmbed {
         })
         collector.on('end', b => { 
             if (!buttonPressed) {
-                this.int.editReply({ components: tools.disableButtons(buttons) })
+                this.int.editReply({ components: tools.disableButtons(buttons) }).catch(() => {})
                 this.destroy()
             }
         })
