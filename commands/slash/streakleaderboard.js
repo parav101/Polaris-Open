@@ -17,6 +17,10 @@ metadata: {
 
 async run(client, int, tools) {
 
+    let peek = await tools.fetchSettings()
+    let deferEphemeral = !!int.options.get("hidden")?.value || !!(peek?.settings?.leaderboard?.ephemeral)
+    if (!int.deferred && !int.replied) await int.deferReply({ ephemeral: deferEphemeral })
+
     let db = await tools.fetchAll()
     if (!db || !db.users || !Object.keys(db.users).length) return tools.warn(`Nobody in this server is ranked yet!`);
     else if (!db.settings.enabled) return tools.warn("*xpDisabled")
@@ -103,6 +107,6 @@ async run(client, int, tools) {
     
     if (!streakEmbed.data.length) return tools.warn("There are no members on this page!")
 
-    streakEmbed.post(int)
+    await streakEmbed.post(int)
 
 }}

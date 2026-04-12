@@ -17,6 +17,10 @@ async run(client, int, tools) {
 
     let lbLink = `${tools.WEBSITE}/leaderboard/${int.guild.id}`
 
+    let peek = await tools.fetchSettings()
+    let deferEphemeral = !!int.options.get("hidden")?.value || !!(peek?.settings?.leaderboard?.ephemeral)
+    if (!int.deferred && !int.replied) await int.deferReply({ ephemeral: deferEphemeral })
+
     let db = await tools.fetchAll()
     if (!db || !db.users || !Object.keys(db.users).length) return tools.warn(`Nobody in this server is ranked yet!`);
     else if (!db.settings.enabled) return tools.warn("*xpDisabled")
@@ -76,7 +80,7 @@ async run(client, int, tools) {
     })
     if (!xpEmbed.data.length) return tools.warn("There are no members on this page!")
 
-    xpEmbed.post(int)
+    await xpEmbed.post(int)
 
     // const endTime = Date.now();
     // const executionTime = endTime - startTime;

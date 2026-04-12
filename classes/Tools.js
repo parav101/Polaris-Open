@@ -468,9 +468,13 @@ class Tools {
 
         // edit the message if possible, otherwise post as reply
         this.editOrReply = function(data, forceReply) {
-            if (forceReply) int.reply(data).catch(() => null)
-    
-            else int.message.edit(data)
+            if (forceReply) return int.reply(data).catch(() => null)
+
+            // e.g. settings_edit already deferred the modal submit before chaining to settings_view
+            if (int.deferred || int.replied)
+                return int.editReply(data).catch(() => null)
+
+            int.message.edit(data)
                 .then(() => int.deferUpdate().catch(() => null))
                 .catch(() => { int.reply(data).catch(() => null) })
         }
