@@ -119,6 +119,8 @@ module.exports = {
             return tools.warn(`Already an active giveaway in ${targetChannel}!`);
         }
 
+        await int.deferReply({ ephemeral: true });
+
         const endTime = Date.now() + durationMs;
         const visuals = getVisuals(client, int.guild);
         const giveawayData = {
@@ -179,7 +181,7 @@ module.exports = {
             // Persist to DB
             await client.db.update(int.guild.id, { $push: { giveaways: giveawayData } });
 
-            await int.reply({ content: `✅ Giveaway started in ${targetChannel}!`, ephemeral: true });
+            await int.editReply({ content: `✅ Giveaway started in ${targetChannel}!` });
 
             attachCollector(msg, client, tools, giveawayData);
             scheduleGiveawayEnd(client, tools, giveawayData);
@@ -187,7 +189,7 @@ module.exports = {
 
         } catch (e) {
             console.error(e);
-            return int.reply({ content: "Error starting giveaway.", ephemeral: true });
+            return int.editReply({ content: "Error starting giveaway." });
         }
     },
 
@@ -326,24 +328,26 @@ async function createGiveawayEmbed(data, tools) {
 }
 
 async function handleEnter(client, int, tools, data) {
-    if (data.ended || Date.now() >= data.endTime) return int.reply({ content: "Ended!", ephemeral: true });
-    if (data.participants.includes(int.user.id)) return int.reply({ content: "Already entered!", ephemeral: true });
+    await int.deferUpdate();
+
+    if (data.ended || Date.now() >= data.endTime) return int.followUp({ content: "Ended!", ephemeral: true });
+    if (data.participants.includes(int.user.id)) return int.followUp({ content: "Already entered!", ephemeral: true });
 
     const db = await tools.fetchSettings(int.user.id, int.guild.id);
     const user = db.users?.[int.user.id] || { xp: 0, streak: 0 };
 
     if (data.requiredLevel > 0) {
         const lvl = tools.getLevel(user.xp, db.settings);
-        if (lvl < data.requiredLevel) return int.reply({ content: `Level ${data.requiredLevel} required (You: ${lvl})`, ephemeral: true });
+        if (lvl < data.requiredLevel) return int.followUp({ content: `Level ${data.requiredLevel} required (You: ${lvl})`, ephemeral: true });
     }
 
     if (data.requiredStreak > 0) {
-        if ((user.streak || 0) < data.requiredStreak) return int.reply({ content: `Streak ${data.requiredStreak} required (You: ${user.streak || 0})`, ephemeral: true });
+        if ((user.streak || 0) < data.requiredStreak) return int.followUp({ content: `Streak ${data.requiredStreak} required (You: ${user.streak || 0})`, ephemeral: true });
     }
 
     if (data.requiredRoleId) {
         const m = await int.guild.members.fetch(int.user.id).catch(() => null);
-        if (!m || !m.roles.cache.has(data.requiredRoleId)) return int.reply({ content: `Required role missing!`, ephemeral: true });
+        if (!m || !m.roles.cache.has(data.requiredRoleId)) return int.followUp({ content: `Required role missing!`, ephemeral: true });
     }
 
     data.participants.push(int.user.id);
@@ -352,7 +356,6 @@ async function handleEnter(client, int, tools, data) {
         { arrayFilters: [{ "elem.id": data.id }] }
     );
 
-    await int.deferUpdate();
     await updateMsg(client, tools, data);
 }
 
