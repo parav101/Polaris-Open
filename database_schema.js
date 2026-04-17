@@ -187,6 +187,16 @@ const settings = {
         topRoleId: { type: "string", default: "" }
     },
 
+    stats: {
+        enabled: { type: "bool", default: false },
+        logChannelId: { type: "string", default: "", accept: ["discord:channel"] },
+        reportHourUtc: { type: "int", default: 12, min: 0, max: 23 },
+        activeThresholdDaily: { type: "int", default: 8, min: 1, max: 100000 },
+        activeThresholdWeekly: { type: "int", default: 35, min: 1, max: 100000 },
+        activeThresholdMonthly: { type: "int", default: 140, min: 1, max: 100000 },
+        activeThresholdQuarterly: { type: "int", default: 420, min: 1, max: 100000 }
+    },
+
     bump: {
         enabled: { type: "bool", default: false },
         channelId: { type: "string", default: "1280913100924653608", accept: ["discord:channel"] },
@@ -248,7 +258,10 @@ const schema = {
         lastUpdate: { type: Number, default: 0 },
         activityLastPosted: { type: Number, default: 0 },
         lastTopUserId: { type: String, default: "" },
+        statsLastPostedAt: { type: Number, default: 0 },
+        statsLastReportKey: { type: String, default: "" },
     },
+    statsDaily: { type: Object, default: {} },
     giveaways: [{
         id: String,
         messageId: String,

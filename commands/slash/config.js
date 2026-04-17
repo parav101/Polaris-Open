@@ -22,6 +22,7 @@ async run(client, int, tools) {
         `**Rank cards:** ${settings.rankCard.disabled ? "Disabled" : settings.rankCard.ephemeral ? "Enabled (forced hidden)" : "Enabled"}`,
         `**Leaderboard:** ${settings.leaderboard.disabled ? "Disabled" : `[${settings.leaderboard.private ? "Private" : "Public"}](<${tools.WEBSITE}/leaderboard/${int.guild.id}>)`}`,
         `**Activity Reward Logs:** ${settings.activityLeaderboard?.rewardLogChannelId ? `<#${settings.activityLeaderboard.rewardLogChannelId}>` : "Disabled"}`,
+        `**Server Stats:** ${settings.stats?.enabled ? `On${settings.stats.logChannelId ? ` • <#${settings.stats.logChannelId}>` : ""} • ${tools.commafy(settings.stats.reportHourUtc || 0)}:00 UTC` : "Off"}`,
         `**Bump Rewards:** ${settings.bump?.enabled ? `On • ${tools.commafy(settings.bump.rewardCredits || 0)} credits • ${tools.commafy(settings.bump.cooldownSeconds || 0)}s cooldown` : "Off"}`
     ]
 

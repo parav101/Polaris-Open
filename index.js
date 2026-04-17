@@ -6,6 +6,7 @@ const config = require("./config.json")
 const Tools = require("./classes/Tools.js")
 const Model = require("./classes/DatabaseModel.js")
 const { buildActivityLeaderboard, generateLeaderboardEmbed, snapInterval } = require("./classes/ActivityLeaderboard.js")
+const { buildScheduledStatsEmbed, getStatsRetentionUnset, getUtcDateKeyOffset, shouldPostScheduledReport } = require("./classes/ServerStats.js")
 
 // automatic files: these handle discord status and version number, manage them with the dev commands
 const autoPath = "./json/auto/"
@@ -294,6 +295,62 @@ client.on("ready", async() => {
                 }
             } catch (err) {
                 console.error("[ActivityLB] Scheduler error:", err.message)
+            }
+        }, 60000)
+    }
+
+    if (client.shard.id == 0) {
+        setInterval(async () => {
+            try {
+                const guilds = await client.db.find({ "settings.stats.enabled": true })
+                const now = new Date()
+                const tools = client.globalTools
+
+                for (const doc of guilds) {
+                    try {
+                        const guildId = doc._id
+                        const statsSettings = doc.settings?.stats
+                        if (!statsSettings?.enabled) continue
+
+                        const retentionUnset = getStatsRetentionUnset(doc.statsDaily)
+                        if (retentionUnset) {
+                            await client.db.update(guildId, { $unset: retentionUnset }).exec().catch(e => {
+                                console.error(`[ServerStats] Retention cleanup failed for ${guildId}:`, e.message)
+                            })
+                        }
+
+                        if (!shouldPostScheduledReport(doc, now)) continue
+
+                        const guild = client.guilds.cache.get(guildId)
+                            || await client.guilds.fetch(guildId).catch(() => null)
+                        if (!guild) continue
+
+                        const channel = guild.channels.cache.get(statsSettings.logChannelId)
+                            || await guild.channels.fetch(statsSettings.logChannelId).catch(() => null)
+                        if (!channel) continue
+
+                        const reportKey = getUtcDateKeyOffset(-1, now)
+                        const embed = buildScheduledStatsEmbed(guild, doc.statsDaily || {}, statsSettings, tools, reportKey)
+
+                        await channel.send({ embeds: [embed] }).catch(e => {
+                            console.error(`[ServerStats] Failed to post in ${guildId}:`, e.message)
+                            return null
+                        }).then(async sent => {
+                            if (!sent) return
+
+                            await client.db.update(guildId, {
+                                $set: {
+                                    "info.statsLastPostedAt": Date.now(),
+                                    "info.statsLastReportKey": reportKey,
+                                }
+                            }).exec().catch(e => console.error(`[ServerStats] Info update failed for ${guildId}:`, e.message))
+                        })
+                    } catch (guildErr) {
+                        console.error(`[ServerStats] Error processing guild ${doc._id}:`, guildErr.message)
+                    }
+                }
+            } catch (err) {
+                console.error("[ServerStats] Scheduler error:", err.message)
             }
         }, 60000)
     }

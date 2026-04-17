@@ -1,6 +1,7 @@
 const LevelUpMessage = require("../../classes/LevelUpMessage.js")
 const Discord = require("discord.js")
 const { generateLeaderboardEmbed } = require("../../classes/ActivityLeaderboard.js")
+const { createStatsIncrementUpdate } = require("../../classes/ServerStats.js")
 const config = require("../../config.json")
 
 const CLAIM_WINDOW_MS = 60 * 1000
@@ -141,6 +142,11 @@ async run(client, message, tools) {
 
     await handleBumpReward(client, message, tools, db).catch(() => {})
     if (message.author.bot) return
+
+    if (db.settings?.stats?.enabled) {
+        client.db.update(message.guild.id, createStatsIncrementUpdate(message)).exec().catch(() => {})
+    }
+
     if (!db.settings?.enabled) return
 
     let settings = db.settings

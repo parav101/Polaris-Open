@@ -9,6 +9,7 @@
         { "emoji": "💰", "name": "Credit Shop", "folder": "shop" },
         { "emoji": "📦", "name": "Chests", "folder": "chests" },
         { "emoji": "🏆", "name": "Activity Leaderboard", "folder": "activitylb" },
+        { "emoji": "📈", "name": "Server Stats", "folder": "serverstats" },
         { "emoji": "📣", "name": "Bump Rewards", "folder": "bump" }
     ],
 
@@ -78,6 +79,18 @@
         { "space": true },
         { "db": "activityLeaderboard.topCredits", "name": "Top User Credits Reward", "desc": "Credits awarded to the #1 activity user each interval", "str": "# credits", "zeroText": "No reward" },
         { "db": "activityLeaderboard.topRoleId", "name": "Top User Role ID", "desc": "Role given to the #1 activity user (removed from previous winner at next interval)", "tip": "Right-click a role in Server Settings → Copy ID and paste it here" }
+    ],
+
+    "serverstats": [
+        { "emoji": "⬅️", "name": "Back", "folder": "home", "groupName": "Server stats settings" },
+        { "db": "stats.enabled", "name": "Enable Server Stats", "desc": "Track message activity across guild text channels for analytics and reporting" },
+        { "db": "stats.logChannelId", "name": "Stats Log Channel", "desc": "Channel where the automated daily stats report will be posted", "tip": "Right-click a channel → Copy ID and paste it here" },
+        { "db": "stats.reportHourUtc", "name": "Report Hour (UTC)", "desc": "Hour of day when the automated report is posted, using UTC time", "tip": "0 = midnight UTC, 12 = noon UTC", "str": "Hour #" },
+        { "space": true },
+        { "db": "stats.activeThresholdDaily", "name": "Daily Active Threshold", "desc": "Messages required in one day for a member to count as active", "str": "# messages/day" },
+        { "db": "stats.activeThresholdWeekly", "name": "Weekly Active Threshold", "desc": "Messages required in seven days for a member to count as active", "str": "# messages/week" },
+        { "db": "stats.activeThresholdMonthly", "name": "Monthly Active Threshold", "desc": "Messages required in thirty days for a member to count as active", "str": "# messages/month" },
+        { "db": "stats.activeThresholdQuarterly", "name": "Quarterly Active Threshold", "desc": "Messages required in ninety days for a member to count as active", "str": "# messages/quarter" }
     ],
 
     "bump": [
