@@ -5,7 +5,7 @@ const config = require("./config.json")
 
 const Tools = require("./classes/Tools.js")
 const Model = require("./classes/DatabaseModel.js")
-const { buildActivityLeaderboard, generateLeaderboardEmbed, isDue, nextAnchorUnix, snapInterval } = require("./classes/ActivityLeaderboard.js")
+const { buildActivityLeaderboard, generateLeaderboardEmbed, snapInterval } = require("./classes/ActivityLeaderboard.js")
 
 // automatic files: these handle discord status and version number, manage them with the dev commands
 const autoPath = "./json/auto/"
@@ -144,7 +144,14 @@ client.on("ready", async() => {
                         const intervalHours = snapInterval(settings.interval || 24)
                         const lastPosted = doc.info?.activityLastPosted || 0
 
-                        if (!isDue(Date.now(), lastPosted, intervalHours)) continue
+                        const now = Date.now()
+                        const intervalMs = intervalHours * 3600000
+                        const rewardLeadMs = 5 * 60 * 1000
+
+                        // Trigger rewards in the 5-minute window BEFORE each interval anchor.
+                        // Example: for 12:00 anchor, reward can run at 11:55+.
+                        const rewardAnchorMs = Math.floor((now + rewardLeadMs) / intervalMs) * intervalMs
+                        if (rewardAnchorMs <= lastPosted) continue
 
                         const guild = client.guilds.cache.get(guildId)
                         if (!guild) {
@@ -273,13 +280,10 @@ client.on("ready", async() => {
                             }
 
                             // --- Update info only (no per-user writes needed) ---
-                            // Ensure activityLastPosted is aligned with the interval anchor (UTC midnight relative)
-                            const intervalMs = intervalHours * 3600000
-                            const currentIntervalStart = (Math.floor(Date.now() / intervalMs) * intervalMs) + (5 * 60 * 1000)
-                            
+                            // Store the processed interval anchor to prevent duplicate rewards.
                             await client.db.update(guildId, {
                                 $set: {
-                                    "info.activityLastPosted": currentIntervalStart,
+                                    "info.activityLastPosted": rewardAnchorMs,
                                     "info.lastTopUserId": topEntry?.id || ""
                                 }
                             }).exec().catch(e => console.error(`[ActivityLB] Info update failed for ${guildId}:`, e.message))
