@@ -95,6 +95,8 @@ function buildPeriodSummaries(statsDaily, statsSettings, endKey) {
             periodKey,
             days: period.days,
             newlyActiveMemberIds: current.activeMemberIds.filter(id => !previousActive.has(id)),
+            previousTotalMessages: previous.totalMessages,
+            previousActiveCount: previous.activeCount,
         }
         summaries[periodKey].newlyActiveCount = summaries[periodKey].newlyActiveMemberIds.length
     }
@@ -136,6 +138,22 @@ function shouldPostScheduledReport(doc, now = new Date()) {
     return true
 }
 
+// Returns true if the reportKey date is a Saturday (UTC day 6) — end of week.
+// The scheduled report fires on Sunday (reportKey = yesterday = Saturday).
+function isWeeklyReportDay(reportKey) {
+    return parseUtcDateKey(reportKey).getUTCDay() === 6
+}
+
+// Returns true if the day after reportKey falls in a different month — i.e. reportKey is the last day of the month.
+function isMonthlyReportDay(reportKey) {
+    return parseUtcDateKey(reportKey).getUTCMonth() !== parseUtcDateKey(shiftUtcDateKey(reportKey, 1)).getUTCMonth()
+}
+
+// Returns true if it is both a month-end and the month ends a quarter (March=2, June=5, September=8, December=11).
+function isQuarterlyReportDay(reportKey) {
+    return isMonthlyReportDay(reportKey) && [2, 5, 8, 11].includes(parseUtcDateKey(reportKey).getUTCMonth())
+}
+
 function formatCount(tools, value) {
     return tools.commafy(Math.floor(Number(value || 0)))
 }
@@ -157,35 +175,64 @@ function buildPeriodValue(summary, tools) {
     ].join("\n")
 }
 
+function buildComparisonValue(summary, tools) {
+    const msgDelta = summary.totalMessages - (summary.previousTotalMessages || 0)
+    const activeDelta = summary.activeCount - (summary.previousActiveCount || 0)
+
+    function deltaStr(delta) {
+        if (delta > 0) return `*(▲ +${tools.commafy(delta)})*`
+        if (delta < 0) return `*(▼ -${tools.commafy(Math.abs(delta))})*`
+        return `*(→ no change)*`
+    }
+
+    return [
+        `Messages: **${formatCount(tools, summary.totalMessages)}** ${deltaStr(msgDelta)}`,
+        `Active members: **${formatCount(tools, summary.activeCount)}** ${deltaStr(activeDelta)}`,
+        `Newly active: **${formatCount(tools, summary.newlyActiveCount)}**`,
+        `Threshold: **${formatCount(tools, summary.threshold)}** message${summary.threshold === 1 ? "" : "s"}`,
+    ].join("\n")
+}
+
 function buildScheduledStatsEmbed(guild, statsDaily, statsSettings, tools, endKey) {
     const summaries = buildPeriodSummaries(statsDaily, statsSettings, endKey)
     const daily = summaries.daily
 
+    const showWeekly = isWeeklyReportDay(endKey)
+    const showMonthly = isMonthlyReportDay(endKey)
+    const showQuarterly = isQuarterlyReportDay(endKey)
+
+    // Build a human-readable description of which periods are included
+    const periodLabels = ["Daily"]
+    if (showWeekly) periodLabels.push("Weekly")
+    if (showMonthly) periodLabels.push("Monthly")
+    if (showQuarterly) periodLabels.push("Quarterly")
+    const lastLabel = periodLabels.pop()
+    const descPeriods = periodLabels.length ? `${periodLabels.join(", ")} & ${lastLabel}` : lastLabel
+
+    const fields = [
+        { name: "Daily", value: buildComparisonValue(summaries.daily, tools), inline: true },
+    ]
+
+    if (showWeekly) fields.push({ name: "Weekly", value: buildComparisonValue(summaries.weekly, tools), inline: true })
+    if (showMonthly) fields.push({ name: "Monthly", value: buildPeriodValue(summaries.monthly, tools), inline: true })
+    if (showQuarterly) fields.push({ name: "Quarterly", value: buildPeriodValue(summaries.quarterly, tools), inline: true })
+
+    fields.push({
+        name: "Top Members (Daily)",
+        value: buildRankingList(daily.topMembers, id => `<@${id}>`, tools, "_No messages recorded._"),
+        inline: false,
+    })
+
     return tools.createEmbed({
         title: "Server Activity Report",
-        description: `Rolling activity summary ending on **${endKey}** (UTC).`,
+        description: `${descPeriods} report ending on **${endKey}** (UTC).`,
         color: tools.COLOR,
         timestamp: true,
         author: {
             name: guild.name,
             iconURL: guild.iconURL() || undefined,
         },
-        fields: [
-            { name: "Daily", value: buildPeriodValue(summaries.daily, tools), inline: true },
-            { name: "Weekly", value: buildPeriodValue(summaries.weekly, tools), inline: true },
-            { name: "Monthly", value: buildPeriodValue(summaries.monthly, tools), inline: true },
-            { name: "Quarterly", value: buildPeriodValue(summaries.quarterly, tools), inline: true },
-            {
-                name: "Top Channels (Daily)",
-                value: buildRankingList(daily.topChannels, id => `<#${id}>`, tools, "_No messages recorded._"),
-                inline: false
-            },
-            {
-                name: "Top Members (Daily)",
-                value: buildRankingList(daily.topMembers, id => `<@${id}>`, tools, "_No messages recorded._"),
-                inline: false
-            }
-        ]
+        fields,
     })
 }
 
