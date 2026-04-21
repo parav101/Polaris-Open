@@ -165,8 +165,12 @@ const settings = {
             xpMax: { type: "int", min: 0, max: 1000000 },
             emoji: { type: "string", maxlength: 100 }
         }}
-    }
-,
+    },
+    
+    coinflip: {
+        enabled: { type: "bool", default: false }
+    },
+
     
     confession: {
         enabled: { type: "bool", default: false },

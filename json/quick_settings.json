@@ -8,6 +8,7 @@
         { "emoji": "🤫", "name": "Confessions", "folder": "confession" },
         { "emoji": "💰", "name": "Credit Shop", "folder": "shop" },
         { "emoji": "📦", "name": "Chests", "folder": "chests" },
+        { "emoji": "🪙", "name": "Coin Flip", "folder": "coinflip" },
         { "emoji": "🏆", "name": "Activity Leaderboard", "folder": "activitylb" },
         { "emoji": "📈", "name": "Server Stats", "folder": "serverstats" },
         { "emoji": "📣", "name": "Bump Rewards", "folder": "bump" }
@@ -105,5 +106,10 @@
     "chests": [
         { "emoji": "⬅️", "name": "Back", "folder": "home", "groupName": "Chests settings" },
         { "db": "chests.enabled", "name": "Enable Chests", "desc": "Allows members to buy chests with credits to gain XP" }
+    ],
+
+    "coinflip": [
+        { "emoji": "⬅️", "name": "Back", "folder": "home", "groupName": "Coin Flip settings" },
+        { "db": "coinflip.enabled", "name": "Enable Coin Flip", "desc": "Allows members to use coin flip command to gamble credits" }
     ]
 }

@@ -93,6 +93,13 @@ async run(client, int, tools) {
             } 
         })
 
+        await tools.addCreditLog(client.db, int.guild.id, int.user.id, {
+            type: "chests", 
+            amount: -item.price,
+            balance: newCredits,
+            note: `Bought ${item.name} chest`
+        })
+
         // --- Public announcement message ---
         // Send a message to the channel to encourage others
         const announcementEmbed = tools.createEmbed({
