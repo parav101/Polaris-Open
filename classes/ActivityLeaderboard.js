@@ -53,18 +53,10 @@ async function buildActivityLeaderboardInternal(guild, db) {
 
     if (!candidates.length) return []
 
-    // Fetch members involved
-    const memberMap = new Map()
-    await Promise.all(candidates.slice(0, 100).map(async ({ id }) => {
-        const cached = guild.members.cache.get(id)
-        if (cached) { memberMap.set(id, cached); return }
-        const fetched = await guild.members.fetch(id).catch(() => null)
-        if (fetched) memberMap.set(id, fetched)
-    }))
-
+    // We do NOT need to fetch members here because the embed purely uses <@id> pings.
+    // Fetching up to 100 members wastes 5-10 seconds over the Discord REST API!
     const results = candidates.map(({ id, activityXP, user }) => {
-        const member = memberMap.get(id) || null
-        return { id, activityXP, member }
+        return { id, activityXP, member: null }
     })
     .sort((a, b) => b.activityXP - a.activityXP)
 
@@ -86,7 +78,8 @@ async function generateLeaderboardEmbed(guild, db, tools, highlightId = null, sh
     const settings = db.settings.activityLeaderboard
     if (!settings?.enabled) return null
 
-    const rankings = await buildActivityLeaderboard(guild, db)
+    const fullRankings = await buildActivityLeaderboardInternal(guild, db)
+    const rankings = fullRankings.slice(0, 9)
 
     const intervalHours = snapInterval(settings.interval || 24)
     const nextPost = nextAnchorUnix(Date.now(), intervalHours)
@@ -126,8 +119,7 @@ async function generateLeaderboardEmbed(guild, db, tools, highlightId = null, sh
 
     // Append command user's position if applicable
     if (commandUserId) {
-        // Need full rankings to find position if > 9
-        const fullRankings = await buildActivityLeaderboardInternal(guild, db)
+        // Find position if > 9
         const pos = fullRankings.findIndex(r => r.id === commandUserId)
         
         // Only show if user is NOT in the top 9 already

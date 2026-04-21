@@ -40,8 +40,12 @@ module.exports = {
     const netAmount = amount - tax;
     const totalDeduction = amount; 
 
-    // Fetch sender data
-    const senderDb = await tools.fetchSettings(sender.id, int.guild.id);
+    // Fetch both users' data concurrently
+    const [senderDb, recipientDb] = await Promise.all([
+      tools.fetchSettings(sender.id, int.guild.id),
+      tools.fetchSettings(recipient.id, int.guild.id)
+    ]);
+
     if (!senderDb) {
       return tools.warn(`*noData for sender ${sender.displayName}`);
     }
@@ -54,36 +58,35 @@ module.exports = {
       return tools.warn(`Insufficient credits! ${sender.displayName} only has ${tools.commafy(senderCredits)} credits.`);
     }
 
-    // Fetch recipient data
-    const recipientDb = await tools.fetchSettings(recipient.id, int.guild.id);
     const recipientUserData = recipientDb.users[recipient.id] || { credits: 0 };
     const recipientCredits = recipientUserData.credits || 0;
 
-    // Update sender
+    // Update both sender and recipient in a single query
     const newSenderCredits = senderCredits - totalDeduction;
-    await client.db.update(int.guild.id, {
-      $set: {[`users.${sender.id}.credits`]: newSenderCredits }
-    });
-
-    // Update recipient
     const newRecipientCredits = recipientCredits + netAmount;
-    await client.db.update(int.guild.id, {
-      $set: { [`users.${recipient.id}.credits`]: newRecipientCredits }
-    });
 
-    // Log credit transactions
-    await tools.addCreditLog(client.db, int.guild.id, sender.id, {
-      type: "transfer_out",
-      amount: -totalDeduction,
-      balance: newSenderCredits,
-      note: `Admin forced transfer to ${recipient.displayName} by ${int.member.displayName}`
-    })
-    await tools.addCreditLog(client.db, int.guild.id, recipient.id, {
-      type: "transfer_in",
-      amount: netAmount,
-      balance: newRecipientCredits,
-      note: `Admin forced transfer from ${sender.displayName} by ${int.member.displayName}`
-    })
+    await client.db.update(int.guild.id, {
+      $set: { 
+        [`users.${sender.id}.credits`]: newSenderCredits,
+        [`users.${recipient.id}.credits`]: newRecipientCredits 
+      }
+    }).exec();
+
+    // Log credit transactions concurrently in the background
+    Promise.all([
+      tools.addCreditLog(client.db, int.guild.id, sender.id, {
+        type: "transfer_out",
+        amount: -totalDeduction,
+        balance: newSenderCredits,
+        note: `Admin forced transfer to ${recipient.displayName} by ${int.member.displayName}`
+      }),
+      tools.addCreditLog(client.db, int.guild.id, recipient.id, {
+        type: "transfer_in",
+        amount: netAmount,
+        balance: newRecipientCredits,
+        note: `Admin forced transfer from ${sender.displayName} by ${int.member.displayName}`
+      })
+    ]).catch(err => console.error("AdminTransfer DB log err:", err));
 
     // Send confirmation embed
     const embed = new Discord.EmbedBuilder()

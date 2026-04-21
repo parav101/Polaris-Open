@@ -68,7 +68,7 @@ module.exports = {
 
         await int.editReply({ content: `${COIN_FLIP_EMOJI} Flipping the coin... ${LOADING_EMOJI}` })
 
-        await new Promise(resolve => setTimeout(resolve, 3000))
+        await new Promise(resolve => setTimeout(resolve, 2000))
 
         await int.editReply({ content: finalMessage })
     }

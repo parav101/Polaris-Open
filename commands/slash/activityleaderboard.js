@@ -15,12 +15,16 @@ async run(client, int, tools) {
     await int.deferReply({ ephemeral: isHidden })
 
     let db = await tools.fetchAll(int.guild.id)
-    if (!db || !db.users || !Object.keys(db.users).length)
+
+    if (!db || !db.users || !Object.keys(db.users).length) {
         return int.editReply({ content: "Nobody in this server is ranked yet!" })
-    if (!db.settings.enabled)
+    }
+    if (!db.settings.enabled) {
         return int.editReply({ content: tools.errors.xpDisabled })
-    if (!db.settings.activityLeaderboard?.enabled)
+    }
+    if (!db.settings.activityLeaderboard?.enabled) {
         return int.editReply({ content: "The activity leaderboard is not enabled in this server!" })
+    }
 
     // Determine highlight
     const highlightUser = int.options.get("user") || int.options.get("member")
