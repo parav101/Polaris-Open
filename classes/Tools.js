@@ -873,11 +873,35 @@ class Tools {
                 note:    entry.note    || "",
                 ts:      Date.now()
             }
-            // Fetch current logs, append, trim to maxLogs (keep newest)
             try {
                 const doc = await dbClient.fetch(guildId, [`users.${userId}`])
-                const existing = doc?.users?.[userId]?.creditLogs || []
-                const updated = [...existing, log].slice(-maxLogs)
+                let existing = doc?.users?.[userId]?.creditLogs || []
+                
+                // Group consecutive coinflip logs
+                if (entry.type === "coinflip") {
+                    let lastLog = existing.length > 0 ? existing[existing.length - 1] : null;
+                    if (lastLog && lastLog.type === "coinflip") {
+                        let match = lastLog.note.match(/Coinflip \((\d+)W, (\d+)L\)/);
+                        let wins = match ? parseInt(match[1]) : (lastLog.amount > 0 ? 1 : 0);
+                        let losses = match ? parseInt(match[2]) : (lastLog.amount < 0 ? 1 : 0);
+
+                        if (log.amount > 0) wins++;
+                        else losses++;
+
+                        lastLog.amount += log.amount;
+                        lastLog.balance = log.balance;
+                        lastLog.ts = log.ts;  // update timestamp
+                        lastLog.note = `Coinflip (${wins}W, ${losses}L)`;
+                    } else {
+                        // First coinflip log in sequence or sequence broken
+                        log.note = `Coinflip (${log.amount > 0 ? 1 : 0}W, ${log.amount < 0 ? 1 : 0}L)`;
+                        existing.push(log);
+                    }
+                } else {
+                    existing.push(log);
+                }
+
+                const updated = existing.slice(-maxLogs)
                 await dbClient.update(guildId, {
                     $set: { [`users.${userId}.creditLogs`]: updated }
                 }).exec()
