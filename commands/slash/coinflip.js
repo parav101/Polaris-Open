@@ -31,7 +31,11 @@ module.exports = {
         let currentStreak = userData.coinflipStreak || 0;
         let highestStreak = userData.coinflipHighestStreak || 0;
 
-        let winProb = Math.max(0.35, 0.5 - (currentStreak * 0.05));
+        let winProb = 0.5;
+        if (currentCredits >= 100) {
+            winProb = Math.max(0.40, 0.5 - (currentStreak * 0.03));
+        }
+        
         let isWin = Math.random() < winProb;
         let result = isWin ? choice : (choice === 'heads' ? 'tails' : 'heads');
 
