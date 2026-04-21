@@ -52,7 +52,7 @@ module.exports = {
             currentStreak++;
             if (currentStreak > highestStreak) highestStreak = currentStreak;
 
-            finalMessage = `It's **${result}**! You won **${tools.commafy(netWinnings)}** credits (20% tax: ${tools.commafy(tax)}). Balance: **${tools.commafy(newCredits)}** ${MONEY_BAG_EMOJI}\n🔥 **Current Streak:** ${currentStreak}`
+            finalMessage = `It's **${result}**! You won **${tools.commafy(netWinnings)}** credits (20% tax: ${tools.commafy(tax)}). Balance: **${tools.commafy(newCredits)}** ${MONEY_BAG_EMOJI}\n<a:Checkin:1313833525094518846> **Current Streak:** ${currentStreak}`
         } else {
             newCredits -= bet;
             logAmount = -bet;
@@ -70,8 +70,14 @@ module.exports = {
                 [`users.${int.user.id}.coinflipHighestStreak`]: highestStreak
             } 
         };
+        
+        if (!updateQuery.$inc) updateQuery.$inc = {};
+        
         if (isWin) {
-            updateQuery.$inc = { "info.taxCollected": Math.round(bet * 0.2) };
+            updateQuery.$inc["info.taxCollected"] = Math.round(bet * 0.2);
+            updateQuery.$inc[`users.${int.user.id}.coinflipTotalWon`] = logAmount;
+        } else {
+            updateQuery.$inc[`users.${int.user.id}.coinflipTotalLost`] = bet;
         }
 
         Promise.all([
