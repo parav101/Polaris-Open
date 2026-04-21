@@ -45,7 +45,7 @@ class Tools {
 
         // fetch settings from db/cache (+ some xp)
         this.fetchSettings = async function(userID, serverID=int.guild.id) {
-            let data = await client.db.fetch(serverID, ["settings", userID ? `users.${userID}` : null])
+            let data = await client.db.fetch(serverID, ["settings", "info", userID ? `users.${userID}` : null])
             if (!data) {
                 await client.db.create({ _id: serverID })
                 return await this.fetchSettings(userID, serverID)
