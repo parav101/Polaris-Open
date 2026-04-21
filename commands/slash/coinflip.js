@@ -28,8 +28,12 @@ module.exports = {
             return int.editReply({ content: `You don't have enough credits! You need **${tools.commafy(bet - currentCredits)}** more.` })
         }
 
-        let result = Math.random() < 0.5 ? 'heads' : 'tails'
-        let isWin = result === choice
+        let currentStreak = userData.coinflipStreak || 0;
+        let highestStreak = userData.coinflipHighestStreak || 0;
+
+        let winProb = Math.max(0.35, 0.5 - (currentStreak * 0.05));
+        let isWin = Math.random() < winProb;
+        let result = isWin ? choice : (choice === 'heads' ? 'tails' : 'heads');
 
         let finalMessage = ""
         let newCredits = currentCredits
@@ -44,17 +48,28 @@ module.exports = {
             newCredits += netWinnings;
             logAmount = netWinnings;
             logNote = `Coinflip Win (${bet} bet)`;
+            
+            currentStreak++;
+            if (currentStreak > highestStreak) highestStreak = currentStreak;
 
-            finalMessage = `It's **${result}**! You won **${tools.commafy(netWinnings)}** credits (20% tax: ${tools.commafy(tax)}). Balance: **${tools.commafy(newCredits)}** ${MONEY_BAG_EMOJI}`
+            finalMessage = `It's **${result}**! You won **${tools.commafy(netWinnings)}** credits (20% tax: ${tools.commafy(tax)}). Balance: **${tools.commafy(newCredits)}** ${MONEY_BAG_EMOJI}\n🔥 **Current Streak:** ${currentStreak}`
         } else {
             newCredits -= bet;
             logAmount = -bet;
             logNote = `Coinflip Loss (${bet} bet)`;
+            
+            currentStreak = 0;
 
             finalMessage = `It's **${result}**! You lost your bet of **${tools.commafy(bet)}**. Balance: **${tools.commafy(newCredits)}** ${MONEY_BAG_EMOJI}`
         }
 
-        let updateQuery = { $set: { [`users.${int.user.id}.credits`]: newCredits } };
+        let updateQuery = { 
+            $set: { 
+                [`users.${int.user.id}.credits`]: newCredits,
+                [`users.${int.user.id}.coinflipStreak`]: currentStreak,
+                [`users.${int.user.id}.coinflipHighestStreak`]: highestStreak
+            } 
+        };
         if (isWin) {
             updateQuery.$inc = { "info.taxCollected": Math.round(bet * 0.2) };
         }
