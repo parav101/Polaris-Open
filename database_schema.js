@@ -264,6 +264,7 @@ const schema = {
         lastTopUserId: { type: String, default: "" },
         statsLastPostedAt: { type: Number, default: 0 },
         statsLastReportKey: { type: String, default: "" },
+        taxCollected: { type: Number, default: 0 },
     },
     statsDaily: { type: Object, default: {} },
     giveaways: [{

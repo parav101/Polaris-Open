@@ -69,7 +69,8 @@ module.exports = {
       $set: { 
         [`users.${sender.id}.credits`]: newSenderCredits,
         [`users.${recipient.id}.credits`]: newRecipientCredits 
-      }
+      },
+      $inc: { "info.taxCollected": tax }
     }).exec();
 
     // Log credit transactions concurrently in the background

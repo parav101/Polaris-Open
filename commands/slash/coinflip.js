@@ -54,10 +54,13 @@ module.exports = {
             finalMessage = `It's **${result}**! You lost your bet of **${tools.commafy(bet)}**. Balance: **${tools.commafy(newCredits)}** ${MONEY_BAG_EMOJI}`
         }
 
+        let updateQuery = { $set: { [`users.${int.user.id}.credits`]: newCredits } };
+        if (isWin) {
+            updateQuery.$inc = { "info.taxCollected": Math.round(bet * 0.2) };
+        }
+
         Promise.all([
-            client.db.update(int.guild.id, { 
-                $set: { [`users.${int.user.id}.credits`]: newCredits } 
-            }).exec(),
+            client.db.update(int.guild.id, updateQuery).exec(),
             tools.addCreditLog(client.db, int.guild.id, int.user.id, {
                 type: "coinflip", 
                 amount: logAmount, 
