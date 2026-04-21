@@ -75,7 +75,7 @@ module.exports = {
                 name: "Progress Overview", 
                 iconURL: member.user.displayAvatarURL({ dynamic: true }) 
             },
-            description: `\n\n<:level:1466817213830009045> **Level ${levelData.level}**\n\n <:info:1466817220687695967> **XP Required for Next Level**\n<:extendedend:1466819484999225579> ${tools.commafy(levelData.xpRequired - xp)} <:userxp:1466822701724340304>${shopInfo}\n\n` +
+            description: `\n\n<:level:1466817213830009045> **Level ${levelData.level}**\n\n <:info:1466817220687695967> **XP Required for Level Up**\n<:extendedend:1466819484999225579> ${tools.commafy(levelData.xpRequired - xp)} <:userxp:1466822701724340304>${shopInfo}\n\n` +
                          `<:progress:1466819928110792816> **Milestones**\n${milestoneLines.join("\n")}\n\n` +
                          `Keep up the activity in VC/Chat to gain XP and unlock new milestones!`,
             thumbnail: member.user.displayAvatarURL({ dynamic: true }),
