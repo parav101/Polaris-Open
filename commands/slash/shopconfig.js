@@ -15,6 +15,7 @@ metadata: {
 },
 
 async run(client, int, tools) {
+    await int.deferReply()
 
     let db = await tools.fetchSettings()
     if (!tools.canManageServer(int.member, db.settings.manualPerms)) return tools.warn("*notMod")
@@ -33,7 +34,7 @@ async run(client, int, tools) {
         if (!foundExisting) return tools.warn("This role is not in the shop!")
         shopItems.splice(existingIndex, 1)
         await client.db.update(int.guild.id, { $set: { 'settings.shop.items': shopItems } })
-        return int.reply(`❌ **Removed <@&${role.id}> from the shop.**`)
+        return int.editReply(`❌ **Removed <@&${role.id}> from the shop.**`)
     }
 
     if (!role.editable) return tools.warn(`I don't have permission to grant <@&${role.id}>!`)
@@ -53,6 +54,6 @@ async run(client, int, tools) {
     }
 
     await client.db.update(int.guild.id, { $set: { 'settings.shop.items': shopItems } })
-    return int.reply(`✅ **Added/Updated <@&${role.id}> in the shop!**\nPrice: **${tools.commafy(price)}** credits\nDuration: **${duration}** hours\nEmoji: ${emoji}`)
+    return int.editReply(`✅ **Added/Updated <@&${role.id}> in the shop!**\nPrice: **${tools.commafy(price)}** credits\nDuration: **${duration}** hours\nEmoji: ${emoji}`)
 
 }}
