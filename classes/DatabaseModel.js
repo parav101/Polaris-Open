@@ -16,10 +16,10 @@ class Model {
         this.schema = schema;
         this.model = mongoose.model(collectionName, this.schema);
 
-        this.fetch = (id, filter, options) => this.model.findById(id, filter, options).lean();
-        this.update = (id, data, options) => this.model.findByIdAndUpdate(id, data, options).lean();
+        this.fetch = (id, filter, options) => this.model.findById(id, filter, options);
+        this.update = (id, data, options) => this.model.findByIdAndUpdate(id, data, options);
         this.create = (data, options) => this.model.create(data, options);
-        this.find = (query, filter, options) => this.model.find(query, filter, options).lean();
+        this.find = (query, filter, options) => this.model.find(query, filter, options);
         this.delete = (query, options) => this.model.deleteMany(query, options);
     }
 }

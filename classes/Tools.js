@@ -56,10 +56,10 @@ class Tools {
 
         // fetch all xp in the server
         this.fetchAll = async function(serverID=int.guild.id) {
-            let data = await client.db.model.findById(serverID).lean().exec()
-            if (!data) return
-            if (!data.users) data.users = {}
-            return data
+            return await client.db.fetch(serverID).then(data => {
+                if (!data) return
+                return data
+            })
         }
 
         // calculates current level from xp
