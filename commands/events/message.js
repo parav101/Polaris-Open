@@ -78,12 +78,13 @@ async function handleBumpReward(client, message, tools, db) {
             }).catch(() => {})
         }
 
-        userData.credits = (userData.credits || 0) + freshReward
-        userData.bumpCooldownUntil = now + (cooldownSeconds * 1000)
+        const newCredits = (userData.credits || 0) + freshReward
+        const newBumpCooldownUntil = now + (cooldownSeconds * 1000)
 
         await client.db.update(message.guild.id, {
             $set: {
-                [`users.${claimantId}`]: userData,
+                [`users.${claimantId}.credits`]: newCredits,
+                [`users.${claimantId}.bumpCooldownUntil`]: newBumpCooldownUntil,
                 "info.lastUpdate": now
             }
         }).exec()
@@ -91,7 +92,7 @@ async function handleBumpReward(client, message, tools, db) {
         await tools.addCreditLog(client.db, message.guild.id, claimantId, {
             type: "bump",
             amount: freshReward,
-            balance: userData.credits,
+            balance: newCredits,
             note: `Claimed bump reward (${tools.commafy(freshReward)} credits)`
         })
 
