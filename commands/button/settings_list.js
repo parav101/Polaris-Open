@@ -25,14 +25,17 @@ async run(client, int, tools, selected) {
 
     // displays the preview value for a setting
     function previewSetting(val, data, schema) {
+        if (val === undefined || val === null) {
+            val = schema?.default;
+        }
         if (data.zeroText && val === 0) return data.zeroText
         if (!schema) return "Unknown"
         switch(schema.type) {
             case "bool": return (data.invert ? !val : val) ? "__True__" : "False";
-            case "int": return tools.commafy(val);
-            case "float": return tools.commafy(Number(val.toFixed(schema.precision || 4)));
+            case "int": return tools.commafy(val || 0);
+            case "float": return tools.commafy(Number((val || 0).toFixed(schema.precision || 4)));
         }
-        return val.toString()
+        return val ? val.toString() : "None"
     }
 
     function getDataEmoji(type, val) {
