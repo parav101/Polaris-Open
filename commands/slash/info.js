@@ -16,6 +16,7 @@ const LOG_TYPE_META = {
     shop:         { emoji: "<:chest:1486740653067997394>",       label: "Shop purchase"           },
     bump:         { emoji: "💰",                                 label: "Bump reward"             },
     coinflip:     { emoji: "🪙",                                 label: "Coinflip"                },
+    chests:       { emoji: "<:chest:1486740653067997394>",       label: "Chest purchase"          },
     unknown:      { emoji: "❓",                                 label: "Other (ask staff if unsure)" },
 }
 
