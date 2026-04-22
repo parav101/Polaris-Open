@@ -34,13 +34,16 @@ async run(client, int, tools, selected) {
     let data = config[group].find(x => x.db == settingID)
 
     function previewSetting(val) {
+        if (val === undefined || val === null) {
+            val = setting?.default;
+        }
         if (data.zeroText && val === 0) return `0 (${data.zeroText})`
         else switch(setting.type) {
             case "bool": return ((data.invert ? !val : val) ? "True" : "False");
-            case "int": return tools.commafy(+val);
-            case "float": return tools.commafy(Number(val.toFixed(setting.precision || 8)));
+            case "int": return tools.commafy(val || 0);
+            case "float": return tools.commafy(Number((val || 0).toFixed(setting.precision || 8)));
         }
-        return val.toString()
+        return val ? val.toString() : "None"
     }
 
     let currentVal = previewSetting(val)
