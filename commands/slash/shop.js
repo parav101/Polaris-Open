@@ -115,7 +115,7 @@ async run(client, int, tools) {
             amount: -item.price,
             balance: newCredits,
             note: `Bought ${item.name} from shop (${item.duration}h)`
-        })
+        }, 5, freshUserData.creditLogs || [])
 
         // --- NEW: Public announcement message ---
         // Send a message to the channel to encourage others and show off the purchase

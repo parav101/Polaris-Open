@@ -76,13 +76,13 @@ module.exports = {
         amount: -totalDeduction,
         balance: newSenderCredits,
         note: `Sent ${tools.commafy(totalDeduction)} credits to ${recipient.displayName} (20% tax: ${tools.commafy(tax)})`
-      }),
+      }, 5, senderUserData.creditLogs || []),
       tools.addCreditLog(client.db, int.guild.id, recipient.id, {
         type: "transfer_in",
         amount: netAmount,
         balance: newRecipientCredits,
         note: `Received ${tools.commafy(netAmount)} credits from ${sender.displayName}`
-      })
+      }, 5, recipientUserData.creditLogs || [])
     ]).catch(err => console.error("Transfer DB log err:", err));
 
     // Send confirmation embed

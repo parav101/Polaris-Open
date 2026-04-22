@@ -98,7 +98,7 @@ async run(client, int, tools) {
             amount: -item.price,
             balance: newCredits,
             note: `Bought ${item.name} chest`
-        })
+        }, 5, freshUserData.creditLogs || [])
 
         // --- Public announcement message ---
         // Send a message to the channel to encourage others

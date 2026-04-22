@@ -80,13 +80,13 @@ module.exports = {
         amount: -totalDeduction,
         balance: newSenderCredits,
         note: `Admin forced transfer to ${recipient.displayName} by ${int.member.displayName}`
-      }),
+      }, 5, senderUserData.creditLogs || []),
       tools.addCreditLog(client.db, int.guild.id, recipient.id, {
         type: "transfer_in",
         amount: netAmount,
         balance: newRecipientCredits,
         note: `Admin forced transfer from ${sender.displayName} by ${int.member.displayName}`
-      })
+      }, 5, recipientUserData.creditLogs || [])
     ]).catch(err => console.error("AdminTransfer DB log err:", err));
 
     // Send confirmation embed

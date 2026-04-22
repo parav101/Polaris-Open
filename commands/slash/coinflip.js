@@ -91,7 +91,7 @@ module.exports = {
                 amount: logAmount, 
                 balance: newCredits,
                 note: logNote
-            })
+            }, 5, userData.creditLogs || [])
         ]).catch(console.error);
 
         await int.editReply({ content: `${COIN_FLIP_EMOJI} Flipping the coin... ${LOADING_EMOJI}` })

@@ -43,19 +43,20 @@ async run(client, int, tools) {
     let diff = newCredits - oldCredits
 
     client.db.update(int.guild.id, { $set: { [`users.${user.id}.credits`]: newCredits } }).then(async () => {
-        // Log the credit change
         const opLabel = operation === "set"
             ? `set balance to ${tools.commafy(newCredits)}`
             : diff >= 0
                 ? `added ${tools.commafy(Math.abs(diff))} credits`
                 : `removed ${tools.commafy(Math.abs(diff))} credits`
 
+        // Pass pre-fetched logs to skip the extra DB fetch inside addCreditLog
+        const existingLogs = userData.creditLogs || []
         await tools.addCreditLog(client.db, int.guild.id, user.id, {
             type: "addcredits",
             amount: diff,
             balance: newCredits,
             note: `Admin ${opLabel} (by ${int.member.displayName})`
-        })
+        }, 5, existingLogs)
         int.reply(`${newCredits > oldCredits ? "⏫" : "⏬"} ${user.displayName} now has **${tools.commafy(newCredits)}** credits! (previously ${tools.commafy(oldCredits)}, ${diff >= 0 ? "+" : ""}${tools.commafy(diff)})`)
     }).catch(() => tools.warn("Something went wrong while trying to modify credits!"))
 

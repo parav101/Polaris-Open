@@ -865,7 +865,7 @@ class Tools {
         //   amount  – signed integer (positive = earned, negative = spent)
         //   balance – new balance after the transaction
         //   note    – short human-readable description (max ~60 chars)
-        this.addCreditLog = async function(dbClient, guildId, userId, entry, maxLogs = 5) {
+        this.addCreditLog = async function(dbClient, guildId, userId, entry, maxLogs = 5, prefetchedLogs) {
             const log = {
                 type:    entry.type    || "unknown",
                 amount:  entry.amount  || 0,
@@ -874,8 +874,13 @@ class Tools {
                 ts:      Date.now()
             }
             try {
-                const doc = await dbClient.fetch(guildId, [`users.${userId}`])
-                let existing = doc?.users?.[userId]?.creditLogs || []
+                let existing;
+                if (prefetchedLogs !== undefined) {
+                    existing = prefetchedLogs || []
+                } else {
+                    const doc = await dbClient.fetch(guildId, [`users.${userId}`])
+                    existing = doc?.users?.[userId]?.creditLogs || []
+                }
                 
                 // Group consecutive coinflip logs
                 if (entry.type === "coinflip") {

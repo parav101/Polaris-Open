@@ -94,7 +94,7 @@ async function handleBumpReward(client, message, tools, db) {
             amount: freshReward,
             balance: newCredits,
             note: `Claimed bump reward (${tools.commafy(freshReward)} credits)`
-        })
+        }, 5, userData.creditLogs || [])
 
         claimed = true
         collector.stop("claimed")

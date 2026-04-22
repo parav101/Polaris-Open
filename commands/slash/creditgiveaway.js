@@ -449,7 +449,7 @@ async function endGiveaway(client, tools, data) {
                     amount: prize,
                     balance: wNewCredits,
                     note: `Won credit giveaway (${data.participants.length} participants)`
-                })
+                }, 5, wDoc?.users?.[wId]?.creditLogs || [])
             }
         }
 

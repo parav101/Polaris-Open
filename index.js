@@ -208,7 +208,7 @@ client.on("ready", async() => {
                                         amount: topCredits,
                                         balance: newActivityCredits,
                                         note: `#1 on activity leaderboard reward`
-                                    }).catch(() => {})
+                                    }, 5, doc.users?.[topEntry.id]?.creditLogs || []).catch(() => {})
                                     
                                     if (logChannel) {
                                         await logChannel.send({
