@@ -1,4 +1,5 @@
 const Discord = require("discord.js")
+const { ensureDailyQuests, tickQuest, getTodayKey } = require("../../classes/Quests.js")
 
 module.exports = {
 metadata: {
@@ -101,11 +102,20 @@ async run(client, int, tools) {
         }
 
         let newCredits = currentCredits - item.price
+
+        // Tick shopBuy quest
+        const questSet = {}
+        if (freshDB.settings.quests?.enabled) {
+            ensureDailyQuests(freshUserData, freshDB.settings, getTodayKey())
+            tickQuest(freshUserData, "shopBuy")
+            questSet[`users.${int.user.id}.quests`] = freshUserData.quests
+        }
         
         await client.db.update(int.guild.id, {
             $set: {
                 [`users.${int.user.id}.credits`]: newCredits,
-                [`users.${int.user.id}.tempRoles`]: newTempRoles
+                [`users.${int.user.id}.tempRoles`]: newTempRoles,
+                ...questSet
             }
         })
 

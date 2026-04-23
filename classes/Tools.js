@@ -2,6 +2,7 @@ const config = require('../config.json')
 const Discord = require('discord.js')
 const {inlineCode} = require('@discordjs/builders')
 const { Font, RankCardBuilder, LeaderboardBuilder } = require("canvacord");
+const { ensureDailyQuests, tickQuest, getTodayKey } = require('./Quests.js')
 
 // this class contains all sorts of misc functions used around the bot
 
@@ -652,6 +653,13 @@ class Tools {
             }
 
             db.users[member.id] = { ...userData, streak: userStreak };
+
+            // Tick streakClaim quest
+            if (db.settings.quests?.enabled) {
+                ensureDailyQuests(db.users[member.id], db.settings, getTodayKey())
+                tickQuest(db.users[member.id], "streakClaim")
+            }
+
             await client.db.update(member.guild.id, { $set: { [`users.${member.id}`]: db.users[member.id] } }).exec();
         }
 

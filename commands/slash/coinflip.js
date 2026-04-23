@@ -1,6 +1,7 @@
 const COIN_FLIP_EMOJI = "<a:coinflip:1496185990572802078>"
 const LOADING_EMOJI = "<a:loading:1478025535975325738>"
 const MONEY_BAG_EMOJI = "<a:moneybaganimted:1496185992967749863>"
+const { ensureDailyQuests, tickQuest, getTodayKey } = require("../../classes/Quests.js")
 
 module.exports = {
     metadata: {
@@ -82,6 +83,17 @@ module.exports = {
             updateQuery.$inc[`users.${int.user.id}.coinflipTotalWon`] = logAmount;
         } else {
             updateQuery.$inc[`users.${int.user.id}.coinflipTotalLost`] = bet;
+        }
+
+        // Tick coinflip quests
+        if (db.settings.quests?.enabled) {
+            ensureDailyQuests(userData, db.settings, getTodayKey())
+            tickQuest(userData, "coinflipBet", { amount: bet })
+            if (isWin) {
+                tickQuest(userData, "coinflipWin")
+                tickQuest(userData, "coinflipWinStreak", { streak: currentStreak })
+            }
+            updateQuery.$set[`users.${int.user.id}.quests`] = userData.quests
         }
 
         Promise.all([

@@ -17,6 +17,8 @@ const LOG_TYPE_META = {
     bump:         { emoji: "💰",                                 label: "Bump reward"             },
     coinflip:     { emoji: "🪙",                                 label: "Coinflip"                },
     chests:       { emoji: "<:chest:1486740653067997394>",       label: "Chest purchase"          },
+    quest:        { emoji: "📜",                                 label: "Quest reward"            },
+    quest_reroll: { emoji: "🔄",                                 label: "Quest reroll"            },
     unknown:      { emoji: "❓",                                 label: "Other (ask staff if unsure)" },
 }
 
@@ -321,12 +323,16 @@ async run(client, int, tools) {
     })
 
     // Navigation Buttons
-    let buttons = tools.button([
+    const navBtns = [
         { style: "Secondary", label: "Stats", customId: `stats_view~progress~${member.id}`, emoji: "<:progress:1466819928110792816>" },
         { style: "Success", label: "Info", customId: `stats_view~info~${member.id}`, emoji: "<:info:1466817220687695967>" },
         { style: "Primary", label: "Shop", customId: "shop", emoji: "<:gold:1472934905972527285>" },
-        { style: "Primary", label: "XP Chests", customId: "chests", emoji: "<:chest:1486740653067997394>" }
-    ])
+        { style: "Primary", label: "XP Chests", customId: "chests", emoji: "<:chest:1486740653067997394>" },
+    ]
+    if (db.settings.quests?.enabled) {
+        navBtns.push({ style: "Primary", label: "Quests", customId: "quests", emoji: "📜" })
+    }
+    let buttons = tools.button(navBtns)
 
     const reply = await int.editReply({embeds: [embed], components: tools.row(buttons)});
     return reply;

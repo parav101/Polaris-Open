@@ -249,8 +249,11 @@ function validateSetting(val, setting, guildData={}) {
             return notFalse(val)
         case "int": case "float":
             let numVal = setting.type == "int" ? Math.round(val) : Number(Number(val).toFixed(setting.precision || 4))
-            if (isNaN(numVal)) return setting.default
-            else return tools.clamp(numVal, setting.min, setting.max)
+            if (isNaN(numVal)) return setting.default ?? 0
+            let clamped = numVal
+            if (setting.min !== undefined) clamped = Math.max(clamped, setting.min)
+            if (setting.max !== undefined) clamped = Math.min(clamped, setting.max)
+            return clamped
         case "string":
             let strVal = String(val).slice(0, setting.maxlength || 64).trim()
             if (setting.accept) {
@@ -277,10 +280,10 @@ function validateSetting(val, setting, guildData={}) {
     }
 }
 
-app.post("/api/settings", async function(req, res) {
+app.post("/api/settings/:id?", async function(req, res) {
     
     if (typeof req.body != "object") return res.apiError("Invalid save data!");
-    let guildID = req.body.guildID
+    let guildID = req.params.id || req.body.guildID
     if (!guildID) return res.apiError("No guild ID!");
 
     let [user, guilds] = await getDiscordInfo(req)
@@ -306,18 +309,29 @@ app.post("/api/settings", async function(req, res) {
         }).catch(console.error)
     }
 
-    let guildData = await client.shard.broadcastEval(async (cl, xd) => {
-        let guild = cl.guilds.cache.get(xd.guildID)
-        if (!guild) return null
+    // Try local guild cache first (fast path — web server runs inside a shard)
+    let localGuild = client.guilds.cache.get(guildID)
+    let guildData = localGuild ? {
+        roles: localGuild.roles.cache.map(x => x.id),
+        channels: localGuild.channels.cache.map(x => x.id)
+    } : null
 
-        return {
-            roles: guild.roles.cache.map(x => x.id),
-            channels: guild.channels.cache.map(x => x.id)
-        }
-    }, { context: { guildID } })
-    .then(x => x.find(r => r))
-    .catch(console.error)
-    if (!guildData) return res.apiError("Could not fetch server info!");
+    // Fallback: broadcastEval across shards (with 8s timeout to avoid hanging)
+    if (!guildData && client.shard) {
+        guildData = await Promise.race([
+            client.shard.broadcastEval(async (cl, xd) => {
+                let guild = cl.guilds.cache.get(xd.guildID)
+                if (!guild) return null
+                return {
+                    roles: guild.roles.cache.map(x => x.id),
+                    channels: guild.channels.cache.map(x => x.id)
+                }
+            }, { context: { guildID } }).then(x => x.find(r => r)).catch(() => null),
+            new Promise(resolve => setTimeout(() => resolve({ roles: [], channels: [] }), 8000))
+        ]).catch(() => ({ roles: [], channels: [] }))
+    }
+
+    if (!guildData) guildData = { roles: [], channels: [] }
 
     let dbObj = { }
     Object.entries(req.body).forEach(x => {
@@ -913,6 +927,10 @@ app.get("/logout", async function(req, res) {
 // ========================================================================= \\
 // ===== OK BYE THAT'S ALL THE AUTHORIZATION CODE HOPE IT DOESN'T SUCK ===== \\
 // ========================================================================= \\
+
+app.get("/api/questPresets", function(req, res) {
+    res.json(require('./json/quest_presets.json'))
+})
 
 app.get("/api", function(req, res) { res.send("ඞ") })
 

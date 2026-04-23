@@ -1,0 +1,53 @@
+{
+  "classic": {
+    "name": "Classic (balanced)",
+    "description": "A bit of everything: chat, voice, gambling, and economy.",
+    "templates": [
+      { "id": "chatterbox",       "tier": "easy",   "label": "Chatterbox",       "description": "Send {target} messages",                        "eventType": "message",           "targetMin": 20,   "targetMax": 35    },
+      { "id": "explorer",         "tier": "easy",   "label": "Explorer",         "description": "Chat in {target} different channels",           "eventType": "channel",           "targetMin": 3,    "targetMax": 3     },
+      { "id": "loyalist",         "tier": "easy",   "label": "Loyalist",         "description": "Claim your daily streak",                       "eventType": "streakClaim",       "targetMin": 1,    "targetMax": 1     },
+      { "id": "lucky_flip",       "tier": "easy",   "label": "Lucky Flip",       "description": "Win {target} coinflip",                        "eventType": "coinflipWin",       "targetMin": 1,    "targetMax": 1     },
+      { "id": "hang_out",         "tier": "easy",   "label": "Hang Out",         "description": "Spend {target} minutes in voice",               "eventType": "voiceMin",          "targetMin": 10,   "targetMax": 20    },
+      { "id": "wordsmith",        "tier": "medium", "label": "Wordsmith",        "description": "Earn {target} raw message XP",                  "eventType": "msgXp",             "targetMin": 4000, "targetMax": 6000  },
+      { "id": "voice_dweller",    "tier": "medium", "label": "Voice Dweller",    "description": "Spend {target} minutes in voice",               "eventType": "voiceMin",          "targetMin": 20,   "targetMax": 40    },
+      { "id": "big_better",       "tier": "medium", "label": "Big Better",       "description": "Bet {target} or more credits on coinflips",     "eventType": "coinflipBet",       "targetMin": 400,  "targetMax": 700   },
+      { "id": "treasure_hunter",  "tier": "medium", "label": "Treasure Hunter",  "description": "Open {target} chest",                          "eventType": "chestOpen",         "targetMin": 1,    "targetMax": 1     },
+      { "id": "generous",         "tier": "medium", "label": "Generous",         "description": "Transfer credits to {target} member",          "eventType": "transferOut",       "targetMin": 1,    "targetMax": 1     },
+      { "id": "high_roller",      "tier": "hard",   "label": "High Roller",      "description": "Win {target} coinflips in a row",              "eventType": "coinflipWinStreak", "targetMin": 3,    "targetMax": 4     },
+      { "id": "marathon_chatter", "tier": "hard",   "label": "Marathon Chatter", "description": "Earn {target} raw message XP",                  "eventType": "msgXp",             "targetMin": 12000,"targetMax": 18000 },
+      { "id": "stage_presence",   "tier": "hard",   "label": "Stage Presence",   "description": "Spend {target} minutes in voice",               "eventType": "voiceMin",          "targetMin": 45,   "targetMax": 75    },
+      { "id": "shopaholic",       "tier": "hard",   "label": "Shopaholic",       "description": "Buy {target} item from the shop",              "eventType": "shopBuy",           "targetMin": 1,    "targetMax": 1     },
+      { "id": "top_10",           "tier": "hard",   "label": "Top 10",           "description": "Land in the top 10 of today's activity leaderboard", "eventType": "activityTop10", "targetMin": 1,  "targetMax": 1     }
+    ]
+  },
+  "chat_focused": {
+    "name": "Chat-focused",
+    "description": "Designed for text-heavy servers — all quests revolve around messaging.",
+    "templates": [
+      { "id": "chatterbox",       "tier": "easy",   "label": "Chatterbox",       "description": "Send {target} messages",                        "eventType": "message",           "targetMin": 20,   "targetMax": 40    },
+      { "id": "explorer",         "tier": "easy",   "label": "Explorer",         "description": "Chat in {target} different channels",           "eventType": "channel",           "targetMin": 3,    "targetMax": 4     },
+      { "id": "loyalist",         "tier": "easy",   "label": "Loyalist",         "description": "Claim your daily streak",                       "eventType": "streakClaim",       "targetMin": 1,    "targetMax": 1     },
+      { "id": "chatter_med",      "tier": "medium", "label": "Busy Bee",         "description": "Send {target} messages",                        "eventType": "message",           "targetMin": 60,   "targetMax": 100   },
+      { "id": "wordsmith",        "tier": "medium", "label": "Wordsmith",        "description": "Earn {target} raw message XP",                  "eventType": "msgXp",             "targetMin": 5000, "targetMax": 8000  },
+      { "id": "channel_hopper",   "tier": "medium", "label": "Channel Hopper",   "description": "Chat in {target} different channels",           "eventType": "channel",           "targetMin": 5,    "targetMax": 7     },
+      { "id": "marathon_chatter", "tier": "hard",   "label": "Marathon Chatter", "description": "Earn {target} raw message XP",                  "eventType": "msgXp",             "targetMin": 15000,"targetMax": 25000 },
+      { "id": "mega_chatter",     "tier": "hard",   "label": "Mega Chatter",     "description": "Send {target} messages",                        "eventType": "message",           "targetMin": 150,  "targetMax": 250   },
+      { "id": "top_10",           "tier": "hard",   "label": "Top 10",           "description": "Land in the top 10 of today's activity leaderboard", "eventType": "activityTop10", "targetMin": 1,  "targetMax": 1     }
+    ]
+  },
+  "voice_focused": {
+    "name": "Voice-focused",
+    "description": "Designed for voice-active servers — quests prioritize time in voice channels.",
+    "templates": [
+      { "id": "hang_out",       "tier": "easy",   "label": "Hang Out",       "description": "Spend {target} minutes in voice",               "eventType": "voiceMin",  "targetMin": 10,   "targetMax": 20    },
+      { "id": "chatterbox",     "tier": "easy",   "label": "Chatterbox",     "description": "Send {target} messages",                        "eventType": "message",   "targetMin": 15,   "targetMax": 25    },
+      { "id": "loyalist",       "tier": "easy",   "label": "Loyalist",       "description": "Claim your daily streak",                       "eventType": "streakClaim","targetMin": 1,    "targetMax": 1     },
+      { "id": "voice_dweller",  "tier": "medium", "label": "Voice Dweller",  "description": "Spend {target} minutes in voice",               "eventType": "voiceMin",  "targetMin": 30,   "targetMax": 60    },
+      { "id": "vc_xp_grind",    "tier": "medium", "label": "VC Grinder",     "description": "Earn {target} raw voice XP",                    "eventType": "voiceXp",   "targetMin": 3000, "targetMax": 5000  },
+      { "id": "wordsmith",      "tier": "medium", "label": "Wordsmith",      "description": "Earn {target} raw message XP",                  "eventType": "msgXp",     "targetMin": 3000, "targetMax": 5000  },
+      { "id": "stage_presence", "tier": "hard",   "label": "Stage Presence", "description": "Spend {target} minutes in voice",               "eventType": "voiceMin",  "targetMin": 60,   "targetMax": 90    },
+      { "id": "vc_marathon",    "tier": "hard",   "label": "VC Marathon",    "description": "Earn {target} raw voice XP",                    "eventType": "voiceXp",   "targetMin": 8000, "targetMax": 12000 },
+      { "id": "top_10",         "tier": "hard",   "label": "Top 10",         "description": "Land in the top 10 of today's activity leaderboard", "eventType": "activityTop10", "targetMin": 1, "targetMax": 1 }
+    ]
+  }
+}

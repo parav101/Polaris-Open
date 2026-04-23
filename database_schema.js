@@ -207,6 +207,34 @@ const settings = {
         rewardCredits: { type: "int", default: 5, min: 0, max: 1000000 },
         cooldownSeconds: { type: "int", default: 7200, min: 0, max: 31536000 },
         disboardBotId: { type: "string", default: "302050872383242240" }
+    },
+
+    quests: {
+        enabled: { type: "bool", default: false },
+        rewardEasy: { type: "int", default: 50, min: 0, max: 100000 },
+        rewardMedium: { type: "int", default: 150, min: 0, max: 100000 },
+        rewardHard: { type: "int", default: 400, min: 0, max: 100000 },
+        rewardBonus: { type: "int", default: 300, min: 0, max: 100000 },
+        streakBonusMultiplier: { type: "float", precision: 2, default: 0.1, min: 0, max: 5 },
+        streakBonusCap: { type: "int", default: 7, min: 0, max: 365 },
+        rerollCost: { type: "int", default: 100, min: 0, max: 100000 },
+        rerollsPerDay: { type: "int", default: 1, min: 0, max: 10 },
+        announceChannelId: { type: "string", default: "", accept: ["discord:channel"] },
+        templates: { type: "collection", values: {
+            id:          { type: "string", maxlength: 40 },
+            tier:        { type: "string", maxlength: 10, accept: ["easy", "medium", "hard"] },
+            label:       { type: "string", maxlength: 40 },
+            description: { type: "string", maxlength: 120 },
+            eventType:   { type: "string", maxlength: 30, accept: [
+                "message", "channel", "msgXp", "voiceMin", "voiceXp",
+                "coinflipWin", "coinflipWinStreak", "coinflipBet",
+                "chestOpen", "shopBuy", "transferOut", "streakClaim",
+                "bumpClaim", "chestDropGrab", "confessSubmit",
+                "activityTop10", "dailyXpHigh"
+            ]},
+            targetMin:   { type: "int", min: 1, max: 1000000 },
+            targetMax:   { type: "int", min: 1, max: 1000000 }
+        }}
     }
 }
 

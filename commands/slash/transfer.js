@@ -1,4 +1,5 @@
 const Discord = require('discord.js');
+const { ensureDailyQuests, tickQuest, getTodayKey } = require("../../classes/Quests.js")
 
 module.exports = {
   metadata: {
@@ -61,10 +62,19 @@ module.exports = {
     const newSenderCredits = senderCredits - totalDeduction;
     const newRecipientCredits = recipientCredits + netAmount;
 
+    // Tick transferOut quest for sender
+    const transferQuestSet = {}
+    if (senderDb.settings.quests?.enabled) {
+        ensureDailyQuests(senderUserData, senderDb.settings, getTodayKey())
+        tickQuest(senderUserData, "transferOut")
+        transferQuestSet[`users.${sender.id}.quests`] = senderUserData.quests
+    }
+
     await client.db.update(int.guild.id, {
       $set: { 
         [`users.${sender.id}.credits`]: newSenderCredits,
-        [`users.${recipient.id}.credits`]: newRecipientCredits 
+        [`users.${recipient.id}.credits`]: newRecipientCredits,
+        ...transferQuestSet
       },
       $inc: { "info.taxCollected": tax }
     }).exec();

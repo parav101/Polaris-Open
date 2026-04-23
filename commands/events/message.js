@@ -2,6 +2,7 @@ const LevelUpMessage = require("../../classes/LevelUpMessage.js")
 const Discord = require("discord.js")
 const { generateLeaderboardEmbed } = require("../../classes/ActivityLeaderboard.js")
 const { createStatsIncrementUpdate } = require("../../classes/ServerStats.js")
+const { ensureDailyQuests, tickQuest, getTodayKey } = require("../../classes/Quests.js")
 const config = require("../../config.json")
 
 const CLAIM_WINDOW_MS = 60 * 1000
@@ -96,6 +97,15 @@ async function handleBumpReward(client, message, tools, db) {
             note: `Claimed bump reward (${tools.commafy(freshReward)} credits)`
         }, 5, userData.creditLogs || [])
 
+        // Tick bumpClaim quest
+        if (fresh.settings.quests?.enabled) {
+            ensureDailyQuests(userData, fresh.settings, getTodayKey())
+            tickQuest(userData, "bumpClaim")
+            client.db.update(message.guild.id, {
+                $set: { [`users.${claimantId}.quests`]: userData.quests }
+            }).exec().catch(() => {})
+        }
+
         claimed = true
         collector.stop("claimed")
 
@@ -183,6 +193,12 @@ async run(client, message, tools) {
     await tools.updateDailyXpSnapshot(message.member, db, client);
     await tools.checkTempRoles(message.member, db, client);
 
+    // Ensure daily quests are initialised for today (quest tick happens after XP is awarded below)
+    if (db.settings.quests?.enabled) {
+        if (!db.users[author]) db.users[author] = {}
+        ensureDailyQuests(db.users[author], db.settings, getTodayKey())
+    }
+
     // fetch user's xp, or give them 0
     let userData = db.users[author] || { xp: 0, cooldown: 0, voiceTime: 0 }
     if (userData.cooldown > Date.now()) return // on cooldown, stop here
@@ -211,6 +227,13 @@ async run(client, message, tools) {
     
     // if hidden from leaderboard, unhide since they're no longer inactive
     if (userData.hidden) userData.hidden = false
+
+    // Tick quests for message-related event types
+    if (db.settings.quests?.enabled && userData.quests?.list?.length) {
+        tickQuest(userData, "message")
+        tickQuest(userData, "channel", { channelId: message.channel.id })
+        tickQuest(userData, "msgXp", { amount: Math.round(xpGained / multiplierData.multiplier) })
+    }
 
     // database update
     client.db.update(message.guild.id, { $set: { [`users.${author}`]: userData } }).exec();

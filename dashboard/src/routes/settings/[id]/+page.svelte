@@ -4,7 +4,7 @@
 	import { page } from '$app/stores'
 	import { apiFetch, loginButton } from '$lib/api.js'
 	import { xpForLevel, getLevel, commafy, timeStr, roleColor } from '$lib/xpMath.js'
-	import { Zap, Award, TrendingUp, Layers, CreditCard, Trophy, Database, Package, Shuffle, Flame, MessageSquare, Activity, Settings, Home } from 'lucide-svelte'
+	import { Zap, Award, TrendingUp, Layers, CreditCard, Trophy, Database, Package, Shuffle, Flame, MessageSquare, Activity, Settings, Home, Scroll } from 'lucide-svelte'
 
 	const guildID = $page.params.id
 
@@ -19,7 +19,8 @@
 
 	/** Mirror of db.settings – mutations here drive all inputs */
 	let s = {}
-	let lastSaved = {}   // deep copy for dirty-checking
+	let lastSaved = {}      // deep copy of s for dirty-checking
+	let lastSavedTables = {} // deep copy of dynamic tables for dirty-checking
 
 	let activeCategory = 'server'
 	let saving = false
@@ -32,7 +33,38 @@
 	let channelMultipliers = []
 	let streakMilestones = []
 	let immuneRoles = []
+	let questTemplates = []
 	let lastUpdated = 0
+
+	// Quest editor state
+	const VALID_EVENT_TYPES = [
+		"message", "channel", "msgXp", "voiceMin", "voiceXp",
+		"coinflipWin", "coinflipWinStreak", "coinflipBet",
+		"chestOpen", "shopBuy", "transferOut", "streakClaim",
+		"bumpClaim", "chestDropGrab", "confessSubmit",
+		"activityTop10", "dailyXpHigh"
+	]
+	const EVENT_TYPE_LABELS = {
+		message: "Send messages", channel: "Chat in channels", msgXp: "Earn message XP",
+		voiceMin: "Minutes in voice", voiceXp: "Earn voice XP",
+		coinflipWin: "Win coinflips", coinflipWinStreak: "Win coinflips in a row", coinflipBet: "Bet credits on coinflips",
+		chestOpen: "Open chests", shopBuy: "Buy from shop", transferOut: "Transfer credits",
+		streakClaim: "Claim daily streak", bumpClaim: "Claim bump reward",
+		chestDropGrab: "Grab XP chest drop", confessSubmit: "Submit a confession",
+		activityTop10: "Land in top 10 activity LB", dailyXpHigh: "New daily XP high"
+	}
+	let questPresets = {}
+	let selectedQuestPreset = ''
+	let showPresetConfirm = false
+	let newQuestTier = 'easy'
+	let newQuestId = ''
+	let newQuestLabel = ''
+	let newQuestDescription = ''
+	let newQuestEventType = 'message'
+	let newQuestTargetMin = 1
+	let newQuestTargetMax = 10
+	let editingQuestIndex = -1
+	let editingQuestData = {}
 
 	// UI sub-state
 	let curveNumbers = [1, 2, 3, 4, 5, 7, 10, 25, 50, 100, 200]
@@ -74,18 +106,21 @@
 		{ id: 'streak', label: 'Streaks', icon: Flame },
 		{ id: 'confession', label: 'Confessions', icon: MessageSquare },
 		{ id: 'activityleaderboard', label: 'Activity LB', icon: Activity },
+		{ id: 'quests', label: 'Daily Quests', icon: Scroll },
 		{ id: 'advanced', label: 'Advanced', icon: Settings }
 	]
 
 	// ── helpers ────────────────────────────────────────────────────────────────
-	function isDirty() {
-		const stateStr = JSON.stringify({ s, rewards, roleMultipliers, channelMultipliers, streakMilestones, immuneRoles })
-		const savedStr = JSON.stringify({ s: lastSaved, rewards: lastSaved._rewards, roleMultipliers: lastSaved._roleMultipliers, channelMultipliers: lastSaved._channelMultipliers, streakMilestones: lastSaved._streakMilestones, immuneRoles: lastSaved._immuneRoles })
-		return stateStr !== savedStr
-	}
+	let loaded = false
+	$: dirty = loaded && (
+		JSON.stringify(s) !== JSON.stringify(lastSaved)
+		|| JSON.stringify({ rewards, roleMultipliers, channelMultipliers, streakMilestones, immuneRoles, questTemplates })
+		   !== JSON.stringify(lastSavedTables)
+	)
 
 	function snapshotLastSaved() {
-		lastSaved = JSON.parse(JSON.stringify({ ...s, _rewards: rewards, _roleMultipliers: roleMultipliers, _channelMultipliers: channelMultipliers, _streakMilestones: streakMilestones, _immuneRoles: immuneRoles }))
+		lastSaved = JSON.parse(JSON.stringify(s))
+		lastSavedTables = JSON.parse(JSON.stringify({ rewards, roleMultipliers, channelMultipliers, streakMilestones, immuneRoles, questTemplates }))
 	}
 
 	function roleName(id) {
@@ -205,6 +240,56 @@
 		immuneRoles = immuneRoles.filter(r => r.id !== id)
 	}
 
+	// ── quest template editor ──────────────────────────────────────────────────
+	function addQuestTemplate() {
+		const id = newQuestId.trim().toLowerCase().replace(/[^a-z0-9_]/g, '_')
+		if (!id || !newQuestLabel.trim() || !newQuestDescription.trim()) return alert('ID, label and description are required.')
+		if (questTemplates.find(t => t.id === id)) return alert(`A quest with id "${id}" already exists.`)
+		const tMin = Math.max(1, +newQuestTargetMin)
+		const tMax = Math.max(tMin, +newQuestTargetMax)
+		questTemplates = [...questTemplates, { id, tier: newQuestTier, label: newQuestLabel.trim(), description: newQuestDescription.trim(), eventType: newQuestEventType, targetMin: tMin, targetMax: tMax }]
+		newQuestId = ''; newQuestLabel = ''; newQuestDescription = ''
+	}
+
+	function removeQuestTemplate(id) {
+		questTemplates = questTemplates.filter(t => t.id !== id)
+		if (editingQuestIndex >= 0 && questTemplates[editingQuestIndex]?.id !== id) editingQuestIndex = -1
+	}
+
+	function startEditQuest(index) {
+		editingQuestIndex = index
+		editingQuestData = { ...questTemplates[index] }
+	}
+
+	function saveEditQuest() {
+		const updated = { ...editingQuestData }
+		updated.id = updated.id.trim().toLowerCase().replace(/[^a-z0-9_]/g, '_')
+		updated.targetMin = Math.max(1, +updated.targetMin)
+		updated.targetMax = Math.max(updated.targetMin, +updated.targetMax)
+		questTemplates = questTemplates.map((t, i) => i === editingQuestIndex ? updated : t)
+		editingQuestIndex = -1
+	}
+
+	function loadQuestPreset() {
+		const preset = questPresets[selectedQuestPreset]
+		if (!preset) return
+		if (!confirm(`Load "${preset.name}" preset? This will replace the current quest pool.`)) return
+		questTemplates = JSON.parse(JSON.stringify(preset.templates))
+		showPresetConfirm = false
+	}
+
+	function rollQuestPreview(templates, questSettings) {
+		const tiers = ['easy', 'medium', 'hard']
+		const rewards = { easy: questSettings?.rewardEasy || 50, medium: questSettings?.rewardMedium || 150, hard: questSettings?.rewardHard || 400 }
+		return tiers.map(tier => {
+			const pool = templates.filter(t => t.tier === tier)
+			if (!pool.length) return null
+			const tmpl = pool[Math.floor(Math.random() * pool.length)]
+			const target = tmpl.targetMin === tmpl.targetMax ? tmpl.targetMin : Math.floor(Math.random() * (tmpl.targetMax - tmpl.targetMin + 1)) + tmpl.targetMin
+			return { tier, label: tmpl.label, description: tmpl.description.replace('{target}', target), reward: rewards[tier] }
+		}).filter(Boolean)
+	}
+
 	// ── level up message ───────────────────────────────────────────────────────
 	let lvlTextContent = ''
 	let lvlEmbedContent = ''
@@ -271,14 +356,14 @@
 			'rankCard.hideCooldown': s.rankCard?.hideCooldown,
 			'rankCard.ephemeral': s.rankCard?.ephemeral,
 			'rankCard.relativeLevel': s.rankCard?.relativeLevel,
-			'rankCard.embedColor': useCustomRankColor ? rankEmbedColor : null,
+			'rankCard.embedColor': useCustomRankColor ? parseInt(rankEmbedColor.replace('#', ''), 16) : -1,
 			'leaderboard.disabled': s.leaderboard?.disabled,
 			'leaderboard.ephemeral': s.leaderboard?.ephemeral,
 			'leaderboard.hideRoles': s.leaderboard?.hideRoles,
 			'leaderboard.minLevel': +s.leaderboard?.minLevel,
 			'leaderboard.maxEntries': +s.leaderboard?.maxEntries,
 			'leaderboard.private': s.leaderboard?.private,
-			'leaderboard.embedColor': useCustomTopColor ? topEmbedColor : null,
+			'leaderboard.embedColor': useCustomTopColor ? parseInt(topEmbedColor.replace('#', ''), 16) : -1,
 			'multipliers.rolePriority': s.multipliers?.rolePriority,
 			'multipliers.channelStacking': s.multipliers?.channelStacking,
 			'multipliers.roles': roleMultipliers,
@@ -325,7 +410,18 @@
 			'levelUp.maxRank': +s.levelUp?.maxRank,
 			manualPerms: s.manualPerms,
 			resetXpOnLeave: s.resetXpOnLeave,
-			nicknameRank: s.nicknameRank
+			nicknameRank: s.nicknameRank,
+			'quests.enabled': s.quests?.enabled,
+			'quests.rewardEasy': +s.quests?.rewardEasy,
+			'quests.rewardMedium': +s.quests?.rewardMedium,
+			'quests.rewardHard': +s.quests?.rewardHard,
+			'quests.rewardBonus': +s.quests?.rewardBonus,
+			'quests.streakBonusMultiplier': +s.quests?.streakBonusMultiplier,
+			'quests.streakBonusCap': +s.quests?.streakBonusCap,
+			'quests.rerollCost': +s.quests?.rerollCost,
+			'quests.rerollsPerDay': +s.quests?.rerollsPerDay,
+			'quests.announceChannelId': s.quests?.announceChannelId,
+			'quests.templates': questTemplates
 		})
 
 		try {
@@ -360,7 +456,7 @@
 
 	async function confirmResetXP() {
 		try {
-			await apiFetch(`/api/clearXP/${guildID}`, { method: 'POST' })
+			await apiFetch(`/api/settings/${guildID}`, { method: 'POST', body: JSON.stringify({ resetXP: true }) })
 			alert('XP reset successfully!')
 		} catch (e) { alert(`Error! ${e.message}`) }
 		showResetXPConfirm = false; showResetXPFinal = false
@@ -368,7 +464,7 @@
 
 	async function confirmResetSettings() {
 		try {
-			await apiFetch(`/api/resetSettings/${guildID}`, { method: 'POST' })
+			await apiFetch(`/api/settings/${guildID}`, { method: 'POST', body: JSON.stringify({ resetSettings: true }) })
 			window.location.reload()
 		} catch (e) { alert(`Error! ${e.message}`) }
 		showResetSettingsConfirm = false
@@ -380,7 +476,7 @@
 	async function pruneMembers() {
 		if (!confirm(`Delete all members with less than ${pruneAmount} XP? This cannot be undone!`)) return
 		try {
-			await apiFetch(`/api/pruneXP/${guildID}`, { method: 'POST', body: JSON.stringify({ minXP: pruneAmount }) })
+			await apiFetch(`/api/pruneMembers`, { method: 'POST', body: JSON.stringify({ guildID, amount: pruneAmount, confirmPrune: 'hell yes' }) })
 			alert('Pruned!')
 		} catch (e) { alert(`Error! ${e.message}`) }
 	}
@@ -405,10 +501,18 @@
 				const file = importType === 'json' ? importJSONFile : importLurkrFile
 				if (!file) { alert('Please select a file first!'); importLoading = false; return }
 				const text = await file.text()
-				const json = JSON.parse(text)
-				await apiFetch(`/api/importXP/${guildID}`, { method: 'POST', body: JSON.stringify({ data: json, xp: importXP, settings: importType === 'json' ? importSettings : false, type: importType }) })
+				const jsonData = JSON.parse(text)
+				await apiFetch(`/api/importfrombot`, { method: 'POST', body: JSON.stringify({
+					guildID,
+					import: { bot: importType, xp: importXP, settings: importType === 'json' ? importSettings : false },
+					jsonData
+				}) })
 			} else {
-				await apiFetch(`/api/transferXP/${guildID}`, { method: 'POST', body: JSON.stringify({ sourceGuild: importServerID, xp: importXP, settings: importSettingsPolaris }) })
+				// polaris → polaris server transfer
+				await apiFetch(`/api/importfrombot`, { method: 'POST', body: JSON.stringify({
+					guildID,
+					import: { bot: 'polaris', xp: importXP, settings: importSettingsPolaris, serverID: importServerID }
+				}) })
 			}
 			alert('Import successful!')
 		} catch (e) { alert(`Error! ${e.message}`) }
@@ -422,7 +526,12 @@
 	async function sendExample() {
 		exampleState = 'sending'
 		try {
-			await apiFetch(`/api/exampleLevelUp/${guildID}`, { method: 'POST', body: JSON.stringify({ level: +exampleLevel }) })
+			await apiFetch(`/api/sendexample`, { method: 'POST', body: JSON.stringify({
+				guildID,
+				message: s.levelUp?.embed ? lvlEmbedContent : lvlTextContent,
+				embed: s.levelUp?.embed || false,
+				level: +exampleLevel
+			}) })
 			exampleState = 'sent'
 			setTimeout(() => (exampleState = 'idle'), 5000)
 		} catch (e) { exampleState = 'error'; setTimeout(() => (exampleState = 'idle'), 4000) }
@@ -463,12 +572,19 @@
 		if (s.streak) { s.streak.creditsPerClaim = s.streak.creditsPerClaim ?? 0; s.streak.minStreakForCredits = s.streak.minStreakForCredits ?? 0 }
 		if (s.chestDrops) { s.chestDrops.showPreMessage = s.chestDrops.showPreMessage ?? true; s.chestDrops.keyEmoji = s.chestDrops.keyEmoji ?? '🗝️'; s.chestDrops.chestEmoji = s.chestDrops.chestEmoji ?? '📦' }
 
+		// Ensure quests object exists with defaults
+		s.quests = s.quests || { enabled: false, rewardEasy: 50, rewardMedium: 150, rewardHard: 400, rewardBonus: 300, streakBonusMultiplier: 0.1, streakBonusCap: 7, rerollCost: 100, rerollsPerDay: 1, announceChannelId: '', templates: [] }
+
 		// Extract tables
 		rewards = (db.rewards || []).map(r => ({ ...r, noSync: r.noSync || false }))
 		roleMultipliers = db.multipliers?.roles || []
 		channelMultipliers = db.multipliers?.channels || []
 		streakMilestones = db.streak?.milestones || []
 		immuneRoles = db.xpSteal?.immuneRoles || []
+		questTemplates = db.quests?.templates || []
+
+		// Load quest presets
+		apiFetch('/api/questPresets').then(p => { questPresets = p }).catch(() => {})
 
 		// Level up message modes
 		lvlMessageMode = db.levelUp?.embed ? 'embed' : 'text'
@@ -476,8 +592,14 @@
 		lvlEmbedContent = (db.levelUp?.embed && db.levelUp?.message) ? db.levelUp.message : ''
 
 		// Color pickers
-		if (db.rankCard?.embedColor) { useCustomRankColor = true; rankEmbedColor = db.rankCard.embedColor }
-		if (db.leaderboard?.embedColor) { useCustomTopColor = true; topEmbedColor = db.leaderboard.embedColor }
+		if (typeof db.rankCard?.embedColor === 'number' && db.rankCard.embedColor >= 0) {
+			useCustomRankColor = true
+			rankEmbedColor = '#' + db.rankCard.embedColor.toString(16).padStart(6, '0')
+		}
+		if (typeof db.leaderboard?.embedColor === 'number' && db.leaderboard.embedColor >= 0) {
+			useCustomTopColor = true
+			topEmbedColor = '#' + db.leaderboard.embedColor.toString(16).padStart(6, '0')
+		}
 
 		// Curve presets
 		const presetsData = data.curvePresets?.presets || []
@@ -488,6 +610,7 @@
 		selectedPresetName = presetList.find(p => p.name !== guild.name && JSON.stringify([p.curve, p.round, p.bestRange]) === JSON.stringify([db.curve, db.rounding, [db.gain.min, db.gain.max]]))?.name || presetList[0].name
 
 		snapshotLastSaved()
+		loaded = true
 		document.title = `Settings for ${guild.name}`
 		loading = false
 	})
@@ -533,30 +656,24 @@
 		</div>
 
 		<!-- ── UNSAVED WARNING ───────────────────────────────────────────────── -->
-		{#if isDirty()}
-			<div id="unsavedWarning">
+		<div id="unsavedWarning" class:activeWarning={saveError || saveSuccess || dirty}>
+			{#if saveError}
+				<div class="unsavedBox" style="background-color: var(--emojired)">
+					<p>{saveError}</p>
+				</div>
+			{:else if saveSuccess}
+				<div class="unsavedBox" style="background-color: var(--emojigreen)">
+					<p>Saved!</p>
+				</div>
+			{:else if dirty}
 				<div class="unsavedBox">
 					<p>All done?</p>
 					<button style="background-color: var(--emojigreen)" on:click={save} disabled={saving}>
 						{saving ? 'Saving...' : 'Save'}
 					</button>
 				</div>
-			</div>
-		{/if}
-		{#if saveSuccess}
-			<div id="unsavedWarning">
-				<div class="unsavedBox" style="background-color: var(--emojigreen)">
-					<p>Saved!</p>
-				</div>
-			</div>
-		{/if}
-		{#if saveError}
-			<div id="unsavedWarning">
-				<div class="unsavedBox" style="background-color: var(--emojired)">
-					<p>{saveError}</p>
-				</div>
-			</div>
-		{/if}
+			{/if}
+		</div>
 
 		<!-- ── HOME / SERVER INFO ────────────────────────────────────────────── -->
 		{#if activeCategory === 'server'}
@@ -1613,6 +1730,255 @@
 						<p class="details">Credits awarded to the #1 most active member each interval (0 = disabled).</p>
 						<input type="number" bind:value={s.activityLeaderboard.topCredits} min="0" style="width: 120px" />
 					</div>
+				{/if}
+			</div>
+		{/if}
+
+		<!-- ── DAILY QUESTS ─────────────────────────────────────────────────── -->
+		{#if activeCategory === 'quests'}
+			<div class="configboxes">
+				<div class="settingBox box fulllength">
+					<h1>Daily Quests</h1>
+					<p>Give members 3 random quests every day (Easy / Medium / Hard). Completing quests earns credits. Complete all 3 for a bonus reward.</p>
+					<h2>Enable Daily Quests</h2>
+					<label class="slider" style="margin-top: 5px">
+						<input type="checkbox" bind:checked={s.quests.enabled} /><span class="sliderspan"></span>
+					</label>
+				</div>
+				<div class="settingBreak"></div>
+
+				{#if s.quests?.enabled}
+					<!-- ── Rewards ── -->
+					<div class="settingBox box fulllength">
+						<div class="simpleflex">
+							<div class="sideoption">
+								<h2>Easy reward</h2>
+								<p class="details">Credits for completing the Easy quest.</p>
+								<input type="number" bind:value={s.quests.rewardEasy} min="0" max="100000" style="width: 120px" />
+							</div>
+							<div class="sideoption">
+								<h2>Medium reward</h2>
+								<p class="details">Credits for completing the Medium quest.</p>
+								<input type="number" bind:value={s.quests.rewardMedium} min="0" max="100000" style="width: 120px" />
+							</div>
+							<div class="sideoption">
+								<h2>Hard reward</h2>
+								<p class="details">Credits for completing the Hard quest.</p>
+								<input type="number" bind:value={s.quests.rewardHard} min="0" max="100000" style="width: 120px" />
+							</div>
+						</div>
+					</div>
+
+					<div class="settingBox box">
+						<h2>3/3 Bonus</h2>
+						<p class="details">Credits awarded when all 3 quests are completed in one day.</p>
+						<input type="number" bind:value={s.quests.rewardBonus} min="0" max="100000" style="width: 120px" />
+					</div>
+
+					<div class="settingBox box">
+						<h2>Quest streak bonus</h2>
+						<p class="details">Multiplier added to the 3/3 bonus per consecutive day of completing all quests.<br/>Bonus = base × (1 + multiplier × min(streak, cap))</p>
+						<div class="centerflex spacedflex">
+							<p>+</p>
+							<input type="number" bind:value={s.quests.streakBonusMultiplier} min="0" max="5" step="0.05" style="width: 80px" />
+							<p>× per day, capped at</p>
+							<input type="number" bind:value={s.quests.streakBonusCap} min="0" max="365" style="width: 80px" />
+							<p>days</p>
+						</div>
+					</div>
+
+					<!-- ── Rerolls ── -->
+					<div class="settingBox box">
+						<h2>Rerolls per day</h2>
+						<p class="details">How many times a member can reroll a quest per day (0 = disabled).</p>
+						<input type="number" bind:value={s.quests.rerollsPerDay} min="0" max="10" style="width: 80px" />
+					</div>
+
+					<div class="settingBox box">
+						<h2>Reroll cost</h2>
+						<p class="details">Credits deducted to reroll one quest.</p>
+						<input type="number" bind:value={s.quests.rerollCost} min="0" max="100000" style="width: 120px" />
+					</div>
+
+					<!-- ── Announce channel ── -->
+					<div class="settingBox box">
+						<h2>Announce channel</h2>
+						<p class="details">Post a public message when someone completes all 3 quests (optional).</p>
+						<select bind:value={s.quests.announceChannelId}>
+							<option value="">(None)</option>
+							{#each channels as ch}<option value={ch.id}>#{ch.name}</option>{/each}
+						</select>
+					</div>
+
+					<div class="settingBreak"></div>
+
+					<!-- ── Quest Pool Editor ── -->
+					<div class="settingBox box fulllength">
+						<h1>Quest Pool</h1>
+						<p>Define which quests can be rolled each day. Members get 1 Easy, 1 Medium, and 1 Hard quest randomly drawn from the pool below.</p>
+						<p class="details">Use <b>{'{'}target{'}'}</b> in descriptions — it's replaced with the randomly rolled number.</p>
+
+						<!-- Preset loader -->
+						{#if Object.keys(questPresets).length}
+							<div class="centerflex spacedflex" style="margin-top: 15px; flex-wrap: wrap; gap: 8px">
+								<p style="margin: 0"><b>Load preset:</b></p>
+								<select bind:value={selectedQuestPreset} style="width: 220px">
+									<option value="" disabled selected>(Select preset)</option>
+									{#each Object.entries(questPresets) as [key, preset]}
+										<option value={key}>{preset.name}</option>
+									{/each}
+								</select>
+								{#if selectedQuestPreset}
+									<p class="details" style="margin: 0; font-style: italic">{questPresets[selectedQuestPreset]?.description}</p>
+									<button style="background-color: var(--emojiblue)" on:click={loadQuestPreset}>Load preset</button>
+								{/if}
+								<button style="background-color: var(--emojired)" on:click={() => { if(confirm('Clear all quests from the pool?')) questTemplates = [] }}>Clear pool</button>
+							</div>
+						{/if}
+					</div>
+
+					<!-- Add quest form -->
+					<div class="settingBox box fulllength">
+						<h2>Add quest</h2>
+						<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin-top: 10px">
+							<div>
+								<p class="details" style="margin-bottom: 4px">Tier</p>
+								<select bind:value={newQuestTier} style="width: 100%">
+									<option value="easy">🟢 Easy</option>
+									<option value="medium">🟡 Medium</option>
+									<option value="hard">🔴 Hard</option>
+								</select>
+							</div>
+							<div>
+								<p class="details" style="margin-bottom: 4px">ID (a-z, 0-9, _)</p>
+								<input type="text" bind:value={newQuestId} placeholder="msg_25" style="width: 100%" maxlength="40" />
+							</div>
+							<div>
+								<p class="details" style="margin-bottom: 4px">Label</p>
+								<input type="text" bind:value={newQuestLabel} placeholder="Chatterbox" style="width: 100%" maxlength="40" />
+							</div>
+							<div>
+								<p class="details" style="margin-bottom: 4px">Event type</p>
+								<select bind:value={newQuestEventType} style="width: 100%">
+									{#each VALID_EVENT_TYPES as et}
+										<option value={et}>{EVENT_TYPE_LABELS[et] || et}</option>
+									{/each}
+								</select>
+							</div>
+							<div>
+								<p class="details" style="margin-bottom: 4px">Target min</p>
+								<input type="number" bind:value={newQuestTargetMin} min="1" max="1000000" style="width: 100%" />
+							</div>
+							<div>
+								<p class="details" style="margin-bottom: 4px">Target max</p>
+								<input type="number" bind:value={newQuestTargetMax} min="1" max="1000000" style="width: 100%" />
+							</div>
+						</div>
+						<div style="margin-top: 10px">
+							<p class="details" style="margin-bottom: 4px">Description (use {'{'}target{'}'} for the number)</p>
+							<input type="text" bind:value={newQuestDescription} placeholder="Send {'{'}target{'}'} messages" style="width: 100%; max-width: 600px" maxlength="120" />
+						</div>
+						<button style="margin-top: 12px; background-color: var(--emojigreen)" on:click={addQuestTemplate}>Add quest</button>
+					</div>
+
+					<!-- Pool table -->
+					<div class="settingBox box fulllength">
+						<h2 style="margin-bottom: 15px">Quest pool ({questTemplates.length} quests)</h2>
+						{#if questTemplates.length}
+							<div style="overflow-x: auto">
+								<table style="width: 100%; border-collapse: collapse; font-size: 0.9em">
+									<thead>
+										<tr style="text-align: left; border-bottom: 1px solid rgba(255,255,255,0.15)">
+											<th style="padding: 6px 8px">Tier</th>
+											<th style="padding: 6px 8px">ID</th>
+											<th style="padding: 6px 8px">Label</th>
+											<th style="padding: 6px 8px">Description</th>
+											<th style="padding: 6px 8px">Event</th>
+											<th style="padding: 6px 8px">Target range</th>
+											<th style="padding: 6px 8px">Edit</th>
+											<th style="padding: 6px 8px">Delete</th>
+										</tr>
+									</thead>
+									<tbody>
+										{#each questTemplates as qt, i}
+											{#if editingQuestIndex === i}
+												<tr style="background: rgba(255,255,255,0.05)">
+													<td style="padding: 6px 8px">
+														<select bind:value={editingQuestData.tier} style="width: 90px">
+															<option value="easy">🟢 Easy</option>
+															<option value="medium">🟡 Med</option>
+															<option value="hard">🔴 Hard</option>
+														</select>
+													</td>
+													<td style="padding: 6px 8px">
+														<input type="text" bind:value={editingQuestData.id} style="width: 110px" maxlength="40" />
+													</td>
+													<td style="padding: 6px 8px">
+														<input type="text" bind:value={editingQuestData.label} style="width: 110px" maxlength="40" />
+													</td>
+													<td style="padding: 6px 8px">
+														<input type="text" bind:value={editingQuestData.description} style="width: 200px" maxlength="120" />
+													</td>
+													<td style="padding: 6px 8px">
+														<select bind:value={editingQuestData.eventType} style="width: 140px">
+															{#each VALID_EVENT_TYPES as et}
+																<option value={et}>{EVENT_TYPE_LABELS[et] || et}</option>
+															{/each}
+														</select>
+													</td>
+													<td style="padding: 6px 8px">
+														<div class="centerflex spacedflex">
+															<input type="number" bind:value={editingQuestData.targetMin} min="1" style="width: 70px" />
+															<span>–</span>
+															<input type="number" bind:value={editingQuestData.targetMax} min="1" style="width: 70px" />
+														</div>
+													</td>
+													<td style="padding: 6px 8px">
+														<button style="background-color: var(--emojigreen); padding: 4px 8px" on:click={saveEditQuest}>✔</button>
+														<button style="margin-left: 4px; padding: 4px 8px" on:click={() => editingQuestIndex = -1}>✗</button>
+													</td>
+													<td></td>
+												</tr>
+											{:else}
+												<tr style="border-bottom: 1px solid rgba(255,255,255,0.07)">
+													<td style="padding: 6px 8px">{qt.tier === 'easy' ? '🟢 Easy' : qt.tier === 'medium' ? '🟡 Med' : '🔴 Hard'}</td>
+													<td style="padding: 6px 8px; font-family: monospace; font-size: 0.85em; opacity: 0.75">{qt.id}</td>
+													<td style="padding: 6px 8px"><b>{qt.label}</b></td>
+													<td style="padding: 6px 8px; opacity: 0.85">{qt.description}</td>
+													<td style="padding: 6px 8px; font-size: 0.85em">{EVENT_TYPE_LABELS[qt.eventType] || qt.eventType}</td>
+													<td style="padding: 6px 8px">{qt.targetMin} – {qt.targetMax}</td>
+													<td style="padding: 6px 8px"><span style="cursor: pointer" on:click={() => startEditQuest(i)}>✏️</span></td>
+													<td style="padding: 6px 8px"><span class="deleteRow" style="cursor: pointer" on:click={() => removeQuestTemplate(qt.id)}>🗑️</span></td>
+												</tr>
+											{/if}
+										{/each}
+									</tbody>
+								</table>
+							</div>
+						{:else}
+							<p style="opacity: 60%">No quests in the pool yet. Add some above or load a preset.</p>
+						{/if}
+					</div>
+
+					<!-- Live preview -->
+					{#if questTemplates.length}
+						<div class="settingBox box fulllength">
+							<h2>Live preview</h2>
+							<p class="details">A sample of what today's quests might look like for a member.</p>
+							{#key questTemplates}
+								{@const preview = rollQuestPreview(questTemplates, s.quests)}
+								{#each preview as q}
+									<div style="margin: 6px 0; padding: 8px 12px; background: rgba(255,255,255,0.05); border-radius: 6px">
+										<b>{q.tier === 'easy' ? '🟢' : q.tier === 'medium' ? '🟡' : '🔴'} {q.tier.charAt(0).toUpperCase() + q.tier.slice(1)}: {q.label}</b>
+										— {q.description} · <span style="opacity: 0.75">+{q.reward} credits</span>
+									</div>
+								{/each}
+								{#if preview.length < 3}
+									<p style="opacity: 60%; margin-top: 8px">⚠️ {3 - preview.length} tier{3 - preview.length === 1 ? '' : 's'} have no quests — add more to fill all 3 slots.</p>
+								{/if}
+							{/key}
+						</div>
+					{/if}
 				{/if}
 			</div>
 		{/if}

@@ -7,6 +7,7 @@ const Tools = require("./classes/Tools.js")
 const Model = require("./classes/DatabaseModel.js")
 const { buildActivityLeaderboard, generateLeaderboardEmbed, snapInterval } = require("./classes/ActivityLeaderboard.js")
 const { buildScheduledStatsEmbed, getStatsRetentionUnset, getUtcDateKeyOffset, shouldPostScheduledReport } = require("./classes/ServerStats.js")
+const { ensureDailyQuests, tickQuest, getTodayKey } = require("./classes/Quests.js")
 
 // automatic files: these handle discord status and version number, manage them with the dev commands
 const autoPath = "./json/auto/"
@@ -186,6 +187,24 @@ client.on("ready", async() => {
                             const rankings = await buildActivityLeaderboard(guild, doc)
                             const topEntry = rankings[0]
                             const prevTopId = doc.info?.lastTopUserId || ""
+
+                            // Tick activityTop10 quest for top 10 members
+                            if (doc.settings?.quests?.enabled && rankings.length > 0) {
+                                const top10 = rankings.slice(0, 10)
+                                const questUpdates = {}
+                                const todayKey = getTodayKey()
+                                for (const entry of top10) {
+                                    const uid = entry.id
+                                    if (!doc.users?.[uid]) continue
+                                    const uData = doc.users[uid]
+                                    ensureDailyQuests(uData, doc.settings, todayKey)
+                                    tickQuest(uData, "activityTop10")
+                                    questUpdates[`users.${uid}.quests`] = uData.quests
+                                }
+                                if (Object.keys(questUpdates).length) {
+                                    client.db.update(guildId, { $set: questUpdates }).exec().catch(() => {})
+                                }
+                            }
 
                             const topCredits = settings.topCredits || 0
                             const topRoleId  = settings.topRoleId  || ""
@@ -453,6 +472,15 @@ client.on("ready", async() => {
                                             )
                                             tools.syncLevelRoles(member, roleCheck).catch(() => {})
                                         }
+                                    }
+
+                                    // Tick voice quests
+                                    if (settings.quests?.enabled) {
+                                        ensureDailyQuests(userData, settings, getTodayKey())
+                                        const intervalMin = settings.voice.interval / 60
+                                        const rawVoiceXp = Math.round(xpGained / (multiplierData.multiplier * statusMultiplier))
+                                        tickQuest(userData, "voiceMin", { amount: intervalMin })
+                                        tickQuest(userData, "voiceXp", { amount: rawVoiceXp })
                                     }
 
                                     updates[`users.${userId}`] = userData
