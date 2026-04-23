@@ -4,7 +4,7 @@
 	import { page } from '$app/stores'
 	import { apiFetch, loginButton } from '$lib/api.js'
 	import { xpForLevel, getLevel, commafy, timeStr, roleColor } from '$lib/xpMath.js'
-	import { Zap, Award, TrendingUp, Layers, CreditCard, Trophy, Database, Package, Shuffle, Flame, MessageSquare, Activity, Settings, Home, Scroll } from 'lucide-svelte'
+	import { Zap, Award, TrendingUp, Layers, CreditCard, Trophy, Database, Package, Shuffle, Flame, MessageSquare, Activity, Settings, Home, Scroll, ShoppingCart, Box } from 'lucide-svelte'
 
 	const guildID = $page.params.id
 
@@ -34,7 +34,27 @@
 	let streakMilestones = []
 	let immuneRoles = []
 	let questTemplates = []
+	let shopItems = []
+	let chestItems = []
 	let lastUpdated = 0
+
+	// Shop editor state
+	let newShopRoleId = ''
+	let newShopName = ''
+	let newShopPrice = 0
+	let newShopDuration = 0
+	let newShopEmoji = ''
+	let editingShopIndex = -1
+	let editingShopData = {}
+
+	// Chest editor state
+	let newChestName = ''
+	let newChestPrice = 0
+	let newChestXpMin = 0
+	let newChestXpMax = 100
+	let newChestEmoji = ''
+	let editingChestIndex = -1
+	let editingChestData = {}
 
 	// Quest editor state
 	const VALID_EVENT_TYPES = [
@@ -107,6 +127,8 @@
 		{ id: 'confession', label: 'Confessions', icon: MessageSquare },
 		{ id: 'activityleaderboard', label: 'Activity LB', icon: Activity },
 		{ id: 'quests', label: 'Daily Quests', icon: Scroll },
+		{ id: 'shop', label: 'Shop', icon: ShoppingCart },
+		{ id: 'chests', label: 'Chests', icon: Box },
 		{ id: 'advanced', label: 'Advanced', icon: Settings }
 	]
 
@@ -114,13 +136,13 @@
 	let loaded = false
 	$: dirty = loaded && (
 		JSON.stringify(s) !== JSON.stringify(lastSaved)
-		|| JSON.stringify({ rewards, roleMultipliers, channelMultipliers, streakMilestones, immuneRoles, questTemplates })
+		|| JSON.stringify({ rewards, roleMultipliers, channelMultipliers, streakMilestones, immuneRoles, questTemplates, shopItems, chestItems })
 		   !== JSON.stringify(lastSavedTables)
 	)
 
 	function snapshotLastSaved() {
 		lastSaved = JSON.parse(JSON.stringify(s))
-		lastSavedTables = JSON.parse(JSON.stringify({ rewards, roleMultipliers, channelMultipliers, streakMilestones, immuneRoles, questTemplates }))
+		lastSavedTables = JSON.parse(JSON.stringify({ rewards, roleMultipliers, channelMultipliers, streakMilestones, immuneRoles, questTemplates, shopItems, chestItems }))
 	}
 
 	function roleName(id) {
@@ -290,6 +312,67 @@
 		}).filter(Boolean)
 	}
 
+	// ── shop item editor ──────────────────────────────────────────────────────
+	function addShopItem() {
+		if (!newShopName.trim()) return alert('Name is required.')
+		if (!newShopRoleId) return alert('Please select a role.')
+		const price = Math.max(0, +newShopPrice)
+		const duration = Math.max(0, +newShopDuration)
+		shopItems = [...shopItems, { roleId: newShopRoleId, name: newShopName.trim(), price, duration, emoji: newShopEmoji.trim() }]
+		newShopRoleId = ''; newShopName = ''; newShopPrice = 0; newShopDuration = 0; newShopEmoji = ''
+	}
+
+	function removeShopItem(index) {
+		shopItems = shopItems.filter((_, i) => i !== index)
+		if (editingShopIndex === index) editingShopIndex = -1
+	}
+
+	function startEditShop(index) {
+		editingShopIndex = index
+		editingShopData = { ...shopItems[index] }
+	}
+
+	function saveEditShop() {
+		const updated = { ...editingShopData }
+		updated.name = updated.name?.trim() || ''
+		updated.emoji = updated.emoji?.trim() || ''
+		updated.price = Math.max(0, +updated.price)
+		updated.duration = Math.max(0, +updated.duration)
+		shopItems = shopItems.map((item, i) => i === editingShopIndex ? updated : item)
+		editingShopIndex = -1
+	}
+
+	// ── chest item editor ──────────────────────────────────────────────────────
+	function addChestItem() {
+		if (!newChestName.trim()) return alert('Name is required.')
+		const price = Math.max(0, +newChestPrice)
+		const xpMin = Math.max(0, +newChestXpMin)
+		const xpMax = Math.max(xpMin, +newChestXpMax)
+		chestItems = [...chestItems, { name: newChestName.trim(), price, xpMin, xpMax, emoji: newChestEmoji.trim() }]
+		newChestName = ''; newChestPrice = 0; newChestXpMin = 0; newChestXpMax = 100; newChestEmoji = ''
+	}
+
+	function removeChestItem(index) {
+		chestItems = chestItems.filter((_, i) => i !== index)
+		if (editingChestIndex === index) editingChestIndex = -1
+	}
+
+	function startEditChest(index) {
+		editingChestIndex = index
+		editingChestData = { ...chestItems[index] }
+	}
+
+	function saveEditChest() {
+		const updated = { ...editingChestData }
+		updated.name = updated.name?.trim() || ''
+		updated.emoji = updated.emoji?.trim() || ''
+		updated.price = Math.max(0, +updated.price)
+		updated.xpMin = Math.max(0, +updated.xpMin)
+		updated.xpMax = Math.max(updated.xpMin, +updated.xpMax)
+		chestItems = chestItems.map((item, i) => i === editingChestIndex ? updated : item)
+		editingChestIndex = -1
+	}
+
 	// ── level up message ───────────────────────────────────────────────────────
 	let lvlTextContent = ''
 	let lvlEmbedContent = ''
@@ -421,7 +504,11 @@
 			'quests.rerollCost': +s.quests?.rerollCost,
 			'quests.rerollsPerDay': +s.quests?.rerollsPerDay,
 			'quests.announceChannelId': s.quests?.announceChannelId,
-			'quests.templates': questTemplates
+			'quests.templates': questTemplates,
+			'shop.enabled':   s.shop?.enabled,
+			'shop.items':     shopItems,
+			'chests.enabled': s.chests?.enabled,
+			'chests.items':   chestItems
 		})
 
 		try {
@@ -572,6 +659,9 @@
 		if (s.streak) { s.streak.creditsPerClaim = s.streak.creditsPerClaim ?? 0; s.streak.minStreakForCredits = s.streak.minStreakForCredits ?? 0 }
 		if (s.chestDrops) { s.chestDrops.showPreMessage = s.chestDrops.showPreMessage ?? true; s.chestDrops.keyEmoji = s.chestDrops.keyEmoji ?? '🗝️'; s.chestDrops.chestEmoji = s.chestDrops.chestEmoji ?? '📦' }
 
+		s.shop   = s.shop   || { enabled: false }
+		s.chests = s.chests || { enabled: false }
+
 		// Ensure quests object exists with defaults
 		s.quests = s.quests || { enabled: false, rewardEasy: 50, rewardMedium: 150, rewardHard: 400, rewardBonus: 300, streakBonusMultiplier: 0.1, streakBonusCap: 7, rerollCost: 100, rerollsPerDay: 1, announceChannelId: '', templates: [] }
 
@@ -582,6 +672,8 @@
 		streakMilestones = db.streak?.milestones || []
 		immuneRoles = db.xpSteal?.immuneRoles || []
 		questTemplates = db.quests?.templates || []
+		shopItems  = db.shop?.items  || []
+		chestItems = db.chests?.items || []
 
 		// Load quest presets
 		apiFetch('/api/questPresets').then(p => { questPresets = p }).catch(() => {})
@@ -1979,6 +2071,224 @@
 							{/key}
 						</div>
 					{/if}
+				{/if}
+			</div>
+		{/if}
+
+		<!-- ── SHOP ──────────────────────────────────────────────────────────── -->
+		{#if activeCategory === 'shop'}
+			<div class="configboxes">
+				<div class="settingBox box fulllength">
+					<h1>Shop</h1>
+					<p>Let members spend their credits to buy temporary Discord roles.</p>
+					<h2>Enable Shop</h2>
+					<label class="slider" style="margin-top: 5px">
+						<input type="checkbox" bind:checked={s.shop.enabled} /><span class="sliderspan"></span>
+					</label>
+				</div>
+				<div class="settingBreak"></div>
+
+				{#if s.shop?.enabled}
+					<!-- Add item form -->
+					<div class="settingBox box fulllength">
+						<h2>Add shop item</h2>
+						<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; margin-top: 10px">
+							<div>
+								<p class="details" style="margin-bottom: 4px">Role</p>
+								<select bind:value={newShopRoleId} style="width: 100%">
+									<option value="" disabled selected>(Select role)</option>
+									{#each roles as r}<option value={r.id}>{r.name}</option>{/each}
+								</select>
+							</div>
+							<div>
+								<p class="details" style="margin-bottom: 4px">Name</p>
+								<input type="text" bind:value={newShopName} placeholder="VIP Pass" style="width: 100%" maxlength="100" />
+							</div>
+							<div>
+								<p class="details" style="margin-bottom: 4px">Price (credits)</p>
+								<input type="number" bind:value={newShopPrice} min="0" style="width: 100%" />
+							</div>
+							<div>
+								<p class="details" style="margin-bottom: 4px">Duration (hours, 0 = permanent)</p>
+								<input type="number" bind:value={newShopDuration} min="0" step="0.5" style="width: 100%" />
+							</div>
+							<div>
+								<p class="details" style="margin-bottom: 4px">Emoji</p>
+								<input type="text" bind:value={newShopEmoji} placeholder="🛒" style="width: 100%" maxlength="100" />
+							</div>
+						</div>
+						<button style="margin-top: 12px; background-color: var(--emojigreen)" on:click={addShopItem}>Add item</button>
+					</div>
+
+					<!-- Items table -->
+					<div class="settingBox box fulllength">
+						<h2 style="margin-bottom: 15px">Shop items ({shopItems.length})</h2>
+						{#if shopItems.length}
+							<div style="overflow-x: auto">
+								<table style="width: 100%; border-collapse: collapse; font-size: 0.9em">
+									<thead>
+										<tr style="text-align: left; border-bottom: 1px solid rgba(255,255,255,0.15)">
+											<th style="padding: 6px 8px">Emoji</th>
+											<th style="padding: 6px 8px">Name</th>
+											<th style="padding: 6px 8px">Role</th>
+											<th style="padding: 6px 8px">Price</th>
+											<th style="padding: 6px 8px">Duration</th>
+											<th style="padding: 6px 8px">Edit</th>
+											<th style="padding: 6px 8px">Delete</th>
+										</tr>
+									</thead>
+									<tbody>
+										{#each shopItems as item, i}
+											{#if editingShopIndex === i}
+												<tr style="background: rgba(255,255,255,0.05)">
+													<td style="padding: 6px 8px">
+														<input type="text" bind:value={editingShopData.emoji} style="width: 70px" maxlength="100" />
+													</td>
+													<td style="padding: 6px 8px">
+														<input type="text" bind:value={editingShopData.name} style="width: 130px" maxlength="100" />
+													</td>
+													<td style="padding: 6px 8px">
+														<select bind:value={editingShopData.roleId} style="width: 140px">
+															{#each roles as r}<option value={r.id}>{r.name}</option>{/each}
+														</select>
+													</td>
+													<td style="padding: 6px 8px">
+														<input type="number" bind:value={editingShopData.price} min="0" style="width: 90px" />
+													</td>
+													<td style="padding: 6px 8px">
+														<input type="number" bind:value={editingShopData.duration} min="0" step="0.5" style="width: 90px" />
+													</td>
+													<td style="padding: 6px 8px">
+														<button style="background-color: var(--emojigreen); padding: 4px 8px" on:click={saveEditShop}>✔</button>
+														<button style="margin-left: 4px; padding: 4px 8px" on:click={() => editingShopIndex = -1}>✗</button>
+													</td>
+													<td></td>
+												</tr>
+											{:else}
+												<tr style="border-bottom: 1px solid rgba(255,255,255,0.07)">
+													<td style="padding: 6px 8px">{item.emoji || '—'}</td>
+													<td style="padding: 6px 8px"><b>{item.name}</b></td>
+													<td style="padding: 6px 8px">{roleName(item.roleId)}</td>
+													<td style="padding: 6px 8px">{item.price} cr</td>
+													<td style="padding: 6px 8px">{item.duration > 0 ? item.duration + 'h' : '∞ Permanent'}</td>
+													<td style="padding: 6px 8px"><span style="cursor: pointer" on:click={() => startEditShop(i)}>✏️</span></td>
+													<td style="padding: 6px 8px"><span class="deleteRow" style="cursor: pointer" on:click={() => removeShopItem(i)}>🗑️</span></td>
+												</tr>
+											{/if}
+										{/each}
+									</tbody>
+								</table>
+							</div>
+						{:else}
+							<p style="opacity: 60%">No shop items yet. Add one above.</p>
+						{/if}
+					</div>
+				{/if}
+			</div>
+		{/if}
+
+		<!-- ── CHESTS ─────────────────────────────────────────────────────────── -->
+		{#if activeCategory === 'chests'}
+			<div class="configboxes">
+				<div class="settingBox box fulllength">
+					<h1>Chests</h1>
+					<p>Let members spend credits to open a chest and receive a random XP reward.</p>
+					<h2>Enable Chests</h2>
+					<label class="slider" style="margin-top: 5px">
+						<input type="checkbox" bind:checked={s.chests.enabled} /><span class="sliderspan"></span>
+					</label>
+				</div>
+				<div class="settingBreak"></div>
+
+				{#if s.chests?.enabled}
+					<!-- Add item form -->
+					<div class="settingBox box fulllength">
+						<h2>Add chest</h2>
+						<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; margin-top: 10px">
+							<div>
+								<p class="details" style="margin-bottom: 4px">Name</p>
+								<input type="text" bind:value={newChestName} placeholder="Silver Chest" style="width: 100%" maxlength="100" />
+							</div>
+							<div>
+								<p class="details" style="margin-bottom: 4px">Emoji</p>
+								<input type="text" bind:value={newChestEmoji} placeholder="📦" style="width: 100%" maxlength="100" />
+							</div>
+							<div>
+								<p class="details" style="margin-bottom: 4px">Price (credits)</p>
+								<input type="number" bind:value={newChestPrice} min="0" style="width: 100%" />
+							</div>
+							<div>
+								<p class="details" style="margin-bottom: 4px">XP min</p>
+								<input type="number" bind:value={newChestXpMin} min="0" max="1000000" style="width: 100%" />
+							</div>
+							<div>
+								<p class="details" style="margin-bottom: 4px">XP max</p>
+								<input type="number" bind:value={newChestXpMax} min="0" max="1000000" style="width: 100%" />
+							</div>
+						</div>
+						<button style="margin-top: 12px; background-color: var(--emojigreen)" on:click={addChestItem}>Add chest</button>
+					</div>
+
+					<!-- Items table -->
+					<div class="settingBox box fulllength">
+						<h2 style="margin-bottom: 15px">Chests ({chestItems.length})</h2>
+						{#if chestItems.length}
+							<div style="overflow-x: auto">
+								<table style="width: 100%; border-collapse: collapse; font-size: 0.9em">
+									<thead>
+										<tr style="text-align: left; border-bottom: 1px solid rgba(255,255,255,0.15)">
+											<th style="padding: 6px 8px">Emoji</th>
+											<th style="padding: 6px 8px">Name</th>
+											<th style="padding: 6px 8px">Price</th>
+											<th style="padding: 6px 8px">XP range</th>
+											<th style="padding: 6px 8px">Edit</th>
+											<th style="padding: 6px 8px">Delete</th>
+										</tr>
+									</thead>
+									<tbody>
+										{#each chestItems as item, i}
+											{#if editingChestIndex === i}
+												<tr style="background: rgba(255,255,255,0.05)">
+													<td style="padding: 6px 8px">
+														<input type="text" bind:value={editingChestData.emoji} style="width: 70px" maxlength="100" />
+													</td>
+													<td style="padding: 6px 8px">
+														<input type="text" bind:value={editingChestData.name} style="width: 130px" maxlength="100" />
+													</td>
+													<td style="padding: 6px 8px">
+														<input type="number" bind:value={editingChestData.price} min="0" style="width: 90px" />
+													</td>
+													<td style="padding: 6px 8px">
+														<div class="centerflex spacedflex">
+															<input type="number" bind:value={editingChestData.xpMin} min="0" max="1000000" style="width: 80px" />
+															<span>–</span>
+															<input type="number" bind:value={editingChestData.xpMax} min="0" max="1000000" style="width: 80px" />
+														</div>
+													</td>
+													<td style="padding: 6px 8px">
+														<button style="background-color: var(--emojigreen); padding: 4px 8px" on:click={saveEditChest}>✔</button>
+														<button style="margin-left: 4px; padding: 4px 8px" on:click={() => editingChestIndex = -1}>✗</button>
+													</td>
+													<td></td>
+												</tr>
+											{:else}
+												<tr style="border-bottom: 1px solid rgba(255,255,255,0.07)">
+													<td style="padding: 6px 8px">{item.emoji || '—'}</td>
+													<td style="padding: 6px 8px"><b>{item.name}</b></td>
+													<td style="padding: 6px 8px">{item.price} cr</td>
+													<td style="padding: 6px 8px">{item.xpMin} – {item.xpMax} XP</td>
+													<td style="padding: 6px 8px"><span style="cursor: pointer" on:click={() => startEditChest(i)}>✏️</span></td>
+													<td style="padding: 6px 8px"><span class="deleteRow" style="cursor: pointer" on:click={() => removeChestItem(i)}>🗑️</span></td>
+												</tr>
+											{/if}
+										{/each}
+									</tbody>
+								</table>
+							</div>
+						{:else}
+							<p style="opacity: 60%">No chests yet. Add one above.</p>
+						{/if}
+					</div>
 				{/if}
 			</div>
 		{/if}
