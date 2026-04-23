@@ -4,15 +4,25 @@ const { ensureDailyQuests, computeBonusReward, allQuestsDone, allQuestsClaimed, 
 const TIER_EMOJI  = { easy: "🟢", medium: "🟡", hard: "🔴" }
 const TIER_LABEL  = { easy: "Easy",  medium: "Medium",  hard: "Hard" }
 
+// Custom emoji IDs used across the embed
+const E = {
+    gold:     "<:gold:1472934905972527285>",
+    progress: "<:progress:1466819928110792816>",
+    info:     "<:info:1466817220687695967>",
+    end:      "<:extendedend:1466819484999225579>",
+    unlocked: "<:unlocked:1466817218166788278>",
+    locked:   "<:locked:1466817215918772275>",
+}
+
 /**
- * Build the [████░░░] progress bar in the same style as /calculate.
+ * Compact 15-char progress bar.
  */
 function makeBar(progress, target) {
-    const barSize = 25
+    const barSize = 15
     const pct = target > 0 ? Math.min(100, progress / target * 100) : 100
     const filled = Math.round(pct / (100 / barSize))
-    const label = progress >= target ? "DONE ✅" : `${Number(pct.toFixed(1))}%`
-    return `\`[${"█".repeat(filled)}${"░".repeat(barSize - filled)}]\` ${label}`
+    if (progress >= target) return `\`[${"█".repeat(barSize)}]\``
+    return `\`[${"█".repeat(filled)}${"░".repeat(barSize - filled)}]\` ${Number(pct.toFixed(1))}%`
 }
 
 /**
@@ -23,65 +33,57 @@ function buildQuestsEmbed(tools, db, userId, member) {
     const questSettings = db.settings.quests || {}
     const list = q?.list || []
 
-    const streakCount  = q?.streak?.count  || 0
-    const streakHighest = q?.streak?.highest || 0
-    const bonusClaimed = q?.bonusClaimed || false
-    const rerollsUsed  = q?.rerollsUsedToday || 0
+    const streakCount   = q?.streak?.count   || 0
+    const streakHighest = q?.streak?.highest  || 0
+    const bonusClaimed  = q?.bonusClaimed     || false
+    const rerollsUsed   = q?.rerollsUsedToday || 0
     const rerollsPerDay = questSettings.rerollsPerDay ?? 1
-    const rerollCost    = questSettings.rerollCost ?? 100
+    const rerollCost    = questSettings.rerollCost    ?? 100
 
     const bonusReward = computeBonusReward(db.settings, streakCount)
 
-    // Calculate next UTC midnight timestamp
-    const nowMs = Date.now()
-    const nextMidnightMs = (() => {
-        const d = new Date(nowMs)
-        d.setUTCHours(24, 0, 0, 0)
-        return d.getTime()
-    })()
-    const nextResetUnix = Math.floor(nextMidnightMs / 1000)
+    // Next UTC midnight
+    const d = new Date()
+    d.setUTCHours(24, 0, 0, 0)
+    const nextResetUnix = Math.floor(d.getTime() / 1000)
 
-    // Build the fields for each quest
-    const fields = list.map((quest, i) => {
-        const tier = TIER_EMOJI[quest.tier] || "⚪"
-        const label = TIER_LABEL[quest.tier] || quest.tier
-        const bar = makeBar(quest.progress, quest.target)
-        const progressText = `${tools.commafy(quest.progress)} / ${tools.commafy(quest.target)}`
-        const rewardText = quest.claimed ? "Claimed!" : `${tools.commafy(quest.reward)} credits`
+    // Streak line
+    const bonusMultiplier = (1 + (questSettings.streakBonusMultiplier ?? 0.1) * Math.min(streakCount, questSettings.streakBonusCap ?? 7)).toFixed(1)
+    const streakLine = streakCount > 0
+        ? `🔥 **${streakCount}**-day streak (best: **${streakHighest}**) · bonus ×${bonusMultiplier}`
+        : `${E.locked} No streak yet — complete all 3 to start one!`
 
-        const statusIcon = quest.claimed ? "✅" : quest.progress >= quest.target ? "🎉" : "⏳"
+    // Quest fields — compact single-line layout
+    const fields = list.map((quest) => {
+        const tierEmoji  = TIER_EMOJI[quest.tier] || "⚪"
+        const tierLabel  = TIER_LABEL[quest.tier]  || quest.tier
+        const isDone     = quest.progress >= quest.target
+        const statusIcon = quest.claimed ? E.unlocked : isDone ? E.gold : E.progress
+        const bar        = quest.claimed
+            ? `\`[${"█".repeat(15)}]\` ${E.unlocked} Claimed`
+            : `${makeBar(quest.progress, quest.target)} · **${tools.commafy(quest.progress)}/${tools.commafy(quest.target)}** · ${E.gold} **${tools.commafy(quest.reward)}**`
 
         return {
-            name: `${statusIcon} ${tier} ${label}: ${quest.label}`,
-            value: [
-                quest.description,
-                bar,
-                `Progress: **${progressText}** · Reward: **${rewardText}**`,
-            ].join("\n"),
+            name:   `${statusIcon} ${tierEmoji} ${quest.label}  ·  ${tierLabel}`,
+            value:  `${E.end}${quest.description}\n${bar}`,
             inline: false,
         }
     })
 
     if (!list.length) {
         fields.push({
-            name: "No quests available",
-            value: "No quest templates are configured for this server yet.\nAsk a server admin to add quest templates on the dashboard.",
+            name:  `${E.info} No quests available`,
+            value: `${E.end}No quest templates are configured yet.\nAsk a server admin to add them on the dashboard.`,
             inline: false,
         })
     }
 
-    // Quest streak info
-    const streakText = streakCount > 0
-        ? `🔥 **${streakCount}** day streak (highest: **${streakHighest}**)` +
-          (streakCount > 0 ? ` · bonus ×${(1 + (questSettings.streakBonusMultiplier ?? 0.1) * Math.min(streakCount, questSettings.streakBonusCap ?? 7)).toFixed(1)}` : "")
-        : "No active quest streak yet — complete all 3 daily quests to start one!"
-
     const embed = tools.createEmbed({
-        author: { name: member.user.displayName, iconURL: member.user.displayAvatarURL() },
-        title: "📜 Daily Quests",
+        author:      { name: member.user.displayName, iconURL: member.user.displayAvatarURL() },
+        title:       `${E.progress} Daily Quests`,
         description: [
-            `Complete all 3 daily quests to earn a **bonus ${tools.commafy(bonusReward)} credits**!`,
-            `Resets <t:${nextResetUnix}:R> · ${streakText}`,
+            `${E.info} Complete all 3 · ${E.gold} **+${tools.commafy(bonusReward)} bonus** · Resets <t:${nextResetUnix}:R>`,
+            streakLine,
         ].join("\n"),
         color: tools.COLOR,
         fields,
@@ -90,13 +92,13 @@ function buildQuestsEmbed(tools, db, userId, member) {
     // --- Action rows ---
     const rows = []
 
-    // Row 1: Claim buttons for completed quests (up to 3)
+    // Row 1: one Claim button per quest
     const claimBtns = list.map((quest, i) => {
-        const done = quest.progress >= quest.target
-        const canClaim = done && !quest.claimed
+        const canClaim = quest.progress >= quest.target && !quest.claimed
         return new Discord.ButtonBuilder()
             .setCustomId(`quests_claim~${i}~${userId}`)
             .setLabel(`Claim ${TIER_LABEL[quest.tier] || "Quest"} (+${tools.commafy(quest.reward)})`)
+            .setEmoji(quest.claimed ? "✅" : canClaim ? { id: "1472934905972527285" } : { id: "1466817215918772275" })
             .setStyle(canClaim ? Discord.ButtonStyle.Success : Discord.ButtonStyle.Secondary)
             .setDisabled(!canClaim)
     })
@@ -104,17 +106,20 @@ function buildQuestsEmbed(tools, db, userId, member) {
     if (claimBtns.length) rows.push(new Discord.ActionRowBuilder().addComponents(claimBtns))
 
     // Row 2: Bonus + Reroll
-    const bonusDone = list.length > 0 && list.every(q => q.claimed)
+    const bonusDone  = list.length > 0 && list.every(q => q.claimed)
+    const rerollsLeft = rerollsPerDay - rerollsUsed
+
     const bonusBtn = new Discord.ButtonBuilder()
         .setCustomId(`quests_bonus~${userId}`)
-        .setLabel(`🎁 Claim 3/3 Bonus (+${tools.commafy(bonusReward)})`)
+        .setLabel(`Claim 3/3 Bonus (+${tools.commafy(bonusReward)})`)
+        .setEmoji("🎁")
         .setStyle(Discord.ButtonStyle.Primary)
         .setDisabled(!bonusDone || bonusClaimed)
 
-    const rerollsLeft = rerollsPerDay - rerollsUsed
     const rerollBtn = new Discord.ButtonBuilder()
         .setCustomId(`quests_reroll~${userId}`)
-        .setLabel(`🔄 Reroll Quest (${tools.commafy(rerollCost)} credits, ${rerollsLeft} left)`)
+        .setLabel(`Reroll (${tools.commafy(rerollCost)} cr · ${rerollsLeft} left)`)
+        .setEmoji("🔄")
         .setStyle(Discord.ButtonStyle.Danger)
         .setDisabled(rerollsLeft <= 0 || list.length === 0 || list.every(q => q.claimed))
 
@@ -153,7 +158,8 @@ module.exports = {
     buildDisabledComponents,
 
     async run(client, int, tools) {
-        const isHidden = !!int.options?.get("hidden")?.value
+        // Button triggers are always ephemeral; slash command respects the hidden option
+        const isHidden = int.isButton() || !!int.options?.get("hidden")?.value
         await int.deferReply({ ephemeral: isHidden })
 
         const db = await tools.fetchAll(int.guild.id)
