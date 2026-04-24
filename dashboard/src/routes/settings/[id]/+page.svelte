@@ -4,7 +4,7 @@
 	import { page } from '$app/stores'
 	import { apiFetch, loginButton } from '$lib/api.js'
 	import { xpForLevel, getLevel, commafy, timeStr, roleColor } from '$lib/xpMath.js'
-	import { Zap, Award, TrendingUp, Layers, CreditCard, Trophy, Database, Package, Shuffle, Flame, MessageSquare, Activity, Settings, Home, Scroll, ShoppingCart, Box } from 'lucide-svelte'
+	import { Zap, Award, TrendingUp, Layers, CreditCard, Trophy, Database, Package, Shuffle, Flame, MessageSquare, Activity, Settings, Home, Scroll, ShoppingCart, Box, Coins, BarChart2, ArrowUpCircle } from 'lucide-svelte'
 
 	const guildID = $page.params.id
 
@@ -36,6 +36,7 @@
 	let questTemplates = []
 	let shopItems = []
 	let chestItems = []
+	let chestTypes = []
 	let lastUpdated = 0
 
 	// Shop editor state
@@ -55,6 +56,15 @@
 	let newChestEmoji = ''
 	let editingChestIndex = -1
 	let editingChestData = {}
+
+	// Chest type (chestDrops tier) editor state
+	let newChestTypeName = ''
+	let newChestTypeChance = 25
+	let newChestTypeXpMin = 50
+	let newChestTypeXpMax = 200
+	let newChestTypeColor = '#00ff80'
+	let editingChestTypeIndex = -1
+	let editingChestTypeData = {}
 
 	// Quest editor state
 	const VALID_EVENT_TYPES = [
@@ -129,6 +139,9 @@
 		{ id: 'quests', label: 'Daily Quests', icon: Scroll },
 		{ id: 'shop', label: 'Shop', icon: ShoppingCart },
 		{ id: 'chests', label: 'Chests', icon: Box },
+		{ id: 'coinflip', label: 'Coinflip', icon: Coins },
+		{ id: 'bump', label: 'Bump Rewards', icon: ArrowUpCircle },
+		{ id: 'stats', label: 'Server Stats', icon: BarChart2 },
 		{ id: 'advanced', label: 'Advanced', icon: Settings }
 	]
 
@@ -136,13 +149,13 @@
 	let loaded = false
 	$: dirty = loaded && (
 		JSON.stringify(s) !== JSON.stringify(lastSaved)
-		|| JSON.stringify({ rewards, roleMultipliers, channelMultipliers, streakMilestones, immuneRoles, questTemplates, shopItems, chestItems })
+		|| JSON.stringify({ rewards, roleMultipliers, channelMultipliers, streakMilestones, immuneRoles, questTemplates, shopItems, chestItems, chestTypes })
 		   !== JSON.stringify(lastSavedTables)
 	)
 
 	function snapshotLastSaved() {
 		lastSaved = JSON.parse(JSON.stringify(s))
-		lastSavedTables = JSON.parse(JSON.stringify({ rewards, roleMultipliers, channelMultipliers, streakMilestones, immuneRoles, questTemplates, shopItems, chestItems }))
+		lastSavedTables = JSON.parse(JSON.stringify({ rewards, roleMultipliers, channelMultipliers, streakMilestones, immuneRoles, questTemplates, shopItems, chestItems, chestTypes }))
 	}
 
 	function roleName(id) {
@@ -508,7 +521,22 @@
 			'shop.enabled':   s.shop?.enabled,
 			'shop.items':     shopItems,
 			'chests.enabled': s.chests?.enabled,
-			'chests.items':   chestItems
+			'chests.items':   chestItems,
+			'coinflip.enabled': s.coinflip?.enabled,
+			'bump.enabled':         s.bump?.enabled,
+			'bump.channelId':       s.bump?.channelId,
+			'bump.rewardCredits':   +s.bump?.rewardCredits,
+			'bump.cooldownSeconds': +s.bump?.cooldownSeconds,
+			'bump.disboardBotId':   s.bump?.disboardBotId,
+			'stats.enabled':                    s.stats?.enabled,
+			'stats.logChannelId':               s.stats?.logChannelId,
+			'stats.reportHourUtc':              +s.stats?.reportHourUtc,
+			'stats.activeThresholdDaily':       +s.stats?.activeThresholdDaily,
+			'stats.activeThresholdWeekly':      +s.stats?.activeThresholdWeekly,
+			'stats.activeThresholdMonthly':     +s.stats?.activeThresholdMonthly,
+			'stats.activeThresholdQuarterly':   +s.stats?.activeThresholdQuarterly,
+			'chestDrops.emojiId':    s.chestDrops?.emojiId,
+			'chestDrops.chestTypes': chestTypes
 		})
 
 		try {
@@ -659,8 +687,12 @@
 		if (s.streak) { s.streak.creditsPerClaim = s.streak.creditsPerClaim ?? 0; s.streak.minStreakForCredits = s.streak.minStreakForCredits ?? 0 }
 		if (s.chestDrops) { s.chestDrops.showPreMessage = s.chestDrops.showPreMessage ?? true; s.chestDrops.keyEmoji = s.chestDrops.keyEmoji ?? '🗝️'; s.chestDrops.chestEmoji = s.chestDrops.chestEmoji ?? '📦' }
 
-		s.shop   = s.shop   || { enabled: false }
-		s.chests = s.chests || { enabled: false }
+		s.shop     = s.shop     || { enabled: false }
+		s.chests   = s.chests   || { enabled: false }
+		s.coinflip = s.coinflip || { enabled: false }
+		s.bump     = s.bump     || { enabled: false, channelId: '1280913100924653608', rewardCredits: 5, cooldownSeconds: 7200, disboardBotId: '302050872383242240' }
+		s.stats    = s.stats    || { enabled: false, logChannelId: '', reportHourUtc: 12, activeThresholdDaily: 8, activeThresholdWeekly: 35, activeThresholdMonthly: 140, activeThresholdQuarterly: 420 }
+		if (s.chestDrops) s.chestDrops.emojiId = s.chestDrops.emojiId ?? ''
 
 		// Ensure quests object exists with defaults
 		s.quests = s.quests || { enabled: false, rewardEasy: 50, rewardMedium: 150, rewardHard: 400, rewardBonus: 300, streakBonusMultiplier: 0.1, streakBonusCap: 7, rerollCost: 100, rerollsPerDay: 1, announceChannelId: '', templates: [] }
@@ -674,6 +706,7 @@
 		questTemplates = db.quests?.templates || []
 		shopItems  = db.shop?.items  || []
 		chestItems = db.chests?.items || []
+		chestTypes = db.chestDrops?.chestTypes || []
 
 		// Load quest presets
 		apiFetch('/api/questPresets').then(p => { questPresets = p }).catch(() => {})
@@ -1570,6 +1603,101 @@
 						<p class="details">Emoji shown when the chest appears.</p>
 						<input type="text" bind:value={s.chestDrops.chestEmoji} style="width: 80px" placeholder="📦" />
 					</div>
+
+					<div class="settingBox box">
+						<h2>Custom emoji ID</h2>
+						<p class="details">Discord custom emoji ID to use for the chest button. Overrides the emoji fields above when set. Leave blank to use the emoji text instead.</p>
+						<input type="text" bind:value={s.chestDrops.emojiId} style="width: 220px" placeholder="e.g. 1234567890123456789" />
+					</div>
+
+					<div class="settingBox box fulllength">
+						<h2>Chest tiers</h2>
+						<p class="details">Define custom chest types with different XP rewards and drop chances. When set, the bot will randomly pick a tier on each chest drop according to the chance weights.</p>
+
+						<h2 style="margin-top: 20px">Add tier</h2>
+						<div class="simpleflex" style="gap: 12px; flex-wrap: wrap; align-items: flex-end; margin-top: 8px">
+							<div class="field">
+								<p class="details" style="margin-bottom: 2px">Type name</p>
+								<input type="text" bind:value={newChestTypeName} placeholder="e.g. Rare" style="width: 130px" />
+							</div>
+							<div class="field">
+								<p class="details" style="margin-bottom: 2px">Chance %</p>
+								<input type="number" bind:value={newChestTypeChance} min="1" max="100" style="width: 80px" />
+							</div>
+							<div class="field">
+								<p class="details" style="margin-bottom: 2px">XP min</p>
+								<input type="number" bind:value={newChestTypeXpMin} min="-10000" max="10000" style="width: 90px" />
+							</div>
+							<div class="field">
+								<p class="details" style="margin-bottom: 2px">XP max</p>
+								<input type="number" bind:value={newChestTypeXpMax} min="-10000" max="10000" style="width: 90px" />
+							</div>
+							<div class="field">
+								<p class="details" style="margin-bottom: 2px">Color</p>
+								<input type="color" bind:value={newChestTypeColor} style="width: 45px; height: 40px" />
+							</div>
+							<button style="margin-bottom: 0" on:click={() => {
+								if (!newChestTypeName.trim()) return alert('Type name is required.')
+								const color = parseInt(newChestTypeColor.replace('#', ''), 16)
+								chestTypes = [...chestTypes, { type: newChestTypeName.trim(), chance: Math.max(1, +newChestTypeChance), xpMin: +newChestTypeXpMin, xpMax: Math.max(+newChestTypeXpMin, +newChestTypeXpMax), color }]
+								newChestTypeName = ''; newChestTypeChance = 25; newChestTypeXpMin = 50; newChestTypeXpMax = 200; newChestTypeColor = '#00ff80'
+							}}>Add</button>
+						</div>
+
+						<h2 style="margin-top: 30px; margin-bottom: 15px">Current tiers ({chestTypes.length})</h2>
+						{#if chestTypes.length}
+							<div style="overflow-x: auto">
+								<table style="border-collapse: collapse; min-width: 100%">
+									<thead>
+										<tr style="border-bottom: 2px solid rgba(255,255,255,0.15)">
+											<th style="padding: 6px 10px; text-align: left">Type</th>
+											<th style="padding: 6px 10px; text-align: left">Chance</th>
+											<th style="padding: 6px 10px; text-align: left">XP range</th>
+											<th style="padding: 6px 10px; text-align: left">Color</th>
+											<th style="padding: 6px 10px"></th>
+											<th style="padding: 6px 10px"></th>
+										</tr>
+									</thead>
+									<tbody>
+										{#each chestTypes as ct, i}
+											{#if editingChestTypeIndex === i}
+												<tr style="border-bottom: 1px solid rgba(255,255,255,0.07); background: rgba(255,255,255,0.04)">
+													<td style="padding: 6px 8px"><input type="text" bind:value={editingChestTypeData.type} style="width: 110px" /></td>
+													<td style="padding: 6px 8px"><input type="number" bind:value={editingChestTypeData.chance} min="1" max="100" style="width: 70px" /></td>
+													<td style="padding: 6px 8px">
+														<input type="number" bind:value={editingChestTypeData.xpMin} style="width: 80px" />
+														<span style="margin: 0 6px">–</span>
+														<input type="number" bind:value={editingChestTypeData.xpMax} style="width: 80px" />
+													</td>
+													<td style="padding: 6px 8px">
+														<input type="color" value={'#' + (editingChestTypeData.color || 0).toString(16).padStart(6, '0')} on:input={(e) => editingChestTypeData.color = parseInt(e.currentTarget.value.replace('#',''), 16)} style="width: 40px; height: 34px" />
+													</td>
+													<td style="padding: 6px 8px"><button style="height: 34px; font-size: 14px; background-color: var(--emojigreen)" on:click={() => {
+														const updated = { ...editingChestTypeData }
+														updated.xpMin = +updated.xpMin; updated.xpMax = Math.max(+updated.xpMin, +updated.xpMax); updated.chance = Math.max(1, +updated.chance)
+														chestTypes = chestTypes.map((t, j) => j === i ? updated : t)
+														editingChestTypeIndex = -1
+													}}>Save</button></td>
+													<td style="padding: 6px 8px"><button style="height: 34px; font-size: 14px" on:click={() => editingChestTypeIndex = -1}>Cancel</button></td>
+												</tr>
+											{:else}
+												<tr style="border-bottom: 1px solid rgba(255,255,255,0.07)">
+													<td style="padding: 6px 8px"><b>{ct.type}</b></td>
+													<td style="padding: 6px 8px">{ct.chance}%</td>
+													<td style="padding: 6px 8px">{ct.xpMin} – {ct.xpMax} XP</td>
+													<td style="padding: 6px 8px"><span style="display: inline-block; width: 22px; height: 22px; border-radius: 4px; background: {'#' + (ct.color || 0).toString(16).padStart(6,'0')}; border: 1px solid rgba(255,255,255,0.2)"></span></td>
+													<td style="padding: 6px 8px"><span style="cursor: pointer" on:click={() => { editingChestTypeIndex = i; editingChestTypeData = { ...ct } }}>✏️</span></td>
+													<td style="padding: 6px 8px"><span class="deleteRow" style="cursor: pointer" on:click={() => { chestTypes = chestTypes.filter((_, j) => j !== i); if (editingChestTypeIndex === i) editingChestTypeIndex = -1 }}>🗑️</span></td>
+												</tr>
+											{/if}
+										{/each}
+									</tbody>
+								</table>
+							</div>
+						{:else}
+							<p style="opacity: 60%">No tiers defined — the default single chest type will be used.</p>
+						{/if}
+					</div>
 				{/if}
 			</div>
 		{/if}
@@ -2288,6 +2416,121 @@
 						{:else}
 							<p style="opacity: 60%">No chests yet. Add one above.</p>
 						{/if}
+					</div>
+				{/if}
+			</div>
+		{/if}
+
+		<!-- ── COINFLIP ─────────────────────────────────────────────────────── -->
+		{#if activeCategory === 'coinflip'}
+			<div class="configboxes">
+				<div class="settingBox box fulllength">
+					<h1>Coinflip</h1>
+					<p>Allow members to gamble credits with the <b>/coinflip</b> command. Requires the Shop &amp; Chests system to be active so members have a credit balance to wager.</p>
+					<h2>Enable Coinflip</h2>
+					<label class="slider" style="margin-top: 5px">
+						<input type="checkbox" bind:checked={s.coinflip.enabled} /><span class="sliderspan"></span>
+					</label>
+				</div>
+			</div>
+		{/if}
+
+		<!-- ── BUMP REWARDS ──────────────────────────────────────────────────── -->
+		{#if activeCategory === 'bump'}
+			<div class="configboxes">
+				<div class="settingBox box fulllength">
+					<h1>Bump Rewards</h1>
+					<p>Reward members with credits when they bump the server on Disboard using <b>/bump</b>. The bot watches for the Disboard confirmation message in the configured channel.</p>
+					<h2>Enable Bump Rewards</h2>
+					<label class="slider" style="margin-top: 5px">
+						<input type="checkbox" bind:checked={s.bump.enabled} /><span class="sliderspan"></span>
+					</label>
+				</div>
+
+				{#if s.bump?.enabled}
+					<div class="settingBox box">
+						<h2>Bump channel</h2>
+						<p class="details">Channel where members run /bump. The bot listens here for the Disboard confirmation.</p>
+						<select bind:value={s.bump.channelId}>
+							<option value="">(Select channel)</option>
+							{#each channels as ch}<option value={ch.id}>#{ch.name}</option>{/each}
+						</select>
+					</div>
+
+					<div class="settingBox box">
+						<h2>Credits reward</h2>
+						<p class="details">Credits awarded to the member who successfully bumps.</p>
+						<input type="number" bind:value={s.bump.rewardCredits} min="0" max="1000000" style="width: 120px" />
+					</div>
+
+					<div class="settingBox box">
+						<h2>Cooldown</h2>
+						<p class="details">How long after a bump before the reward can be claimed again (matches Disboard's 2-hour cooldown by default).</p>
+						<div class="centerflex spacedflex">
+							<input type="number" bind:value={s.bump.cooldownSeconds} min="0" max="31536000" style="width: 110px" />
+							<p>seconds</p>
+						</div>
+						<p class="details" style="margin-top: 4px">{Math.round((s.bump.cooldownSeconds || 0) / 60)} minutes / {((s.bump.cooldownSeconds || 0) / 3600).toFixed(2)} hours</p>
+					</div>
+
+					<div class="settingBox box">
+						<h2>Disboard Bot ID</h2>
+						<p class="details">Discord user ID of the Disboard bot. Change only if Disboard updates their bot ID.</p>
+						<input type="text" bind:value={s.bump.disboardBotId} style="width: 220px" placeholder="302050872383242240" />
+					</div>
+				{/if}
+			</div>
+		{/if}
+
+		<!-- ── SERVER STATS ──────────────────────────────────────────────────── -->
+		{#if activeCategory === 'stats'}
+			<div class="configboxes">
+				<div class="settingBox box fulllength">
+					<h1>Server Stats</h1>
+					<p>Automatically post a daily activity report to a channel. The report shows how many members were active at different thresholds (daily, weekly, monthly, quarterly).</p>
+					<h2>Enable Server Stats</h2>
+					<label class="slider" style="margin-top: 5px">
+						<input type="checkbox" bind:checked={s.stats.enabled} /><span class="sliderspan"></span>
+					</label>
+				</div>
+
+				{#if s.stats?.enabled}
+					<div class="settingBox box">
+						<h2>Log channel</h2>
+						<p class="details">Channel where the daily stats report is posted.</p>
+						<select bind:value={s.stats.logChannelId}>
+							<option value="">(None)</option>
+							{#each channels as ch}<option value={ch.id}>#{ch.name}</option>{/each}
+						</select>
+					</div>
+
+					<div class="settingBox box">
+						<h2>Report hour (UTC)</h2>
+						<p class="details">Hour of day (UTC 0–23) at which the daily report is posted.</p>
+						<input type="number" bind:value={s.stats.reportHourUtc} min="0" max="23" style="width: 80px" />
+					</div>
+
+					<div class="settingBox box fulllength">
+						<h2>Activity thresholds</h2>
+						<p class="details">Minimum number of messages a member needs to send in each period to be counted as "active".</p>
+						<div class="simpleflex" style="gap: 40px; flex-wrap: wrap; margin-top: 10px">
+							<div class="field">
+								<p style="margin-bottom: 4px; font-weight: bold">Daily</p>
+								<input type="number" bind:value={s.stats.activeThresholdDaily} min="1" max="100000" style="width: 110px" />
+							</div>
+							<div class="field">
+								<p style="margin-bottom: 4px; font-weight: bold">Weekly</p>
+								<input type="number" bind:value={s.stats.activeThresholdWeekly} min="1" max="100000" style="width: 110px" />
+							</div>
+							<div class="field">
+								<p style="margin-bottom: 4px; font-weight: bold">Monthly</p>
+								<input type="number" bind:value={s.stats.activeThresholdMonthly} min="1" max="100000" style="width: 110px" />
+							</div>
+							<div class="field">
+								<p style="margin-bottom: 4px; font-weight: bold">Quarterly</p>
+								<input type="number" bind:value={s.stats.activeThresholdQuarterly} min="1" max="100000" style="width: 110px" />
+							</div>
+						</div>
 					</div>
 				{/if}
 			</div>

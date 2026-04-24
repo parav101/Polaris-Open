@@ -70,6 +70,21 @@ If it's not connecting, try checking:
 - Did you enter the right username and password?
   
 
+### Step 3.5: Build the dashboard
+The web dashboard is a SvelteKit static site that must be compiled before the bot can serve it. Run this from the **repo root** (no need to `cd` into the `dashboard` folder):
+
+```sh
+npm run build:dashboard
+```
+
+This installs the dashboard's dependencies and compiles it into `dashboard/build/`. You only need to re-run this when you change dashboard source files. Other useful scripts:
+
+| Script | What it does |
+|---|---|
+| `npm run build:dashboard` | Install deps + compile the dashboard |
+| `npm run install:dashboard` | Only install deps (no build) |
+| `npm run dev:dashboard` | Start the Vite dev server on port 5173 |
+
 ### Step 4: Final steps
 1. Deploy the bot's commands by running /deploy with the global argument set to true
 2. If you have the web server enabled, it should be running on localhost. From there you can authorize your Discord account and change server settings
