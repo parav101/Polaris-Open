@@ -1,5 +1,4 @@
 const Discord = require("discord.js")
-const config = require("../../config.json")
 
 // ─── Custom emoji dictionary ──────────────────────────────────────────────────
 const E = {
@@ -21,6 +20,7 @@ const PAGES = [
     { id: "xp",      emoji: "⚡", label: "Earning XP",     gate: (db) => !!db.settings.enabled },
     { id: "levels",  emoji: "🏆", label: "Levels & Roles", gate: (db) => !!db.settings.enabled },
     { id: "daily",   emoji: "🔥", label: "Daily Rewards",  gate: (db) => !!(db.settings.streak?.enabled || db.settings.quests?.enabled) },
+    { id: "credits", emoji: "💰", label: "Credits",        gate: (db) => !!(db.settings.shop?.enabled || db.settings.coinflip?.enabled || db.settings.chests?.enabled || db.settings.streak?.enabled) },
     { id: "compete", emoji: "📊", label: "Leaderboard",    gate: ()   => true },
 ]
 
@@ -38,7 +38,7 @@ function buildComponents(tools, pages, idx, guild) {
         })))
     const row1 = new Discord.ActionRowBuilder().addComponents(selectMenu)
 
-    // Row 2: Prev / Next buttons, plus a Dashboard link on the last page
+    // Row 2: Prev / Next navigation buttons
     const isFirst = idx === 0
     const isLast  = idx === pages.length - 1
 
@@ -55,23 +55,15 @@ function buildComponents(tools, pages, idx, guild) {
             .setDisabled(isLast),
     ]
 
-    if (isLast && tools.WEBSITE) {
+    // On the compete page add a web leaderboard link
+    if (pages[idx]?.id === "compete" && tools.WEBSITE) {
         navBtns.push(
             new Discord.ButtonBuilder()
                 .setStyle(Discord.ButtonStyle.Link)
-                .setLabel("Dashboard")
-                .setURL(`${tools.WEBSITE}/settings/${guild.id}`)
-                .setEmoji("⚙️")
+                .setLabel("Web Leaderboard")
+                .setURL(`${tools.WEBSITE}/leaderboard/${guild.id}`)
+                .setEmoji("📊")
         )
-        if (config.supportURL) {
-            navBtns.push(
-                new Discord.ButtonBuilder()
-                    .setStyle(Discord.ButtonStyle.Link)
-                    .setLabel("Support")
-                    .setURL(config.supportURL)
-                    .setEmoji("❓")
-            )
-        }
     }
 
     const row2 = new Discord.ActionRowBuilder().addComponents(navBtns)
@@ -87,7 +79,7 @@ function buildGuidePage(tools, db, pageId, member, guild, pages, idx) {
 
         case "home": {
             const lines = [
-                "**Polaris** is a super customizable XP & leveling bot. Here's what you can do here:",
+                "**Vibez** is a super customizable XP & leveling bot. Here's what you can do here:",
                 "",
             ]
             if (db.settings.enabled)                            lines.push(`${E.progress} **Earn XP** by chatting${db.settings.enabledVoiceXp ? " and hanging out in voice" : ""}`)
@@ -96,7 +88,7 @@ function buildGuidePage(tools, db, pageId, member, guild, pages, idx) {
             if (db.settings.quests?.enabled)                    lines.push(`📜 **Complete quests** every day for extra rewards`)
             if (db.settings.shop?.enabled)                      lines.push(`${E.gold} **Spend credits** in the shop on exclusive roles`)
             if (db.settings.coinflip?.enabled)                  lines.push(`🪙 **Gamble credits** with coinflip`)
-            if (!db.settings.leaderboard?.disabled)             lines.push(`📊 **Compete** on the leaderboard with other members`)
+            lines.push(`📊 **Compete** on the leaderboard with other members`)
 
             embed = tools.createEmbed({
                 author:      { name: guild.name, iconURL: guild.iconURL({ dynamic: true }) || undefined },
@@ -153,7 +145,7 @@ function buildGuidePage(tools, db, pageId, member, guild, pages, idx) {
             if (hasRankCard) {
                 fields.push({
                     name:   `${E.progress} Your Rank Card`,
-                    value:  `Run ${tools.commandTag("rank")} for a visual snapshot of your level and XP progress bar.\n${E.end}${tools.commandTag("top")} shows the full server leaderboard.`,
+                    value:  `Run ${tools.commandTag("rank")} for a visual snapshot of your level and XP progress bar.\n${E.end}${tools.commandTag("leaderboard")} shows the full server leaderboard.`,
                     inline: false,
                 })
             }
@@ -167,10 +159,16 @@ function buildGuidePage(tools, db, pageId, member, guild, pages, idx) {
             } else {
                 fields.push({
                     name:   `${E.level} Keep Leveling!`,
-                    value:  `Every level reflects your dedication. Track your progress with ${tools.commandTag("rank")} and challenge others on ${tools.commandTag("top")}.`,
+                    value:  `Every level reflects your dedication. Track your progress with ${tools.commandTag("rank")} and challenge others on ${tools.commandTag("leaderboard")}.`,
                     inline: false,
                 })
             }
+
+            fields.push({
+                name:   `${E.info} Milestones & Overview`,
+                value:  `Use ${tools.commandTag("stats")} to see your milestone progress and a general overview of your account.`,
+                inline: false,
+            })
 
             embed = tools.createEmbed({
                 title:       "🏆 Levels & Reward Roles",
@@ -189,10 +187,10 @@ function buildGuidePage(tools, db, pageId, member, guild, pages, idx) {
 
             if (hasStreak) {
                 const baseReward   = db.settings.streak?.baseReward || 0
-                const rewardClause = baseReward > 0 ? ` **+${tools.commafy(baseReward)}** bonus XP` : " bonus rewards"
+                const rewardClause = baseReward > 0 ? ` **+${tools.commafy(baseReward)}** bonus XP` : " a bonus reward"
                 fields.push({
                     name:   "🔥 Daily Streak",
-                    value:  `Claim your streak every day to earn${rewardClause}. Miss a day and it resets back to zero — consistency is everything!\n${E.end}Run ${tools.commandTag("streak")} to claim yours right now.`,
+                    value:  `Your streak **updates automatically** when you chat — no need to run any command! Just be active every day to earn${rewardClause} and keep your streak alive. Miss a day and it resets to zero.\n${E.end}Run ${tools.commandTag("streak")} anytime to check your current streak and upcoming milestones.`,
                     inline: false,
                 })
             }
@@ -218,16 +216,72 @@ function buildGuidePage(tools, db, pageId, member, guild, pages, idx) {
             break
         }
 
-        case "compete": {
-            const hasLB    = !db.settings.leaderboard?.disabled
-            const hasStats = !!db.settings.stats?.enabled
+        case "credits": {
+            const hasShop     = !!db.settings.shop?.enabled
+            const hasCoinflip = !!db.settings.coinflip?.enabled
+            const hasChests   = !!db.settings.chests?.enabled
 
+            const earnLines = []
+            if (db.settings.streak?.enabled)  earnLines.push("🔥 Claiming your daily streak")
+            if (db.settings.quests?.enabled)  earnLines.push("📜 Completing daily quests")
+            if (db.settings.bump?.enabled)    earnLines.push("⬆️ Bumping the server")
+            if (db.settings.activityLeaderboard?.enabled) earnLines.push(`${E.progress} Topping the activity leaderboard`)
+
+            const fields = []
+
+            if (earnLines.length > 0) {
+                fields.push({
+                    name:   `${E.gold} How to Earn Credits`,
+                    value:  earnLines.join("\n") + `\n${E.end}Check your balance anytime with ${tools.commandTag("balance")}.`,
+                    inline: false,
+                })
+            }
+
+            if (hasShop) {
+                fields.push({
+                    name:   "🛒 Shop",
+                    value:  `Spend your credits on temporary roles in the ${tools.commandTag("shop")}. Roles are granted instantly and expire automatically after their set duration.`,
+                    inline: false,
+                })
+            }
+
+            if (hasChests) {
+                fields.push({
+                    name:   `${E.chest} Chests`,
+                    value:  `Buy ${tools.commandTag("chests")} with credits for a chance at bonus XP rewards. Higher tiers = bigger potential haul.`,
+                    inline: false,
+                })
+            }
+
+            if (hasCoinflip) {
+                fields.push({
+                    name:   "🪙 Coinflip",
+                    value:  `Feeling lucky? Use ${tools.commandTag("coinflip")} to bet your credits. Win and double up — lose and they're gone. Gamble responsibly!`,
+                    inline: false,
+                })
+            }
+
+            fields.push({
+                name:   "↔️ Transfer",
+                value:  `Send credits to another member with ${tools.commandTag("transfer")} — great for gifting or tipping active friends.`,
+                inline: false,
+            })
+
+            embed = tools.createEmbed({
+                title:       `${E.gold} Credits`,
+                description: "Credits are the in-server currency. Earn them by being active, spend them on perks.",
+                color:       tools.COLOR,
+                fields,
+                footer:      "Credits don't expire — hoard them or splurge, up to you!",
+            })
+            break
+        }
+
+        case "compete": {
             const fields = [
                 {
                     name:   `${E.progress} Leaderboard`,
-                    value:  hasLB
-                        ? `Run ${tools.commandTag("top")} to see the top members by XP — or check the live web leaderboard from the Dashboard button below!`
-                        : `Run ${tools.commandTag("top")} to see who's leading the server.`,
+                    value:  `Run ${tools.commandTag("leaderboard")} to see the top members by XP — or hit the **Web Leaderboard** button below for the live version!`,
                     inline: false,
                 },
                 {
@@ -236,8 +290,8 @@ function buildGuidePage(tools, db, pageId, member, guild, pages, idx) {
                     inline: false,
                 },
                 {
-                    name:   `${E.info} Deep Dive`,
-                    value:  `${tools.commandTag("info")} shows your full stats: XP boost, streak, credits, and recent transactions.\n${E.end}${hasStats ? `${tools.commandTag("stats")} gives the server-wide activity overview.` : "That's everything — now go earn some XP! 🚀"}`,
+                    name:   `${E.info} Stats & Milestones`,
+                    value:  `${tools.commandTag("stats")} shows your milestone progress and a general overview of your account.\n${E.end}${tools.commandTag("info")} goes deeper — XP boost, streak, credits, and recent transactions.`,
                     inline: false,
                 },
             ]
