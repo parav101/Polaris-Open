@@ -126,16 +126,57 @@ function getStatsRetentionUnset(statsDaily, maxDays = MAX_DAILY_STATS_DAYS) {
     return unset
 }
 
-function shouldPostScheduledReport(doc, now = new Date()) {
+// Returns an array of { periodKey, channelId } for every period that should be
+// posted right now for this guild. An empty array means nothing to post.
+function getScheduledReports(doc, now = new Date()) {
     const statsSettings = doc?.settings?.stats
-    if (!statsSettings?.enabled || !statsSettings.logChannelId) return false
+    if (!statsSettings?.enabled) return []
+
+    const fallbackChannelId = statsSettings.logChannelId || ""
+    const reportHourUtc = Number(statsSettings.reportHourUtc || 0)
+    if (now.getUTCHours() !== reportHourUtc) return []
 
     const reportKey = getUtcDateKeyOffset(-1, now)
-    const reportHourUtc = Number(statsSettings.reportHourUtc || 0)
-    if (now.getUTCHours() !== reportHourUtc) return false
-    if (doc.info?.statsLastReportKey === reportKey) return false
+    const reports = []
 
-    return true
+    // Daily (on by default)
+    if (statsSettings.dailyEnabled !== false) {
+        const channelId = statsSettings.dailyChannelId || fallbackChannelId
+        if (channelId && doc.info?.statsLastReportKey !== reportKey) {
+            reports.push({ periodKey: "daily", channelId, trackingField: "statsLastReportKey" })
+        }
+    }
+
+    // Weekly — only fires on the day after the last day of the week (Sunday UTC, reportKey = Saturday)
+    if (isWeeklyReportDay(reportKey) && statsSettings.weeklyEnabled !== false) {
+        const channelId = statsSettings.weeklyChannelId || fallbackChannelId
+        if (channelId && doc.info?.statsLastWeeklyReportKey !== reportKey) {
+            reports.push({ periodKey: "weekly", channelId, trackingField: "statsLastWeeklyReportKey" })
+        }
+    }
+
+    // Monthly — only fires on the last day of the month
+    if (isMonthlyReportDay(reportKey) && statsSettings.monthlyEnabled === true) {
+        const channelId = statsSettings.monthlyChannelId || fallbackChannelId
+        if (channelId && doc.info?.statsLastMonthlyReportKey !== reportKey) {
+            reports.push({ periodKey: "monthly", channelId, trackingField: "statsLastMonthlyReportKey" })
+        }
+    }
+
+    // Quarterly — only fires on the last day of a quarter-end month
+    if (isQuarterlyReportDay(reportKey) && statsSettings.quarterlyEnabled === true) {
+        const channelId = statsSettings.quarterlyChannelId || fallbackChannelId
+        if (channelId && doc.info?.statsLastQuarterlyReportKey !== reportKey) {
+            reports.push({ periodKey: "quarterly", channelId, trackingField: "statsLastQuarterlyReportKey" })
+        }
+    }
+
+    return reports
+}
+
+// Keep old name as an alias so any other callers aren't broken
+function shouldPostScheduledReport(doc, now = new Date()) {
+    return getScheduledReports(doc, now).length > 0
 }
 
 // Returns true if the reportKey date is a Saturday (UTC day 6) — end of week.
@@ -193,39 +234,32 @@ function buildComparisonValue(summary, tools) {
     ].join("\n")
 }
 
-function buildScheduledStatsEmbed(guild, statsDaily, statsSettings, tools, endKey) {
+function buildScheduledStatsEmbed(guild, statsDaily, statsSettings, tools, endKey, periodKey = "daily") {
+    const period = PERIODS[periodKey] || PERIODS.daily
     const summaries = buildPeriodSummaries(statsDaily, statsSettings, endKey)
-    const daily = summaries.daily
-
-    const showWeekly = isWeeklyReportDay(endKey)
-    const showMonthly = isMonthlyReportDay(endKey)
-    const showQuarterly = isQuarterlyReportDay(endKey)
-
-    // Build a human-readable description of which periods are included
-    const periodLabels = ["Daily"]
-    if (showWeekly) periodLabels.push("Weekly")
-    if (showMonthly) periodLabels.push("Monthly")
-    if (showQuarterly) periodLabels.push("Quarterly")
-    const lastLabel = periodLabels.pop()
-    const descPeriods = periodLabels.length ? `${periodLabels.join(", ")} & ${lastLabel}` : lastLabel
+    const summary = summaries[period.key]
 
     const fields = [
-        { name: "Daily", value: buildComparisonValue(summaries.daily, tools), inline: true },
+        {
+            name: `${period.label} Summary`,
+            value: buildComparisonValue(summary, tools),
+            inline: false,
+        },
+        {
+            name: "Top Members",
+            value: buildRankingList(summary.topMembers, id => `<@${id}>`, tools, "_No messages recorded._"),
+            inline: false,
+        },
+        {
+            name: "Top Channels",
+            value: buildRankingList(summary.topChannels, id => `<#${id}>`, tools, "_No messages recorded._"),
+            inline: false,
+        },
     ]
 
-    if (showWeekly) fields.push({ name: "Weekly", value: buildComparisonValue(summaries.weekly, tools), inline: true })
-    if (showMonthly) fields.push({ name: "Monthly", value: buildPeriodValue(summaries.monthly, tools), inline: true })
-    if (showQuarterly) fields.push({ name: "Quarterly", value: buildPeriodValue(summaries.quarterly, tools), inline: true })
-
-    fields.push({
-        name: "Top Members (Daily)",
-        value: buildRankingList(daily.topMembers, id => `<@${id}>`, tools, "_No messages recorded._"),
-        inline: false,
-    })
-
     return tools.createEmbed({
-        title: "Server Activity Report",
-        description: `${descPeriods} report ending on **${endKey}** (UTC).`,
+        title: `${period.label} Activity Report`,
+        description: `**${period.label}** report ending on **${endKey}** (UTC).`,
         color: tools.COLOR,
         timestamp: true,
         author: {
@@ -279,6 +313,7 @@ module.exports = {
     buildPeriodStatsEmbed,
     buildScheduledStatsEmbed,
     createStatsIncrementUpdate,
+    getScheduledReports,
     getStatsRetentionUnset,
     getUtcDateKey,
     getUtcDateKeyOffset,

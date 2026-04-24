@@ -2514,7 +2514,7 @@
 			<div class="configboxes">
 				<div class="settingBox box fulllength">
 					<h1>Server Stats</h1>
-					<p>Automatically post a daily activity report to a channel. The report shows how many members were active at different thresholds (daily, weekly, monthly, quarterly).</p>
+					<p>Automatically post activity reports to Discord channels. Each period (daily, weekly, monthly, quarterly) can be sent to the same channel or different channels.</p>
 					<h2>Enable Server Stats</h2>
 					<label class="slider" style="margin-top: 5px">
 						<input type="checkbox" bind:checked={s.stats.enabled} /><span class="sliderspan"></span>
@@ -2523,8 +2523,8 @@
 
 				{#if s.stats?.enabled}
 					<div class="settingBox box">
-						<h2>Log channel</h2>
-						<p class="details">Channel where the daily stats report is posted.</p>
+						<h2>Default channel</h2>
+						<p class="details">Fallback channel used for any period that doesn't have its own channel set.</p>
 						<select bind:value={s.stats.logChannelId}>
 							<option value="">(None)</option>
 							{#each channels as ch}<option value={ch.id}>#{ch.name}</option>{/each}
@@ -2533,13 +2533,92 @@
 
 					<div class="settingBox box">
 						<h2>Report hour (UTC)</h2>
-						<p class="details">Hour of day (UTC 0–23) at which the daily report is posted.</p>
+						<p class="details">Hour of day (UTC 0–23) at which reports are posted.</p>
 						<input type="number" bind:value={s.stats.reportHourUtc} min="0" max="23" style="width: 80px" />
+					</div>
+
+					<!-- Per-period config -->
+					<div class="settingBox box fulllength">
+						<h2>Report schedules</h2>
+						<p class="details">Choose which reports to send and where. If a period channel is left blank, the default channel above is used.</p>
+
+						<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 20px; margin-top: 14px;">
+							<!-- Daily -->
+							<div style="background: var(--bg2, #1e1e2e); border-radius: 8px; padding: 14px 16px;">
+								<div class="simpleflex" style="justify-content: space-between; align-items: center; margin-bottom: 10px;">
+									<p style="font-weight: bold; margin: 0">Daily</p>
+									<label class="slider">
+										<input type="checkbox" bind:checked={s.stats.dailyEnabled} /><span class="sliderspan"></span>
+									</label>
+								</div>
+								{#if s.stats.dailyEnabled !== false}
+									<p class="details" style="margin-bottom: 6px">Channel</p>
+									<select bind:value={s.stats.dailyChannelId} style="width: 100%">
+										<option value="">(Default channel)</option>
+										{#each channels as ch}<option value={ch.id}>#{ch.name}</option>{/each}
+									</select>
+								{/if}
+							</div>
+
+							<!-- Weekly -->
+							<div style="background: var(--bg2, #1e1e2e); border-radius: 8px; padding: 14px 16px;">
+								<div class="simpleflex" style="justify-content: space-between; align-items: center; margin-bottom: 10px;">
+									<p style="font-weight: bold; margin: 0">Weekly</p>
+									<label class="slider">
+										<input type="checkbox" bind:checked={s.stats.weeklyEnabled} /><span class="sliderspan"></span>
+									</label>
+								</div>
+								<p class="details" style="margin-bottom: 6px; font-size: 11px; opacity: 0.65">Posted every Sunday (covers Mon–Sat)</p>
+								{#if s.stats.weeklyEnabled !== false}
+									<p class="details" style="margin-bottom: 6px">Channel</p>
+									<select bind:value={s.stats.weeklyChannelId} style="width: 100%">
+										<option value="">(Default channel)</option>
+										{#each channels as ch}<option value={ch.id}>#{ch.name}</option>{/each}
+									</select>
+								{/if}
+							</div>
+
+							<!-- Monthly -->
+							<div style="background: var(--bg2, #1e1e2e); border-radius: 8px; padding: 14px 16px;">
+								<div class="simpleflex" style="justify-content: space-between; align-items: center; margin-bottom: 10px;">
+									<p style="font-weight: bold; margin: 0">Monthly</p>
+									<label class="slider">
+										<input type="checkbox" bind:checked={s.stats.monthlyEnabled} /><span class="sliderspan"></span>
+									</label>
+								</div>
+								<p class="details" style="margin-bottom: 6px; font-size: 11px; opacity: 0.65">Posted on the last day of each month</p>
+								{#if s.stats.monthlyEnabled}
+									<p class="details" style="margin-bottom: 6px">Channel</p>
+									<select bind:value={s.stats.monthlyChannelId} style="width: 100%">
+										<option value="">(Default channel)</option>
+										{#each channels as ch}<option value={ch.id}>#{ch.name}</option>{/each}
+									</select>
+								{/if}
+							</div>
+
+							<!-- Quarterly -->
+							<div style="background: var(--bg2, #1e1e2e); border-radius: 8px; padding: 14px 16px;">
+								<div class="simpleflex" style="justify-content: space-between; align-items: center; margin-bottom: 10px;">
+									<p style="font-weight: bold; margin: 0">Quarterly</p>
+									<label class="slider">
+										<input type="checkbox" bind:checked={s.stats.quarterlyEnabled} /><span class="sliderspan"></span>
+									</label>
+								</div>
+								<p class="details" style="margin-bottom: 6px; font-size: 11px; opacity: 0.65">Posted at end of Mar, Jun, Sep, Dec</p>
+								{#if s.stats.quarterlyEnabled}
+									<p class="details" style="margin-bottom: 6px">Channel</p>
+									<select bind:value={s.stats.quarterlyChannelId} style="width: 100%">
+										<option value="">(Default channel)</option>
+										{#each channels as ch}<option value={ch.id}>#{ch.name}</option>{/each}
+									</select>
+								{/if}
+							</div>
+						</div>
 					</div>
 
 					<div class="settingBox box fulllength">
 						<h2>Activity thresholds</h2>
-						<p class="details">Minimum number of messages a member needs to send in each period to be counted as "active".</p>
+						<p class="details">Minimum messages a member must send in a period to be counted as "active".</p>
 						<div class="simpleflex" style="gap: 40px; flex-wrap: wrap; margin-top: 10px">
 							<div class="field">
 								<p style="margin-bottom: 4px; font-weight: bold">Daily</p>

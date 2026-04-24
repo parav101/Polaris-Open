@@ -6,7 +6,7 @@ const config = require("./config.json")
 const Tools = require("./classes/Tools.js")
 const Model = require("./classes/DatabaseModel.js")
 const { buildActivityLeaderboard, generateLeaderboardEmbed, snapInterval } = require("./classes/ActivityLeaderboard.js")
-const { buildScheduledStatsEmbed, getStatsRetentionUnset, getUtcDateKeyOffset, shouldPostScheduledReport } = require("./classes/ServerStats.js")
+const { buildScheduledStatsEmbed, getScheduledReports, getStatsRetentionUnset, getUtcDateKeyOffset, shouldPostScheduledReport } = require("./classes/ServerStats.js")
 const { ensureDailyQuests, tickQuest, getTodayKey } = require("./classes/Quests.js")
 
 // automatic files: these handle discord status and version number, manage them with the dev commands
@@ -338,32 +338,36 @@ client.on("ready", async() => {
                             })
                         }
 
-                        if (!shouldPostScheduledReport(doc, now)) continue
+                        const reports = getScheduledReports(doc, now)
+                        if (!reports.length) continue
 
                         const guild = client.guilds.cache.get(guildId)
                             || await client.guilds.fetch(guildId).catch(() => null)
                         if (!guild) continue
 
-                        const channel = guild.channels.cache.get(statsSettings.logChannelId)
-                            || await guild.channels.fetch(statsSettings.logChannelId).catch(() => null)
-                        if (!channel) continue
-
                         const reportKey = getUtcDateKeyOffset(-1, now)
-                        const embed = buildScheduledStatsEmbed(guild, doc.statsDaily || {}, statsSettings, tools, reportKey)
 
-                        await channel.send({ embeds: [embed] }).catch(e => {
-                            console.error(`[ServerStats] Failed to post in ${guildId}:`, e.message)
-                            return null
-                        }).then(async sent => {
-                            if (!sent) return
+                        for (const { periodKey, channelId, trackingField } of reports) {
+                            const channel = guild.channels.cache.get(channelId)
+                                || await guild.channels.fetch(channelId).catch(() => null)
+                            if (!channel) continue
 
-                            await client.db.update(guildId, {
-                                $set: {
-                                    "info.statsLastPostedAt": Date.now(),
-                                    "info.statsLastReportKey": reportKey,
-                                }
-                            }).exec().catch(e => console.error(`[ServerStats] Info update failed for ${guildId}:`, e.message))
-                        })
+                            const embed = buildScheduledStatsEmbed(guild, doc.statsDaily || {}, statsSettings, tools, reportKey, periodKey)
+
+                            await channel.send({ embeds: [embed] }).catch(e => {
+                                console.error(`[ServerStats] Failed to post ${periodKey} in ${guildId}:`, e.message)
+                                return null
+                            }).then(async sent => {
+                                if (!sent) return
+
+                                await client.db.update(guildId, {
+                                    $set: {
+                                        "info.statsLastPostedAt": Date.now(),
+                                        [`info.${trackingField}`]: reportKey,
+                                    }
+                                }).exec().catch(e => console.error(`[ServerStats] Info update failed for ${guildId} (${periodKey}):`, e.message))
+                            })
+                        }
                     } catch (guildErr) {
                         console.error(`[ServerStats] Error processing guild ${doc._id}:`, guildErr.message)
                     }
