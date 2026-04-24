@@ -932,6 +932,51 @@ app.get("/api/questPresets", function(req, res) {
     res.json(require('./json/quest_presets.json'))
 })
 
+app.get("/api/emojis/:guildId", async function(req, res) {
+    let [user, guilds] = await getDiscordInfo(req)
+    if (!user || !guilds) return res.apiError("Not logged in!", "login")
+
+    const serverID = req.params.guildId
+    const force = tools.isDev(user)
+    const foundGuild = guilds.find(x => x.id == serverID)
+    if (!foundGuild && !force) return res.apiError("Missing permissions!")
+
+    // Application emojis (requires bot token, so proxy through here)
+    let appEmojis = []
+    try {
+        const result = await rest.get(`/applications/${process.env.DISCORD_ID}/emojis`)
+        appEmojis = (result?.items || []).map(e => ({
+            id: e.id,
+            name: e.name,
+            animated: !!e.animated,
+            source: 'app'
+        }))
+    } catch(e) { console.warn('Failed to fetch app emojis:', e.message) }
+
+    // Guild emojis from shard cache
+    let guildEmojis = []
+    try {
+        const localGuild = client.guilds.cache.get(serverID)
+        if (localGuild) {
+            guildEmojis = localGuild.emojis.cache.map(e => ({
+                id: e.id, name: e.name, animated: !!e.animated, source: 'guild'
+            }))
+        } else if (client.shard) {
+            const results = await Promise.race([
+                client.shard.broadcastEval(async (cl, xd) => {
+                    const guild = cl.guilds.cache.get(xd.guildID)
+                    if (!guild) return null
+                    return guild.emojis.cache.map(e => ({ id: e.id, name: e.name, animated: !!e.animated, source: 'guild' }))
+                }, { context: { guildID: serverID } }),
+                new Promise(resolve => setTimeout(() => resolve([]), 5000))
+            ])
+            guildEmojis = results.find(r => r) || []
+        }
+    } catch(e) { console.warn('Failed to fetch guild emojis:', e.message) }
+
+    return res.send({ appEmojis, guildEmojis })
+})
+
 app.get("/api", function(req, res) { res.send("ඞ") })
 
 app.use(function (err, req, res, next) {

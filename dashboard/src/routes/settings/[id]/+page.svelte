@@ -3,6 +3,7 @@
 	import { onMount, tick } from 'svelte'
 	import { page } from '$app/stores'
 	import { apiFetch, loginButton } from '$lib/api.js'
+	import EmojiPicker from '$lib/EmojiPicker.svelte'
 	import { xpForLevel, getLevel, commafy, timeStr, roleColor } from '$lib/xpMath.js'
 	import { Zap, Award, TrendingUp, Layers, CreditCard, Trophy, Database, Package, Shuffle, Flame, MessageSquare, Activity, Settings, Home, Scroll, ShoppingCart, Box, Coins, BarChart2, ArrowUpCircle } from 'lucide-svelte'
 
@@ -16,6 +17,7 @@
 	let channels = []
 	let otherServers = []
 	let curvePresets = []
+	let emojis = []
 
 	/** Mirror of db.settings – mutations here drive all inputs */
 	let s = {}
@@ -144,6 +146,26 @@
 		{ id: 'stats', label: 'Server Stats', icon: BarChart2 },
 		{ id: 'advanced', label: 'Advanced', icon: Settings }
 	]
+
+	// ── emoji helpers ──────────────────────────────────────────────────────────
+	function parseEmojiStr(str) {
+		if (!str) return null
+		const m = (str || '').match(/^<(a)?:(\w+):(\d+)>$/)
+		if (m) return { animated: !!m[1], name: m[2], id: m[3] }
+		if (/^\d{17,20}$/.test((str || '').trim())) return { id: str.trim(), name: '', animated: false }
+		return null
+	}
+
+	function renderEmojiCell(str) {
+		if (!str) return '—'
+		const p = parseEmojiStr(str)
+		if (p) {
+			const ext = p.animated ? 'gif' : 'png'
+			const name = p.name || p.id
+			return `<img src="https://cdn.discordapp.com/emojis/${p.id}.${ext}?size=32" alt="${name}" title=":${name}:" style="width:24px;height:24px;vertical-align:middle" />`
+		}
+		return str
+	}
 
 	// ── helpers ────────────────────────────────────────────────────────────────
 	let loaded = false
@@ -711,6 +733,11 @@
 		// Load quest presets
 		apiFetch('/api/questPresets').then(p => { questPresets = p }).catch(() => {})
 
+		// Load app + server emojis (non-blocking)
+		apiFetch(`/api/emojis/${guildID}`).then(data => {
+			emojis = [...(data.appEmojis || []), ...(data.guildEmojis || [])]
+		}).catch(() => {})
+
 		// Level up message modes
 		lvlMessageMode = db.levelUp?.embed ? 'embed' : 'text'
 		lvlTextContent = (!db.levelUp?.embed && db.levelUp?.message) ? db.levelUp.message : ''
@@ -1097,9 +1124,9 @@
 								</label>
 							</div>
 							<div class="sideoption">
-								<h2>Emoji</h2>
-								<p class="details">Emoji shown in the level up message</p>
-								<input type="text" bind:value={s.levelUp.emoji} style="width: 80px" placeholder="🎉" />
+							<h2>Emoji</h2>
+							<p class="details">Emoji shown in the level up message</p>
+							<EmojiPicker bind:value={s.levelUp.emoji} {emojis} placeholder="🎉" width="80px" />
 							</div>
 						</div>
 
@@ -1595,19 +1622,19 @@
 					<div class="settingBox box">
 						<h2>Key emoji</h2>
 						<p class="details">Emoji members click to open the chest.</p>
-						<input type="text" bind:value={s.chestDrops.keyEmoji} style="width: 80px" placeholder="🗝️" />
+						<EmojiPicker bind:value={s.chestDrops.keyEmoji} {emojis} placeholder="🗝️" width="80px" />
 					</div>
 
 					<div class="settingBox box">
 						<h2>Chest emoji</h2>
 						<p class="details">Emoji shown when the chest appears.</p>
-						<input type="text" bind:value={s.chestDrops.chestEmoji} style="width: 80px" placeholder="📦" />
+						<EmojiPicker bind:value={s.chestDrops.chestEmoji} {emojis} placeholder="📦" width="80px" />
 					</div>
 
 					<div class="settingBox box">
 						<h2>Custom emoji ID</h2>
 						<p class="details">Discord custom emoji ID to use for the chest button. Overrides the emoji fields above when set. Leave blank to use the emoji text instead.</p>
-						<input type="text" bind:value={s.chestDrops.emojiId} style="width: 220px" placeholder="e.g. 1234567890123456789" />
+						<EmojiPicker bind:value={s.chestDrops.emojiId} {emojis} mode="id" placeholder="e.g. 1234567890123456789" width="220px" />
 					</div>
 
 					<div class="settingBox box fulllength">
@@ -2240,10 +2267,10 @@
 								<p class="details" style="margin-bottom: 4px">Duration (hours, 0 = permanent)</p>
 								<input type="number" bind:value={newShopDuration} min="0" step="0.5" style="width: 100%" />
 							</div>
-							<div>
-								<p class="details" style="margin-bottom: 4px">Emoji</p>
-								<input type="text" bind:value={newShopEmoji} placeholder="🛒" style="width: 100%" maxlength="100" />
-							</div>
+						<div>
+							<p class="details" style="margin-bottom: 4px">Emoji</p>
+							<EmojiPicker bind:value={newShopEmoji} {emojis} placeholder="🛒" width="100%" />
+						</div>
 						</div>
 						<button style="margin-top: 12px; background-color: var(--emojigreen)" on:click={addShopItem}>Add item</button>
 					</div>
@@ -2268,10 +2295,10 @@
 									<tbody>
 										{#each shopItems as item, i}
 											{#if editingShopIndex === i}
-												<tr style="background: rgba(255,255,255,0.05)">
-													<td style="padding: 6px 8px">
-														<input type="text" bind:value={editingShopData.emoji} style="width: 70px" maxlength="100" />
-													</td>
+											<tr style="background: rgba(255,255,255,0.05)">
+												<td style="padding: 6px 8px">
+													<EmojiPicker bind:value={editingShopData.emoji} {emojis} placeholder="🛒" width="70px" />
+												</td>
 													<td style="padding: 6px 8px">
 														<input type="text" bind:value={editingShopData.name} style="width: 130px" maxlength="100" />
 													</td>
@@ -2292,18 +2319,18 @@
 													</td>
 													<td></td>
 												</tr>
-											{:else}
-												<tr style="border-bottom: 1px solid rgba(255,255,255,0.07)">
-													<td style="padding: 6px 8px">{item.emoji || '—'}</td>
-													<td style="padding: 6px 8px"><b>{item.name}</b></td>
-													<td style="padding: 6px 8px">{roleName(item.roleId)}</td>
-													<td style="padding: 6px 8px">{item.price} cr</td>
-													<td style="padding: 6px 8px">{item.duration > 0 ? item.duration + 'h' : '∞ Permanent'}</td>
-													<td style="padding: 6px 8px"><span style="cursor: pointer" on:click={() => startEditShop(i)}>✏️</span></td>
-													<td style="padding: 6px 8px"><span class="deleteRow" style="cursor: pointer" on:click={() => removeShopItem(i)}>🗑️</span></td>
-												</tr>
-											{/if}
-										{/each}
+										{:else}
+											<tr style="border-bottom: 1px solid rgba(255,255,255,0.07)">
+												<td style="padding: 6px 8px">{@html renderEmojiCell(item.emoji)}</td>
+												<td style="padding: 6px 8px"><b>{item.name}</b></td>
+												<td style="padding: 6px 8px">{roleName(item.roleId)}</td>
+												<td style="padding: 6px 8px">{item.price} cr</td>
+												<td style="padding: 6px 8px">{item.duration > 0 ? item.duration + 'h' : '∞ Permanent'}</td>
+												<td style="padding: 6px 8px"><span style="cursor: pointer" on:click={() => startEditShop(i)}>✏️</span></td>
+												<td style="padding: 6px 8px"><span class="deleteRow" style="cursor: pointer" on:click={() => removeShopItem(i)}>🗑️</span></td>
+											</tr>
+										{/if}
+									{/each}
 									</tbody>
 								</table>
 							</div>
@@ -2337,10 +2364,10 @@
 								<p class="details" style="margin-bottom: 4px">Name</p>
 								<input type="text" bind:value={newChestName} placeholder="Silver Chest" style="width: 100%" maxlength="100" />
 							</div>
-							<div>
-								<p class="details" style="margin-bottom: 4px">Emoji</p>
-								<input type="text" bind:value={newChestEmoji} placeholder="📦" style="width: 100%" maxlength="100" />
-							</div>
+						<div>
+							<p class="details" style="margin-bottom: 4px">Emoji</p>
+							<EmojiPicker bind:value={newChestEmoji} {emojis} placeholder="📦" width="100%" />
+						</div>
 							<div>
 								<p class="details" style="margin-bottom: 4px">Price (credits)</p>
 								<input type="number" bind:value={newChestPrice} min="0" style="width: 100%" />
@@ -2375,11 +2402,11 @@
 									</thead>
 									<tbody>
 										{#each chestItems as item, i}
-											{#if editingChestIndex === i}
-												<tr style="background: rgba(255,255,255,0.05)">
-													<td style="padding: 6px 8px">
-														<input type="text" bind:value={editingChestData.emoji} style="width: 70px" maxlength="100" />
-													</td>
+										{#if editingChestIndex === i}
+											<tr style="background: rgba(255,255,255,0.05)">
+												<td style="padding: 6px 8px">
+													<EmojiPicker bind:value={editingChestData.emoji} {emojis} placeholder="📦" width="70px" />
+												</td>
 													<td style="padding: 6px 8px">
 														<input type="text" bind:value={editingChestData.name} style="width: 130px" maxlength="100" />
 													</td>
@@ -2399,15 +2426,15 @@
 													</td>
 													<td></td>
 												</tr>
-											{:else}
-												<tr style="border-bottom: 1px solid rgba(255,255,255,0.07)">
-													<td style="padding: 6px 8px">{item.emoji || '—'}</td>
-													<td style="padding: 6px 8px"><b>{item.name}</b></td>
-													<td style="padding: 6px 8px">{item.price} cr</td>
-													<td style="padding: 6px 8px">{item.xpMin} – {item.xpMax} XP</td>
-													<td style="padding: 6px 8px"><span style="cursor: pointer" on:click={() => startEditChest(i)}>✏️</span></td>
-													<td style="padding: 6px 8px"><span class="deleteRow" style="cursor: pointer" on:click={() => removeChestItem(i)}>🗑️</span></td>
-												</tr>
+										{:else}
+											<tr style="border-bottom: 1px solid rgba(255,255,255,0.07)">
+												<td style="padding: 6px 8px">{@html renderEmojiCell(item.emoji)}</td>
+												<td style="padding: 6px 8px"><b>{item.name}</b></td>
+												<td style="padding: 6px 8px">{item.price} cr</td>
+												<td style="padding: 6px 8px">{item.xpMin} – {item.xpMax} XP</td>
+												<td style="padding: 6px 8px"><span style="cursor: pointer" on:click={() => startEditChest(i)}>✏️</span></td>
+												<td style="padding: 6px 8px"><span class="deleteRow" style="cursor: pointer" on:click={() => removeChestItem(i)}>🗑️</span></td>
+											</tr>
 											{/if}
 										{/each}
 									</tbody>
