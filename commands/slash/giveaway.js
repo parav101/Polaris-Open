@@ -131,44 +131,46 @@ module.exports = {
 
         const embed = createGiveawayEmbed(giveawayData, tools);
 
+        const rows = [
+            new Discord.ActionRowBuilder().addComponents(
+                new Discord.ButtonBuilder()
+                    .setCustomId('ga_enter')
+                    .setLabel('Join Giveaway')
+                    .setStyle(Discord.ButtonStyle.Success)
+                    .setEmoji(visuals.ENTER),
+                new Discord.ButtonBuilder()
+                    .setCustomId('ga_list')
+                    .setLabel('Participants')
+                    .setStyle(Discord.ButtonStyle.Secondary)
+                    .setEmoji(visuals.PEOPLE)
+            ),
+            new Discord.ActionRowBuilder().addComponents(
+                new Discord.ButtonBuilder()
+                    .setCustomId('ga_cancel')
+                    .setLabel('Cancel')
+                    .setStyle(Discord.ButtonStyle.Danger)
+                    .setEmoji(visuals.CANCEL)
+            )
+        ];
+
+        let msg;
         try {
-            const rows = [
-                new Discord.ActionRowBuilder().addComponents(
-                    new Discord.ButtonBuilder()
-                        .setCustomId('ga_enter')
-                        .setLabel('Join Giveaway')
-                        .setStyle(Discord.ButtonStyle.Success)
-                        .setEmoji(visuals.ENTER),
-                    new Discord.ButtonBuilder()
-                        .setCustomId('ga_list')
-                        .setLabel('Participants')
-                        .setStyle(Discord.ButtonStyle.Secondary)
-                        .setEmoji(visuals.PEOPLE)
-                ),
-                new Discord.ActionRowBuilder().addComponents(
-                    new Discord.ButtonBuilder()
-                        .setCustomId('ga_cancel')
-                        .setLabel('Cancel')
-                        .setStyle(Discord.ButtonStyle.Danger)
-                        .setEmoji(visuals.CANCEL)
-                )
-            ];
-
-            const msg = await targetChannel.send({ embeds: [embed], components: rows });
-            giveawayData.messageId = msg.id;
-            activeGiveaways.set(targetChannel.id, giveawayData);
-
-            attachCollector(msg, client, tools, giveawayData);
-            scheduleGiveawayEnd(client, tools, giveawayData);
-
-            const { visuals: _v, ...giveawayDataForDb } = giveawayData;
-            await client.db.update(int.guild.id, { $push: { giveaways: giveawayDataForDb } });
-            await int.editReply({ content: `✅ Giveaway started in ${targetChannel}!` });
-
+            msg = await targetChannel.send({ embeds: [embed], components: rows });
         } catch (e) {
-            console.error(e);
-            return int.editReply({ content: "Error starting giveaway." });
+            console.error('[Giveaway] Failed to send message:', e);
+            return int.editReply({ content: "Error sending giveaway message. Check my permissions in that channel." });
         }
+
+        giveawayData.messageId = msg.id;
+        activeGiveaways.set(targetChannel.id, giveawayData);
+        attachCollector(msg, client, tools, giveawayData);
+        scheduleGiveawayEnd(client, tools, giveawayData);
+
+        const { visuals: _v, ...giveawayDataForDb } = giveawayData;
+        client.db.update(int.guild.id, { $push: { giveaways: giveawayDataForDb } })
+            .catch(e => console.error('[Giveaway] DB persist failed:', e));
+
+        await int.editReply({ content: `✅ Giveaway started in ${targetChannel}!` });
     },
 
     async recoverActiveGiveaways(client, tools) {
@@ -292,69 +294,84 @@ function createGiveawayEmbed(data, tools) {
 
 async function handleEnter(client, int, tools, data) {
     await int.deferUpdate();
+    try {
+        if (data.ended || Date.now() >= data.endTime) return int.followUp({ content: "This giveaway has ended!", ephemeral: true });
+        if (data.participants.includes(int.user.id)) return int.followUp({ content: "You have already entered!", ephemeral: true });
 
-    if (data.ended || Date.now() >= data.endTime) return int.followUp({ content: "This giveaway has ended!", ephemeral: true });
-    if (data.participants.includes(int.user.id)) return int.followUp({ content: "You have already entered!", ephemeral: true });
+        const hasRequirements = data.requiredLevel > 0 || data.requiredStreak > 0 || data.requiredRoleId;
+        if (hasRequirements) {
+            const db = await tools.fetchSettings(int.user.id, int.guild.id);
+            const user = db.users?.[int.user.id] || { xp: 0, streak: 0 };
 
-    const db = await tools.fetchSettings(int.user.id, int.guild.id);
-    const user = db.users?.[int.user.id] || { xp: 0, streak: 0 };
+            if (data.requiredLevel > 0) {
+                const lvl = tools.getLevel(user.xp, db.settings);
+                if (lvl < data.requiredLevel) return int.followUp({ content: `Level ${data.requiredLevel} required (You: ${lvl})`, ephemeral: true });
+            }
 
-    if (data.requiredLevel > 0) {
-        const lvl = tools.getLevel(user.xp, db.settings);
-        if (lvl < data.requiredLevel) return int.followUp({ content: `Level ${data.requiredLevel} required (You: ${lvl})`, ephemeral: true });
+            if (data.requiredStreak > 0) {
+                if ((user.streak || 0) < data.requiredStreak) return int.followUp({ content: `Streak ${data.requiredStreak} required (You: ${user.streak || 0})`, ephemeral: true });
+            }
+
+            if (data.requiredRoleId) {
+                const m = await int.guild.members.fetch(int.user.id).catch(() => null);
+                if (!m || !m.roles.cache.has(data.requiredRoleId)) return int.followUp({ content: "You don't have the required role!", ephemeral: true });
+            }
+        }
+
+        data.participants.push(int.user.id);
+        client.db.update(int.guild.id,
+            { $push: { "giveaways.$[elem].participants": int.user.id } },
+            { arrayFilters: [{ "elem.id": data.id }] }
+        ).catch(e => console.error('[Giveaway] Failed to save participant:', e));
+
+        await updateMsg(client, tools, data);
+    } catch (e) {
+        console.error('[Giveaway] handleEnter error:', e);
+        int.followUp({ content: "Something went wrong. Please try again.", ephemeral: true }).catch(() => {});
     }
-
-    if (data.requiredStreak > 0) {
-        if ((user.streak || 0) < data.requiredStreak) return int.followUp({ content: `Streak ${data.requiredStreak} required (You: ${user.streak || 0})`, ephemeral: true });
-    }
-
-    if (data.requiredRoleId) {
-        const m = await int.guild.members.fetch(int.user.id).catch(() => null);
-        if (!m || !m.roles.cache.has(data.requiredRoleId)) return int.followUp({ content: "You don't have the required role!", ephemeral: true });
-    }
-
-    data.participants.push(int.user.id);
-    await client.db.update(int.guild.id,
-        { $push: { "giveaways.$[elem].participants": int.user.id } },
-        { arrayFilters: [{ "elem.id": data.id }] }
-    );
-
-    await updateMsg(client, tools, data);
 }
 
 async function handleList(client, int, tools, data) {
-    if (data.participants.length === 0) return int.reply({ content: "No one has entered yet!", ephemeral: true });
+    try {
+        if (data.participants.length === 0) return int.reply({ content: "No one has entered yet!", ephemeral: true });
 
-    const list = data.participants.slice(0, 50).map((id, i) => `${i + 1}. <@${id}>`).join('\n');
-    const embed = new Discord.EmbedBuilder()
-        .setTitle('Participants List')
-        .setDescription(list)
-        .setColor(0x00AE86)
-        .setFooter({ text: `Showing up to 50 participants` });
+        const list = data.participants.slice(0, 50).map((id, i) => `${i + 1}. <@${id}>`).join('\n');
+        const embed = new Discord.EmbedBuilder()
+            .setTitle('Participants List')
+            .setDescription(list)
+            .setColor(0x00AE86)
+            .setFooter({ text: `Showing up to 50 participants` });
 
-    return int.reply({ embeds: [embed], ephemeral: true });
+        return int.reply({ embeds: [embed], ephemeral: true });
+    } catch (e) {
+        console.error('[Giveaway] handleList error:', e);
+    }
 }
 
 async function handleCancel(client, int, tools, data) {
-    const isMod = tools.canManageServer(int.member, false);
-    if (!isMod && int.user.id !== data.hostId && !tools.isDev()) {
-        return int.reply({ content: "You don't have permission to cancel this giveaway!", ephemeral: true });
+    try {
+        const isMod = tools.canManageServer(int.member, false);
+        if (!isMod && int.user.id !== data.hostId && !tools.isDev()) {
+            return int.reply({ content: "You don't have permission to cancel this giveaway!", ephemeral: true });
+        }
+
+        data.ended = true;
+        activeGiveaways.delete(data.channelId);
+
+        client.db.update(int.guild.id,
+            { $set: { "giveaways.$[elem].ended": true, "giveaways.$[elem].cancelled": true } },
+            { arrayFilters: [{ "elem.id": data.id }] }
+        ).catch(e => console.error('[Giveaway] Failed to cancel in DB:', e));
+
+        const embed = new Discord.EmbedBuilder()
+            .setTitle('Giveaway Cancelled')
+            .setDescription(`The **${data.prize}** giveaway has been cancelled.`)
+            .setColor(0xFF0000);
+
+        await int.update({ embeds: [embed], components: [] });
+    } catch (e) {
+        console.error('[Giveaway] handleCancel error:', e);
     }
-
-    data.ended = true;
-    activeGiveaways.delete(data.channelId);
-
-    await client.db.update(int.guild.id,
-        { $set: { "giveaways.$[elem].ended": true, "giveaways.$[elem].cancelled": true } },
-        { arrayFilters: [{ "elem.id": data.id }] }
-    );
-
-    const embed = new Discord.EmbedBuilder()
-        .setTitle('Giveaway Cancelled')
-        .setDescription(`The **${data.prize}** giveaway has been cancelled.`)
-        .setColor(0xFF0000);
-
-    await int.update({ embeds: [embed], components: [] });
 }
 
 async function updateMsg(client, tools, data) {

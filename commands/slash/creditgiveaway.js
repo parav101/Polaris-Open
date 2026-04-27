@@ -200,7 +200,7 @@ module.exports = {
             try {
                 const doc = await client.db.fetch(guild.id, ["giveaways"]).catch(() => null);
                 const giveaways = Array.isArray(doc?.giveaways) ? doc.giveaways : [];
-                const active = giveaways.filter((g) => !g?.ended && Number(g?.endTime) > 0);
+                const active = giveaways.filter((g) => !g?.ended && Number(g?.endTime) > 0 && g?.type !== "giveaway");
                 if (active.length === 0) continue;
 
                 for (const g of active) {
