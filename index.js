@@ -99,6 +99,16 @@ client.on("ready", async() => {
         console.error("[CreditGiveaway] Recovery bootstrap failed:", e);
     }
 
+    // Recover active giveaways after restart
+    try {
+        const giveaway = client.commands.get("giveaway");
+        if (giveaway?.recoverActiveGiveaways) {
+            await giveaway.recoverActiveGiveaways(client, client.globalTools);
+        }
+    } catch (e) {
+        console.error("[Giveaway] Recovery bootstrap failed:", e);
+    }
+
     // Seed voice sessions for members already in VC after restart
     (async function seedVoiceSessions() {
         try {

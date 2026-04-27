@@ -74,7 +74,9 @@ module.exports = {
                     : `Ended ${tools.formatTime(giveaway.endTime)}`;
                 
                 const channelMention = `<#${giveaway.channelId}>`;
-                const prizeAmount = `${tools.commafy(giveaway.currentGold)} gold`;
+                const prizeAmount = giveaway.prize
+                    ? giveaway.prize
+                    : `${tools.commafy(giveaway.currentCredits ?? giveaway.currentGold ?? 0)} credits`;
                 const participantsCount = `${giveaway.participants.length} participants`;
                 
                 let winnerInfo = '';

@@ -337,6 +337,8 @@ const schema = {
         rerollable: { type: Boolean, default: true }, // Track if giveaway can be rerolled
         rerollCount: { type: Number, default: 0 },   // Track how many times it's been rerolled
         previousWinners: [[String]],                 // Track previous winners for reference
+        prize: String,
+        type: String,
         createdAt: Number
     }],
     voiceSessions: [{

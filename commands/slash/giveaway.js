@@ -1,26 +1,20 @@
 const Discord = require('discord.js');
 
-// Track active giveaways in memory for timers/collectors
 const activeGiveaways = new Map();
 
-// Giveaway tips (Optional UI flavor)
 const tips = [
-    "💰 The more people join, the bigger the prize! 💰",
-    "🔥 Higher streaks can lead to better luck! 🔥",
-    "🎲 Everyone has an equal chance of winning by default! 🎲",
-    "🏆 Winners receive credits directly to their balance! 🏆",
-    "⏱️ Don't wait too long, giveaways are time-limited! ⏱️",
-    "🎁 All participants receive a small portion of credits too! 🎁"
+    "🎉 Everyone has an equal chance of winning!",
+    "⏱️ Don't wait too long — giveaways are time-limited!",
+    "🎲 Winners are chosen completely at random!",
+    "🏆 Make sure you meet the requirements before entering!",
+    "🔔 Stay active in the server for more giveaway chances!",
+    "👥 Invite friends so more giveaways get hosted!"
 ];
 
-// Custom Emojis from stats/etc. (User can replace these later)
 const EMOJIS = {
-    GOLD: "<:gold:1472934905972527285>",
     INFO: "<:info:1466817220687695967>",
-    PROGRESS: "<:progress:1466819928110792816>",
     LEVEL: "<:level:1466817213830009045>",
-    XP: "<:userxp:1466822701724340304>",
-    STREAK: "🔥", // Default placeholder
+    STREAK: "🔥",
     DIVIDER: "<:extendedend:1466819484999225579>"
 };
 
@@ -29,33 +23,26 @@ function resolveEmoji(client, guild, candidates, fallback) {
     const lowerNames = names.map((n) => String(n).toLowerCase());
     const fromGuild = guild?.emojis?.cache?.find((e) => lowerNames.includes(e.name.toLowerCase()));
     if (fromGuild) return `<:${fromGuild.name}:${fromGuild.id}>`;
-
     const fromClient = client?.emojis?.cache?.find((e) => lowerNames.includes(e.name.toLowerCase()));
     if (fromClient) return `<:${fromClient.name}:${fromClient.id}>`;
-
     return fallback;
 }
 
 function getVisuals(client, guild) {
     return {
-        GOLD: resolveEmoji(client, guild, ["gold", "credits", "coin"], EMOJIS.GOLD),
         INFO: resolveEmoji(client, guild, ["info", "information"], EMOJIS.INFO),
-        PROGRESS: resolveEmoji(client, guild, ["progress", "loading"], EMOJIS.PROGRESS),
         LEVEL: resolveEmoji(client, guild, ["level", "lvl"], EMOJIS.LEVEL),
-        XP: resolveEmoji(client, guild, ["userxp", "xp"], EMOJIS.XP),
         STREAK: resolveEmoji(client, guild, ["streak", "fire"], EMOJIS.STREAK),
         DIVIDER: resolveEmoji(client, guild, ["extendedend", "divider"], EMOJIS.DIVIDER),
         ENTER: resolveEmoji(client, guild, ["party", "giveaway", "gift"], "🎉"),
         PEOPLE: resolveEmoji(client, guild, ["users", "members", "people"], "👥"),
         CANCEL: resolveEmoji(client, guild, ["trash", "delete", "cancel"], "🗑️"),
         TIME: resolveEmoji(client, guild, ["time", "clock"], "⏱️"),
-        TROPHY: resolveEmoji(client, guild, ["trophy", "winner"], "🏆")
+        TROPHY: resolveEmoji(client, guild, ["trophy", "winner"], "🏆"),
+        PRIZE: resolveEmoji(client, guild, ["gift", "present", "box"], "🎁")
     };
 }
 
-/**
- * Parse duration string into milliseconds
- */
 function parseDuration(durationStr) {
     if (!durationStr) return 0;
     const durationRegex = /(\d+)([wdhms])/gi;
@@ -78,17 +65,15 @@ function parseDuration(durationStr) {
 module.exports = {
     metadata: {
         permission: "ManageGuild",
-        name: "creditgiveaway",
-        description: "Start a credit giveaway where the prize increases as more users join.",
+        name: "giveaway",
+        description: "Start a giveaway with a custom prize title.",
         args: [
-            { type: "integer", name: "base_credits", description: "Starting amount of credits", required: true, min: 100, max: 1000000 },
-            { type: "integer", name: "credits_per_user", description: "Additional credits per participant", required: true, min: 0, max: 100000 },
+            { type: "string", name: "title", description: "What are you giving away? (e.g. Nitro, Steam Key)", required: true },
             { type: "string", name: "duration", description: "Duration (e.g. 1d, 2h, 30m)", required: true },
             { type: "channel", name: "channel", description: "Target channel", required: false },
             { type: "string", name: "description", description: "Giveaway description", required: false },
-            { type: "integer", name: "max_credits", description: "Maximum credit cap", required: false, min: 100 },
             { type: "integer", name: "min_participants", description: "Minimum participants needed", required: false, min: 1 },
-            { type: "integer", name: "required_level", description: "Min level required", required: false, min: 0 },
+            { type: "integer", name: "required_level", description: "Min level required to enter", required: false, min: 0 },
             { type: "role", name: "required_role", description: "Role required to enter", required: false },
             { type: "integer", name: "required_streak", description: "Min current streak required", required: false, min: 0 },
             { type: "integer", name: "winners", description: "Number of winners (default: 1)", required: false, min: 1, max: 20 }
@@ -100,12 +85,10 @@ module.exports = {
             return tools.warn("*notMod");
         }
 
-        const baseCredits = int.options.getInteger('base_credits');
-        const creditsPerUser = int.options.getInteger('credits_per_user');
+        const title = int.options.getString('title');
         const durationString = int.options.getString('duration');
         const targetChannel = int.options.getChannel('channel') || int.channel;
         const description = int.options.getString('description') || "Click the button below to join the giveaway!";
-        const maxCredits = int.options.getInteger('max_credits') || 0;
         const minParticipants = int.options.getInteger('min_participants') || 1;
         const requiredLevel = int.options.getInteger('required_level') || 0;
         const requiredRole = int.options.getRole('required_role');
@@ -116,7 +99,7 @@ module.exports = {
         if (durationMs <= 0) return tools.warn("Invalid duration format! Examples: 1d, 2h, 30m, 1w");
 
         if (activeGiveaways.has(targetChannel.id)) {
-            return tools.warn(`Already an active giveaway in ${targetChannel}!`);
+            return tools.warn(`There is already an active giveaway in ${targetChannel}!`);
         }
 
         await int.deferReply({ ephemeral: true });
@@ -124,14 +107,13 @@ module.exports = {
         const endTime = Date.now() + durationMs;
         const visuals = getVisuals(client, int.guild);
         const giveawayData = {
-            id: Date.now().toString(), // Using time as unique ID
+            id: Date.now().toString(),
             messageId: null,
             channelId: targetChannel.id,
             guildId: int.guild.id,
             hostId: int.user.id,
-            baseCredits: baseCredits,
-            creditsPerUser: creditsPerUser,
-            maxCredits: maxCredits,
+            prize: title,
+            type: "giveaway",
             description: description,
             participants: [],
             endTime: endTime,
@@ -140,34 +122,32 @@ module.exports = {
             requiredRoleId: requiredRole?.id,
             requiredStreak: requiredStreak,
             ended: false,
-            currentCredits: baseCredits,
             winnerIds: [],
             winnerCount: winnersCount,
-            participantRewardPercent: 5, // 5% participation bonus
             cancelled: false,
             createdAt: Date.now(),
             visuals
         };
 
-        const embed = await createGiveawayEmbed(giveawayData, tools);
+        const embed = createGiveawayEmbed(giveawayData, tools);
 
         try {
             const rows = [
                 new Discord.ActionRowBuilder().addComponents(
                     new Discord.ButtonBuilder()
-                        .setCustomId('cg_enter')
+                        .setCustomId('ga_enter')
                         .setLabel('Join Giveaway')
                         .setStyle(Discord.ButtonStyle.Success)
                         .setEmoji(visuals.ENTER),
                     new Discord.ButtonBuilder()
-                        .setCustomId('cg_list')
+                        .setCustomId('ga_list')
                         .setLabel('Participants')
                         .setStyle(Discord.ButtonStyle.Secondary)
                         .setEmoji(visuals.PEOPLE)
                 ),
                 new Discord.ActionRowBuilder().addComponents(
                     new Discord.ButtonBuilder()
-                        .setCustomId('cg_cancel')
+                        .setCustomId('ga_cancel')
                         .setLabel('Cancel')
                         .setStyle(Discord.ButtonStyle.Danger)
                         .setEmoji(visuals.CANCEL)
@@ -178,9 +158,7 @@ module.exports = {
             giveawayData.messageId = msg.id;
             activeGiveaways.set(targetChannel.id, giveawayData);
 
-            // Persist to DB
             await client.db.update(int.guild.id, { $push: { giveaways: giveawayData } });
-
             await int.editReply({ content: `✅ Giveaway started in ${targetChannel}!` });
 
             attachCollector(msg, client, tools, giveawayData);
@@ -193,15 +171,15 @@ module.exports = {
     },
 
     async recoverActiveGiveaways(client, tools) {
-        if (client._creditGiveawayRecoveryDone) return;
-        client._creditGiveawayRecoveryDone = true;
+        if (client._giveawayRecoveryDone) return;
+        client._giveawayRecoveryDone = true;
 
         let recovered = 0;
         for (const guild of client.guilds.cache.values()) {
             try {
                 const doc = await client.db.fetch(guild.id, ["giveaways"]).catch(() => null);
                 const giveaways = Array.isArray(doc?.giveaways) ? doc.giveaways : [];
-                const active = giveaways.filter((g) => !g?.ended && Number(g?.endTime) > 0);
+                const active = giveaways.filter((g) => !g?.ended && Number(g?.endTime) > 0 && g?.type === "giveaway");
                 if (active.length === 0) continue;
 
                 for (const g of active) {
@@ -233,18 +211,18 @@ module.exports = {
                         const remaining = Number(g.endTime) - Date.now();
                         if (remaining <= 0) await endGiveaway(client, tools, g);
                         else scheduleGiveawayEnd(client, tools, g);
-                        console.log(`[CreditGiveaway] Recovered giveaway ${g.id} in guild ${guild.id} (channel ${g.channelId}, message ${g.messageId}, ends ${Math.max(0, Math.floor(remaining / 1000))}s)`);
+                        console.log(`[Giveaway] Recovered giveaway ${g.id} in guild ${guild.id} (channel ${g.channelId}, ends ${Math.max(0, Math.floor(remaining / 1000))}s)`);
                         recovered++;
                     } catch (error) {
-                        console.error("[CreditGiveaway] Failed to recover giveaway:", error);
+                        console.error("[Giveaway] Failed to recover giveaway:", error);
                     }
                 }
             } catch (error) {
-                console.error(`[CreditGiveaway] Recovery failed for guild ${guild.id}:`, error);
+                console.error(`[Giveaway] Recovery failed for guild ${guild.id}:`, error);
             }
         }
 
-        if (recovered > 0) console.log(`[CreditGiveaway] Recovered ${recovered} active giveaway(s).`);
+        if (recovered > 0) console.log(`[Giveaway] Recovered ${recovered} active giveaway(s).`);
     }
 };
 
@@ -252,16 +230,16 @@ function attachCollector(message, client, tools, data) {
     const remaining = Math.max(1000, Number(data?.endTime || Date.now()) - Date.now());
     const collector = message.createMessageComponentCollector({ time: remaining });
     collector.on('collect', async (bInt) => {
-        const data = activeGiveaways.get(bInt.channel.id);
-        if (!data) return bInt.reply({ content: "Giveaway ended.", ephemeral: true });
-        if (bInt.message.id !== data.messageId) return bInt.deferUpdate();
+        const current = activeGiveaways.get(bInt.channel.id);
+        if (!current) return bInt.reply({ content: "Giveaway ended.", ephemeral: true });
+        if (bInt.message.id !== current.messageId) return bInt.deferUpdate();
 
-        if (bInt.customId === 'cg_enter') {
-            await handleEnter(client, bInt, tools, data);
-        } else if (bInt.customId === 'cg_list') {
-            await handleList(client, bInt, tools, data);
-        } else if (bInt.customId === 'cg_cancel') {
-            await handleCancel(client, bInt, tools, data);
+        if (bInt.customId === 'ga_enter') {
+            await handleEnter(client, bInt, tools, current);
+        } else if (bInt.customId === 'ga_list') {
+            await handleList(client, bInt, tools, current);
+        } else if (bInt.customId === 'ga_cancel') {
+            await handleCancel(client, bInt, tools, current);
         }
     });
 }
@@ -275,11 +253,8 @@ function scheduleGiveawayEnd(client, tools, data) {
     setTimeout(() => endGiveaway(client, tools, data), remaining);
 }
 
-async function createGiveawayEmbed(data, tools) {
+function createGiveawayEmbed(data, tools) {
     const visuals = data.visuals || EMOJIS;
-    const baseCredits = Number(data.baseCredits ?? data.baseGold ?? 0);
-    const creditsPerUser = Number(data.creditsPerUser ?? data.goldPerUser ?? 0);
-    const maxCredits = Number(data.maxCredits ?? data.maxGold ?? 0);
     const participants = Array.isArray(data.participants) ? data.participants : [];
     const endTime = data.endTime;
     const minParticipants = Number(data.minParticipants ?? 1);
@@ -287,10 +262,6 @@ async function createGiveawayEmbed(data, tools) {
     const requiredRoleId = data.requiredRoleId;
     const requiredStreak = Number(data.requiredStreak ?? 0);
     const winnerCount = Number(data.winnerCount ?? 1);
-
-    let total = baseCredits + (participants.length * creditsPerUser);
-    if (maxCredits > 0 && total > maxCredits) total = maxCredits;
-    data.currentCredits = total;
 
     const timeRemaining = endTime - Date.now();
     const timeStr = timeRemaining > 0 ? `<t:${Math.floor(endTime / 1000)}:R>` : 'Ended';
@@ -302,23 +273,18 @@ async function createGiveawayEmbed(data, tools) {
     if (requiredStreak > 0) reqs.push(`${visuals.STREAK} Streak ${requiredStreak}+`);
 
     const embed = new Discord.EmbedBuilder()
-        .setTitle(`${visuals.ENTER} Credit Giveaway`)
+        .setTitle(`${visuals.ENTER} Giveaway`)
         .setDescription(`${data.description}\n\n${visuals.DIVIDER} Hosted by <@${data.hostId}>`)
-        .setColor(0xf1c40f)
+        .setColor(0x9b59b6)
         .addFields(
-            { name: `${visuals.GOLD} Prize Pool`, value: `**${tools.commafy(total)}** credits\n${visuals.TROPHY} ${winnerCount} winner${winnerCount > 1 ? "s" : ""}`, inline: true },
+            { name: `${visuals.PRIZE} Prize`, value: `**${data.prize}**\n${visuals.TROPHY} ${winnerCount} winner${winnerCount > 1 ? "s" : ""}`, inline: true },
             { name: `${visuals.PEOPLE} Participants`, value: `**${participants.length}** joined${minParticipants > 1 ? `\nMin: **${minParticipants}**` : ''}`, inline: true },
             { name: `${visuals.TIME} Ends`, value: timeStr, inline: true }
         )
-        .setFooter({ text: tools.choose(tips) })
+        .setFooter({ text: tips[Math.floor(Math.random() * tips.length)] })
         .setTimestamp();
 
     if (reqs.length > 0) embed.addFields({ name: `${visuals.INFO} Requirements`, value: reqs.join('\n') });
-
-    embed.addFields({
-        name: `${visuals.PROGRESS} Growth`,
-        value: `Starts at **${tools.commafy(baseCredits)}** credits\n+**${tools.commafy(creditsPerUser)}** per user${maxCredits > 0 ? `\nMax: **${tools.commafy(maxCredits)}**` : ''}`
-    });
 
     return embed;
 }
@@ -326,8 +292,8 @@ async function createGiveawayEmbed(data, tools) {
 async function handleEnter(client, int, tools, data) {
     await int.deferUpdate();
 
-    if (data.ended || Date.now() >= data.endTime) return int.followUp({ content: "Ended!", ephemeral: true });
-    if (data.participants.includes(int.user.id)) return int.followUp({ content: "Already entered!", ephemeral: true });
+    if (data.ended || Date.now() >= data.endTime) return int.followUp({ content: "This giveaway has ended!", ephemeral: true });
+    if (data.participants.includes(int.user.id)) return int.followUp({ content: "You have already entered!", ephemeral: true });
 
     const db = await tools.fetchSettings(int.user.id, int.guild.id);
     const user = db.users?.[int.user.id] || { xp: 0, streak: 0 };
@@ -343,11 +309,11 @@ async function handleEnter(client, int, tools, data) {
 
     if (data.requiredRoleId) {
         const m = await int.guild.members.fetch(int.user.id).catch(() => null);
-        if (!m || !m.roles.cache.has(data.requiredRoleId)) return int.followUp({ content: `Required role missing!`, ephemeral: true });
+        if (!m || !m.roles.cache.has(data.requiredRoleId)) return int.followUp({ content: "You don't have the required role!", ephemeral: true });
     }
 
     data.participants.push(int.user.id);
-    await client.db.update(int.guild.id, 
+    await client.db.update(int.guild.id,
         { $push: { "giveaways.$[elem].participants": int.user.id } },
         { arrayFilters: [{ "elem.id": data.id }] }
     );
@@ -356,32 +322,37 @@ async function handleEnter(client, int, tools, data) {
 }
 
 async function handleList(client, int, tools, data) {
-    if (data.participants.length === 0) return int.reply({ content: "No one yet!", ephemeral: true });
-    
-    // Chunk participants list for display
-    const list = data.participants.slice(0, 50).map((id, i) => `${i + 1}. <@${id}>`).join('\n') || "Empty";
+    if (data.participants.length === 0) return int.reply({ content: "No one has entered yet!", ephemeral: true });
+
+    const list = data.participants.slice(0, 50).map((id, i) => `${i + 1}. <@${id}>`).join('\n');
     const embed = new Discord.EmbedBuilder()
         .setTitle('Participants List')
         .setDescription(list)
         .setColor(0x00AE86)
-        .setFooter({ text: `Showing top 50 participants` });
-    
+        .setFooter({ text: `Showing up to 50 participants` });
+
     return int.reply({ embeds: [embed], ephemeral: true });
 }
 
 async function handleCancel(client, int, tools, data) {
     const isMod = tools.canManageServer(int.member, false);
-    if (!isMod && int.user.id !== data.hostId && !tools.isDev()) return int.reply({ content: "No permission!", ephemeral: true });
+    if (!isMod && int.user.id !== data.hostId && !tools.isDev()) {
+        return int.reply({ content: "You don't have permission to cancel this giveaway!", ephemeral: true });
+    }
 
     data.ended = true;
     activeGiveaways.delete(data.channelId);
-    
-    await client.db.update(int.guild.id, 
+
+    await client.db.update(int.guild.id,
         { $set: { "giveaways.$[elem].ended": true, "giveaways.$[elem].cancelled": true } },
         { arrayFilters: [{ "elem.id": data.id }] }
     );
 
-    const embed = new Discord.EmbedBuilder().setTitle('Giveaway Cancelled').setColor(0xFF0000);
+    const embed = new Discord.EmbedBuilder()
+        .setTitle('Giveaway Cancelled')
+        .setDescription(`The **${data.prize}** giveaway has been cancelled.`)
+        .setColor(0xFF0000);
+
     await int.update({ embeds: [embed], components: [] });
 }
 
@@ -389,7 +360,7 @@ async function updateMsg(client, tools, data) {
     try {
         const c = await client.channels.fetch(data.channelId);
         const m = await c.messages.fetch(data.messageId);
-        const e = await createGiveawayEmbed(data, tools);
+        const e = createGiveawayEmbed(data, tools);
         await m.edit({ embeds: [e] });
     } catch (e) {}
 }
@@ -404,11 +375,19 @@ async function endGiveaway(client, tools, data) {
         const m = await c.messages.fetch(data.messageId);
 
         if (data.participants.length < data.minParticipants) {
-            await client.db.update(data.guildId, 
+            await client.db.update(data.guildId,
                 { $set: { "giveaways.$[elem].ended": true } },
                 { arrayFilters: [{ "elem.id": data.id }] }
             );
-            return m.edit({ components: [], embeds: [new Discord.EmbedBuilder().setTitle('Cancelled').setDescription(`Not enough users (${data.participants.length}/${data.minParticipants}).`).setColor(0xFF0000)] });
+            return m.edit({
+                components: [],
+                embeds: [
+                    new Discord.EmbedBuilder()
+                        .setTitle('Giveaway Cancelled')
+                        .setDescription(`Not enough participants (${data.participants.length}/${data.minParticipants}).`)
+                        .setColor(0xFF0000)
+                ]
+            });
         }
 
         const winners = [];
@@ -418,49 +397,26 @@ async function endGiveaway(client, tools, data) {
             winners.push(pool.splice(idx, 1)[0]);
         }
 
-        const prize = Number(data.currentCredits ?? data.currentGold ?? 0);
-        // Direct DB update for winners + log
-        for (const wId of winners) {
-            // Fetch current balance for accurate log
-            const wDoc = await client.db.fetch(data.guildId, [`users.${wId}`]).catch(() => null)
-            const wOldCredits = wDoc?.users?.[wId]?.credits || 0
-            const wNewCredits = wOldCredits + prize
-
-            await client.db.update(data.guildId, {
-                $set: { [`users.${wId}.credits`]: wNewCredits }
-            });
-
-            // Log the giveaway win
-            const globalTools = client.globalTools
-            if (globalTools?.addCreditLog) {
-                await globalTools.addCreditLog(client.db, data.guildId, wId, {
-                    type: "giveaway",
-                    amount: prize,
-                    balance: wNewCredits,
-                    note: `Won credit giveaway (${data.participants.length} participants)`
-                }, 5, wDoc?.users?.[wId]?.creditLogs || [])
-            }
-        }
-
-        // Finalize in DB
-        await client.db.update(data.guildId, 
+        await client.db.update(data.guildId,
             { $set: { "giveaways.$[elem].ended": true, "giveaways.$[elem].winnerIds": winners } },
             { arrayFilters: [{ "elem.id": data.id }] }
         );
 
+        const visuals = data.visuals || {};
         const winnerMentions = winners.map(id => `<@${id}>`).join(', ');
+
         const endEmbed = new Discord.EmbedBuilder()
-            .setTitle(`${data.visuals?.TROPHY || "🏆"} Giveaway Ended`)
+            .setTitle(`${visuals.TROPHY || "🏆"} Giveaway Ended`)
             .setColor(0x00FF00)
             .addFields(
-                { name: `${data.visuals?.TROPHY || "🏆"} Winners`, value: winnerMentions || "None" },
-                { name: `${data.visuals?.GOLD || EMOJIS.GOLD} Prize`, value: `${tools.commafy(prize)} credits each` }
+                { name: `${visuals.PRIZE || "🎁"} Prize`, value: `**${data.prize}**` },
+                { name: `${visuals.TROPHY || "🏆"} Winner${winners.length > 1 ? "s" : ""}`, value: winnerMentions || "None" }
             );
 
         await m.edit({ embeds: [endEmbed], components: [] });
-        await c.send({ content: `Congratulations ${winnerMentions}! You won **${tools.commafy(prize)}** credits! 🎉` });
+        await c.send({ content: `Congratulations ${winnerMentions}! You won **${data.prize}**! 🎉` });
 
     } catch (e) {
-        console.error(e);
+        console.error("[Giveaway] Error ending giveaway:", e);
     }
 }
