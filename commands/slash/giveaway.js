@@ -355,6 +355,8 @@ async function handleCancel(client, int, tools, data) {
             return int.reply({ content: "You don't have permission to cancel this giveaway!", ephemeral: true });
         }
 
+        await int.deferUpdate();
+
         data.ended = true;
         activeGiveaways.delete(data.channelId);
 
@@ -368,7 +370,7 @@ async function handleCancel(client, int, tools, data) {
             .setDescription(`The **${data.prize}** giveaway has been cancelled.`)
             .setColor(0xFF0000);
 
-        await int.update({ embeds: [embed], components: [] });
+        await int.editReply({ embeds: [embed], components: [] });
     } catch (e) {
         console.error('[Giveaway] handleCancel error:', e);
     }
@@ -393,10 +395,11 @@ async function endGiveaway(client, tools, data) {
         const m = await c.messages.fetch(data.messageId);
 
         if (data.participants.length < data.minParticipants) {
-            await client.db.update(data.guildId,
+            client.db.update(data.guildId,
                 { $set: { "giveaways.$[elem].ended": true } },
                 { arrayFilters: [{ "elem.id": data.id }] }
-            );
+            ).catch(e => console.error('[Giveaway] DB end update failed:', e));
+
             return m.edit({
                 components: [],
                 embeds: [
@@ -415,10 +418,11 @@ async function endGiveaway(client, tools, data) {
             winners.push(pool.splice(idx, 1)[0]);
         }
 
-        await client.db.update(data.guildId,
+        // Persist winners — fire-and-forget so announcement always happens
+        client.db.update(data.guildId,
             { $set: { "giveaways.$[elem].ended": true, "giveaways.$[elem].winnerIds": winners } },
             { arrayFilters: [{ "elem.id": data.id }] }
-        );
+        ).catch(e => console.error('[Giveaway] DB winners update failed:', e));
 
         const visuals = data.visuals || {};
         const winnerMentions = winners.map(id => `<@${id}>`).join(', ');

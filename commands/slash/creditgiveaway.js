@@ -369,19 +369,27 @@ async function handleList(client, int, tools, data) {
 }
 
 async function handleCancel(client, int, tools, data) {
-    const isMod = tools.canManageServer(int.member, false);
-    if (!isMod && int.user.id !== data.hostId && !tools.isDev()) return int.reply({ content: "No permission!", ephemeral: true });
+    try {
+        const isMod = tools.canManageServer(int.member, false);
+        if (!isMod && int.user.id !== data.hostId && !tools.isDev()) {
+            return int.reply({ content: "No permission!", ephemeral: true });
+        }
 
-    data.ended = true;
-    activeGiveaways.delete(data.channelId);
-    
-    await client.db.update(int.guild.id, 
-        { $set: { "giveaways.$[elem].ended": true, "giveaways.$[elem].cancelled": true } },
-        { arrayFilters: [{ "elem.id": data.id }] }
-    );
+        await int.deferUpdate();
 
-    const embed = new Discord.EmbedBuilder().setTitle('Giveaway Cancelled').setColor(0xFF0000);
-    await int.update({ embeds: [embed], components: [] });
+        data.ended = true;
+        activeGiveaways.delete(data.channelId);
+
+        client.db.update(int.guild.id,
+            { $set: { "giveaways.$[elem].ended": true, "giveaways.$[elem].cancelled": true } },
+            { arrayFilters: [{ "elem.id": data.id }] }
+        ).catch(e => console.error('[CreditGiveaway] Failed to cancel in DB:', e));
+
+        const embed = new Discord.EmbedBuilder().setTitle('Giveaway Cancelled').setColor(0xFF0000);
+        await int.editReply({ embeds: [embed], components: [] });
+    } catch (e) {
+        console.error('[CreditGiveaway] handleCancel error:', e);
+    }
 }
 
 async function updateMsg(client, tools, data) {
@@ -441,11 +449,11 @@ async function endGiveaway(client, tools, data) {
             }
         }
 
-        // Finalize in DB
-        await client.db.update(data.guildId, 
+        // Finalize in DB — fire-and-forget so announcement always happens
+        client.db.update(data.guildId, 
             { $set: { "giveaways.$[elem].ended": true, "giveaways.$[elem].winnerIds": winners } },
             { arrayFilters: [{ "elem.id": data.id }] }
-        );
+        ).catch(e => console.error('[CreditGiveaway] DB winners update failed:', e));
 
         const winnerMentions = winners.map(id => `<@${id}>`).join(', ');
         const endEmbed = new Discord.EmbedBuilder()
