@@ -158,11 +158,12 @@ module.exports = {
             giveawayData.messageId = msg.id;
             activeGiveaways.set(targetChannel.id, giveawayData);
 
-            await client.db.update(int.guild.id, { $push: { giveaways: giveawayData } });
-            await int.editReply({ content: `✅ Giveaway started in ${targetChannel}!` });
-
             attachCollector(msg, client, tools, giveawayData);
             scheduleGiveawayEnd(client, tools, giveawayData);
+
+            const { visuals: _v, ...giveawayDataForDb } = giveawayData;
+            await client.db.update(int.guild.id, { $push: { giveaways: giveawayDataForDb } });
+            await int.editReply({ content: `✅ Giveaway started in ${targetChannel}!` });
 
         } catch (e) {
             console.error(e);
