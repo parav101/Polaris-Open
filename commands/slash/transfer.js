@@ -6,7 +6,7 @@ module.exports = {
     description: 'Transfer credits between members (20% tax is deducted from the amount)',
     args:[
       { type: 'user', name: 'recipient', description: 'Recipient member', required: true },
-      { type: 'integer', name: 'amount', description: 'Amount to transfer', min: 1, required: true }
+      { type: 'integer', name: 'amount', description: 'Amount to transfer', min: 10, required: true }
     ]
   },
 
@@ -22,7 +22,9 @@ module.exports = {
     if (!recipient || !amount) {
       return tools.warn('Invalid arguments provided');
     }
-
+    if(amount < 10){
+      return tools.warn('Minimum transfer amount is 10 credits');
+    }
     if (sender.id === recipient.id) {
       return tools.warn('Cannot transfer to yourself');
     }
