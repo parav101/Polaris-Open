@@ -25,6 +25,7 @@
 	let pageCache = {}
 	let isUpdating = false
 	let loadingPage = false
+	let showMissingMembers = false
 
 	let popup = null
 	let popupUser = null
@@ -240,6 +241,11 @@
 			: ''
 	}
 
+	function visibleLeaderboardRows() {
+		if (showMissingMembers) return lbRows
+		return lbRows.filter((row) => !row.missing)
+	}
+
 	function hydrate(res) {
 		data = res
 		totalPages = res.pageInfo.pageCount
@@ -430,7 +436,7 @@
 		{/if}
 	</div>
 {:else}
-	<main class="lb-cyber-shell">
+	<main class="lb-cyber-shell lb-main-overhaul">
 		<section class="lb-cyber-hero">
 			<h1>Leaderboard for {data.guild?.name}</h1>
 			<p>{membersText}</p>
@@ -453,14 +459,29 @@
 		</nav>
 
 		{#if activeTab === 'leaderboard'}
-			<div class="leaderboardBox lb-cyber-box">
-				{#if lbRows.length === 0}
-					<h2 class="lb-cyber-empty">Nobody is ranked yet.</h2>
+			<section class="lb-leaderboard-frame">
+				<div class="lb-list-controls">
+					<p class="lb-list-title">Main Rankings</p>
+					{#if data.moderator}
+						<button class="lb-filter-toggle" on:click={() => (showMissingMembers = !showMissingMembers)}>
+							{showMissingMembers ? 'Hide left members' : 'Show left members'}
+						</button>
+					{/if}
+				</div>
+			<div class="leaderboardBox lb-cyber-box lb-main-list-box">
+				{#if visibleLeaderboardRows().length === 0}
+					<h2 class="lb-cyber-empty">
+						{#if lbRows.length > 0 && !showMissingMembers}
+							No active members to show on this page.
+						{:else}
+							Nobody is ranked yet.
+						{/if}
+					</h2>
 				{:else}
-					{#each lbRows as row}
+					{#each visibleLeaderboardRows() as row}
 						<!-- svelte-ignore a11y_no_noninteractive_tabindex a11y_no_static_element_interactions -->
 						<div
-							class="leaderboardSlot lb-cyber-row"
+							class="leaderboardSlot lb-cyber-row lb-main-row"
 							class:notInServer={row.missing}
 							class:canManage={data.moderator}
 							class:isSelf={row.isSelf}
@@ -503,6 +524,7 @@
 					{/each}
 				{/if}
 			</div>
+			</section>
 
 			{#if totalPages > 1}
 				<div class="middleflex lb-cyber-pagination">
@@ -515,7 +537,7 @@
 
 		{#if activeTab === 'intel'}
 			{#if memberIntel}
-				<section class="lb-intel-grid">
+				<section class="lb-intel-grid lb-section-grid">
 					<div class="leaderboardBox lb-cyber-box lb-intel-card lb-intro-card">
 						<div class="lb-intro-head">
 							<img src={memberIntel.avatar || '/assets/avatar.png'} alt="" />
@@ -592,7 +614,7 @@
 		{/if}
 
 		{#if activeTab === 'perks'}
-			<div class="leaderboardBox lb-cyber-box">
+			<div class="leaderboardBox lb-cyber-box lb-section-panel">
 				{#if data.settings?.leaderboard?.hideRoles && !rewardRows.length}
 					<h2 class="lb-cyber-empty">Reward roles are hidden for this server.</h2>
 				{:else if !rewardRows.length}
@@ -616,7 +638,7 @@
 					{/each}
 				{/if}
 			</div>
-			<div class="leaderboardBox lb-cyber-box">
+			<div class="leaderboardBox lb-cyber-box lb-section-panel">
 				{#each allLevels as lvl}
 					<div class="leaderboardSlot lb-cyber-row" class:highlightedSlot={lvl.highlight}>
 						<div class="mainInfo lb-row-main">
@@ -638,7 +660,7 @@
 
 		{#if activeTab === 'ops'}
 			{#if data.moderator}
-				<div class="leaderboardBox lb-cyber-box">
+				<div class="leaderboardBox lb-cyber-box lb-section-panel">
 					<h2>Moderator Operations</h2>
 					<p>Click a leaderboard row to edit XP. Missing members can be hidden. Hidden members are listed below for unhide actions.</p>
 				</div>
