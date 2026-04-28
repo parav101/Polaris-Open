@@ -18,7 +18,7 @@ module.exports = {
             return int.followUp({ content: "This is not your quest board!", ephemeral: true }).catch(() => {})
         }
 
-        const db = await tools.fetchAll(int.guild.id)
+        const db = await tools.fetchSettings(int.user.id, int.guild.id)
         if (!db) return int.followUp({ content: "Could not fetch server data.", ephemeral: true }).catch(() => {})
         if (!db.settings.quests?.enabled) return int.followUp({ content: "Daily quests are not enabled on this server.", ephemeral: true }).catch(() => {})
 
@@ -50,20 +50,23 @@ module.exports = {
 
         const newCredits = (db.users[userId].credits || 0) + bonusReward
         db.users[userId].credits = newCredits
-
-        await client.db.update(int.guild.id, {
-            $set: {
-                [`users.${userId}.quests`]: q,
-                [`users.${userId}.credits`]: newCredits,
-            }
-        }).exec().catch(() => {})
-
-        await tools.addCreditLog(client.db, int.guild.id, userId, {
+        const creditLogs = db.users[userId].creditLogs || []
+        const nextCreditLogs = creditLogs.concat({
             type: "quest",
             amount: bonusReward,
             balance: newCredits,
             note: `3/3 daily quest bonus (streak day ${q.streak.count})`,
-        }, 5, db.users[userId].creditLogs || []).catch(() => {})
+            ts: Date.now(),
+        }).slice(-5)
+        db.users[userId].creditLogs = nextCreditLogs
+
+        client.db.update(int.guild.id, {
+            $set: {
+                [`users.${userId}.quests`]: q,
+                [`users.${userId}.credits`]: newCredits,
+                [`users.${userId}.creditLogs`]: nextCreditLogs,
+            }
+        }).exec().catch(() => {})
 
         // Post announce if configured
         const announceChannelId = db.settings.quests?.announceChannelId

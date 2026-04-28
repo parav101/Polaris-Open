@@ -21,7 +21,7 @@ module.exports = {
         await int.deferUpdate()
         await int.editReply({ components: buildDisabledComponents(int.message) }).catch(() => {})
 
-        const db = await tools.fetchAll(int.guild.id)
+        const db = await tools.fetchSettings(int.user.id, int.guild.id)
         if (!db) return int.followUp({ content: "Could not fetch server data.", ephemeral: true }).catch(() => {})
         if (!db.settings.quests?.enabled) return int.followUp({ content: "Daily quests are not enabled on this server.", ephemeral: true }).catch(() => {})
 
@@ -77,7 +77,7 @@ module.exports = {
 
             const slotIndex = parseInt(sel.values[0])
             // Re-fetch fresh data before writing
-            const freshDB = await tools.fetchAll(int.guild.id).catch(() => null)
+            const freshDB = await tools.fetchSettings(userId, int.guild.id).catch(() => null)
             if (!freshDB) return
 
             if (!freshDB.users) freshDB.users = {}
@@ -89,19 +89,22 @@ module.exports = {
                 return int.followUp({ content: result.reason, ephemeral: true }).catch(() => {})
             }
 
-            await client.db.update(int.guild.id, {
-                $set: {
-                    [`users.${userId}.quests`]: freshDB.users[userId].quests,
-                    [`users.${userId}.credits`]: freshDB.users[userId].credits,
-                }
-            }).exec().catch(() => {})
-
-            await tools.addCreditLog(client.db, int.guild.id, userId, {
+            const creditLogs = freshDB.users[userId].creditLogs || []
+            const nextCreditLogs = creditLogs.concat({
                 type: "quest_reroll",
                 amount: -result.costPaid,
                 balance: freshDB.users[userId].credits,
                 note: `Quest reroll — new quest: ${result.quest.label} (${result.quest.tier})`,
-            }, 5, freshDB.users[userId].creditLogs || []).catch(() => {})
+                ts: Date.now(),
+            }).slice(-5)
+            freshDB.users[userId].creditLogs = nextCreditLogs
+            client.db.update(int.guild.id, {
+                $set: {
+                    [`users.${userId}.quests`]: freshDB.users[userId].quests,
+                    [`users.${userId}.credits`]: freshDB.users[userId].credits,
+                    [`users.${userId}.creditLogs`]: nextCreditLogs,
+                }
+            }).exec().catch(() => {})
 
             const { embed, rows } = buildQuestsEmbed(tools, freshDB, userId, int.member)
             await int.editReply({ embeds: [embed], components: rows }).catch(() => {})

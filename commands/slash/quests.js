@@ -13,7 +13,6 @@ const E = {
     unlocked: "<:unlocked:1466817218166788278>",
     locked:   "<:locked:1466817215918772275>",
 }
-
 /**
  * Compact 15-char progress bar.
  */
@@ -162,7 +161,7 @@ module.exports = {
         const isHidden = int.isButton() || !!int.options?.get("hidden")?.value
         await int.deferReply({ ephemeral: isHidden })
 
-        const db = await tools.fetchAll(int.guild.id)
+        const db = await tools.fetchSettings(int.user.id, int.guild.id)
         if (!db) return tools.warn("*noData")
         if (!db.settings.quests?.enabled) return tools.warn("Daily quests are not enabled on this server.")
 
