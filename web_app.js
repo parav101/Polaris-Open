@@ -696,22 +696,36 @@ app.get("/api/leaderboard/:id", cors(), async function(req, res) {
 
     // Attach additional member-intel data for logged in users.
     if (loggedIn && userLevel && !userLevel.noLogin) {
-        const foundXPData = data.users?.[userInfo.id] || {}
+        const detailUserId = userLevel.id || userInfo.id
+        const foundXPData = data.users?.[detailUserId] || data.users?.[userInfo.id] || {}
         const creditLogs = Array.isArray(foundXPData.creditLogs) ? foundXPData.creditLogs : []
         const streakData = foundXPData.streak && typeof foundXPData.streak === "object"
             ? foundXPData.streak
             : { count: 0, lastClaim: 0, highest: 0 }
+        const creditsRaw = foundXPData.credits
+        const parsedCredits = Number(creditsRaw)
+        const xpAtDayStartRaw = Number(foundXPData.xpAtDayStart)
+        const currentXpRaw = Number(foundXPData.xp)
+        const activityRaw = Number(foundXPData.activityXpAccumulated)
+        const derivedDailyActivity = (Number.isFinite(currentXpRaw) && Number.isFinite(xpAtDayStartRaw))
+            ? Math.max(0, Math.floor(currentXpRaw - xpAtDayStartRaw))
+            : 0
+        const resolvedActivity = Number.isFinite(activityRaw) && activityRaw > 0
+            ? Math.floor(activityRaw)
+            : derivedDailyActivity
 
         userLevel.details = {
-            credits: Number(foundXPData.credits) || 0,
+            hasData: Object.keys(foundXPData).length > 0,
+            sourceUserId: detailUserId,
+            credits: Number.isFinite(parsedCredits) ? parsedCredits : null,
             creditLogs,
             streak: {
                 count: Number(streakData.count) || 0,
                 lastClaim: Number(streakData.lastClaim) || 0,
                 highest: Number(streakData.highest) || 0
             },
-            xpAtDayStart: Number(foundXPData.xpAtDayStart) || 0,
-            activityXpAccumulated: Number(foundXPData.activityXpAccumulated) || 0,
+            xpAtDayStart: Number.isFinite(xpAtDayStartRaw) ? xpAtDayStartRaw : 0,
+            activityXpAccumulated: resolvedActivity,
             msgXp: Number(foundXPData.msgXp) || 0,
             lastXpGain: Number(foundXPData.lastXpGain) || 0
         }

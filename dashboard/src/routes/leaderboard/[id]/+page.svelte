@@ -159,6 +159,19 @@
 		}[type] || 'Other'
 	}
 
+	function formatRelativeTime(ts) {
+		if (!ts || !Number.isFinite(ts)) return 'Never'
+		const diff = Date.now() - ts
+		if (diff < 0) return 'Just now'
+		const minute = 60 * 1000
+		const hour = 60 * minute
+		const day = 24 * hour
+		if (diff < minute) return 'Just now'
+		if (diff < hour) return `${Math.floor(diff / minute)}m ago`
+		if (diff < day) return `${Math.floor(diff / hour)}h ago`
+		return `${Math.floor(diff / day)}d ago`
+	}
+
 	function buildMemberIntel(dat) {
 		if (!loggedIn() || !dat.user?.xp) return null
 		const levelInfo = getLevel(dat.user.xp, dat.settings)
@@ -171,8 +184,11 @@
 		const estMin = xpToNext === 0 ? 0 : Math.ceil(xpToNext / Math.max(1, maxXP))
 		const estMax = xpToNext === 0 ? 0 : Math.ceil(xpToNext / Math.max(1, minXP))
 		const details = dat.user.details || {}
-		const rawDailyXp = Math.floor(details.activityXpAccumulated || 0)
-		const msgXp = Math.min(Math.floor(details.msgXp || 0), rawDailyXp)
+		const hasDetails = details.hasData !== false
+		const safeCredits = Number.isFinite(details.credits) ? details.credits : null
+		const rawDailyXp = Math.max(0, Math.floor(details.activityXpAccumulated || 0))
+		const msgXpRaw = Math.floor(details.msgXp || 0)
+		const msgXp = rawDailyXp > 0 ? Math.min(msgXpRaw, rawDailyXp) : 0
 		const vcXp = Math.max(0, rawDailyXp - msgXp)
 		const msgPercent = rawDailyXp > 0 ? (msgXp / rawDailyXp) * 100 : 0
 		const vcPercent = rawDailyXp > 0 ? (vcXp / rawDailyXp) * 100 : 0
@@ -197,7 +213,8 @@
 			multiplierText: dat.settings.hideMultipliers ? 'Hidden by server' : `${mult.boost}x XP`,
 			topReward: topReward ? { name: topReward.name, color: roleCol(topReward.color) } : null,
 			rewardCount: `${commafy(obtainedRoles.length)} / ${commafy(dat.settings?.rewards?.length || 0)}`,
-			credits: Number(details.credits) || 0,
+			hasDetails,
+			credits: safeCredits,
 			creditLogs: (details.creditLogs || []).slice(-CREDIT_LOG_DISPLAY_COUNT).reverse().map((log) => ({
 				type: getCreditLabel(log.type),
 				amount: `${log.amount >= 0 ? '+' : ''}${commafy(log.amount || 0)}`,
@@ -209,9 +226,10 @@
 			vcXp,
 			msgPercent,
 			vcPercent,
-			lastXpGain: details.lastXpGain ? `<t:${Math.floor(details.lastXpGain / 1000)}:R>` : 'Never',
+			lastXpGain: formatRelativeTime(Number(details.lastXpGain)),
 			streak,
-			nextMilestone
+			nextMilestone,
+			hasAnyActivitySignal: rawDailyXp > 0 || Number(details.lastXpGain || 0) > 0 || streak.count > 0
 		}
 	}
 
@@ -440,6 +458,7 @@
 					<h2 class="lb-cyber-empty">Nobody is ranked yet.</h2>
 				{:else}
 					{#each lbRows as row}
+						<!-- svelte-ignore a11y_no_noninteractive_tabindex a11y_no_static_element_interactions -->
 						<div
 							class="leaderboardSlot lb-cyber-row"
 							class:notInServer={row.missing}
@@ -466,7 +485,7 @@
 											<p class="red">Not in server</p>
 										{/if}
 										{#if data.moderator && row.missing}
-											<p class="red hideFromLeaderboard" on:click={(e) => clickHide(e, row)}>Hide member</p>
+											<button class="red hideFromLeaderboard" on:click={(e) => clickHide(e, row)}>Hide member</button>
 										{/if}
 									</div>
 								</div>
@@ -526,7 +545,16 @@
 
 					<div class="leaderboardBox lb-cyber-box lb-intel-card">
 						<h2><Coins size={18} /> Credits</h2>
-						<p class="lb-credit-balance">{commafy(memberIntel.credits)} credits</p>
+						<p class="lb-credit-balance">
+							{#if memberIntel.credits === null}
+								Unavailable
+							{:else}
+								{commafy(memberIntel.credits)} credits
+							{/if}
+						</p>
+						{#if !memberIntel.hasDetails}
+							<p>Detailed credit data could not be loaded for your profile yet.</p>
+						{/if}
 						{#if memberIntel.creditLogs.length === 0}
 							<p>No credit transactions recorded yet.</p>
 						{:else}
@@ -544,6 +572,9 @@
 
 					<div class="leaderboardBox lb-cyber-box lb-intel-card">
 						<h2><Sparkles size={18} /> Activity and Streak</h2>
+						{#if !memberIntel.hasAnyActivitySignal}
+							<p>No recent activity tracked yet for this profile.</p>
+						{/if}
 						<p>Daily boosted XP snapshot: <b>{commafy(memberIntel.rawDailyXp)}</b></p>
 						<p>Message XP: <b>{commafy(memberIntel.msgXp)} ({memberIntel.msgPercent.toFixed(1)}%)</b></p>
 						<p>Voice XP: <b>{commafy(memberIntel.vcXp)} ({memberIntel.vcPercent.toFixed(1)}%)</b></p>
@@ -629,7 +660,9 @@
 	</main>
 
 	{#if popup}
+		<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
 		<div class="popup" style="display: flex" on:click={() => { if (!isUpdating) popup = null }}>
+			<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
 			<div class="popupbox" on:click|stopPropagation>
 				<div class="box lb-cyber-box">
 					{#if popup === 'editxp' && popupUser}

@@ -760,6 +760,16 @@ input:checked + .sliderspan:before {
     font-weight: bold !important;
 }
 
+button.hideFromLeaderboard {
+    background: transparent;
+    border: none;
+    min-width: 0;
+    height: auto;
+    padding: 0;
+    font-size: 17px;
+    text-decoration: underline;
+}
+
 .highlightedSlot {
     background-color: rgba(255, 255, 255, 0.25);
     border-bottom: none !important;
@@ -967,6 +977,13 @@ input:checked + .sliderspan:before {
 } */
 
 /* Cyberpunk leaderboard overhaul */
+:root {
+    --lb-glow-low: 0 0 12px rgba(98, 213, 255, 0.18);
+    --lb-glow-medium: 0 0 20px rgba(98, 213, 255, 0.3);
+    --lb-glow-high: 0 0 30px rgba(168, 108, 255, 0.45);
+    --lb-ease-smooth: cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
 .lb-cyber-shell {
     width: min(96%, 1600px);
     margin: 10px auto 40px;
@@ -981,7 +998,8 @@ input:checked + .sliderspan:before {
     font-size: clamp(34px, 4.4vw, 52px);
     margin-bottom: 10px;
     letter-spacing: 0.03em;
-    text-shadow: 0 0 22px rgba(111, 247, 255, 0.35), 0 0 10px rgba(188, 104, 255, 0.28);
+    text-shadow: var(--lb-glow-medium), var(--lb-glow-low);
+    transition: text-shadow 220ms var(--lb-ease-smooth), transform 220ms var(--lb-ease-smooth);
 }
 
 .lb-cyber-hero p {
@@ -992,12 +1010,14 @@ input:checked + .sliderspan:before {
 .lb-cyber-btn {
     background: linear-gradient(135deg, #3c6fff 0%, #7f3fff 52%, #0ad2ff 100%);
     border: 1px solid rgba(154, 226, 255, 0.55);
-    box-shadow: 0 0 20px rgba(15, 176, 255, 0.25);
+    box-shadow: var(--lb-glow-medium);
+    transition: transform 180ms var(--lb-ease-smooth), box-shadow 180ms var(--lb-ease-smooth), filter 180ms var(--lb-ease-smooth);
 }
 
 .lb-cyber-btn:hover {
     filter: brightness(120%);
-    box-shadow: 0 0 26px rgba(15, 176, 255, 0.38);
+    box-shadow: var(--lb-glow-high);
+    transform: translateY(-1px);
 }
 
 .lb-cyber-tabs {
@@ -1017,13 +1037,19 @@ input:checked + .sliderspan:before {
     border: 1px solid rgba(127, 190, 255, 0.45);
     background: rgba(33, 43, 76, 0.82);
     color: #c5d7ff;
-    transition: all 0.18s ease;
+    transition: transform 170ms var(--lb-ease-smooth), box-shadow 170ms var(--lb-ease-smooth), background 170ms var(--lb-ease-smooth), color 170ms var(--lb-ease-smooth), border-color 170ms var(--lb-ease-smooth);
 }
 
 .lb-cyber-tabs button.selectedlb {
     background: linear-gradient(130deg, rgba(78, 225, 255, 0.28), rgba(195, 108, 255, 0.28));
     color: #ffffff;
-    box-shadow: 0 0 22px rgba(120, 210, 255, 0.28);
+    box-shadow: var(--lb-glow-high);
+}
+
+.lb-cyber-tabs button:hover:not(:disabled),
+.lb-cyber-tabs button:focus-visible:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: var(--lb-glow-medium);
 }
 
 .lb-cyber-box {
@@ -1032,8 +1058,9 @@ input:checked + .sliderspan:before {
         radial-gradient(circle at 100% 100%, rgba(200, 80, 255, 0.16), transparent 46%),
         rgba(17, 24, 44, 0.83);
     border: 1px solid rgba(129, 195, 255, 0.3);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 18px 40px rgba(0, 0, 0, 0.35);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 18px 40px rgba(0, 0, 0, 0.35), var(--lb-glow-low);
     backdrop-filter: blur(5px);
+    transition: box-shadow 220ms var(--lb-ease-smooth), border-color 220ms var(--lb-ease-smooth);
 }
 
 .lb-cyber-empty {
@@ -1045,6 +1072,12 @@ input:checked + .sliderspan:before {
 .lb-cyber-row {
     min-height: 112px;
     border-bottom: 1px solid rgba(168, 202, 255, 0.2) !important;
+    transition: transform 170ms var(--lb-ease-smooth), box-shadow 170ms var(--lb-ease-smooth), background-color 170ms var(--lb-ease-smooth);
+}
+
+.lb-cyber-row:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--lb-glow-low);
 }
 
 .lb-row-main {
@@ -1120,6 +1153,10 @@ input:checked + .sliderspan:before {
     height: 36px;
     margin: 0 6px;
     text-align: center;
+}
+
+.lb-cyber-pagination button {
+    min-width: 56px;
 }
 
 .lb-intel-grid {
@@ -1210,12 +1247,146 @@ input:checked + .sliderspan:before {
     .lb-intel-grid {
         grid-template-columns: 1fr;
     }
+
+    .lb-cyber-shell {
+        width: min(98%, 1600px);
+    }
+}
+
+@media (max-width: 860px) {
+    .lb-cyber-hero {
+        padding: 18px 10px 10px;
+    }
+
+    .lb-cyber-hero h1 {
+        font-size: clamp(26px, 8vw, 36px);
+    }
+
+    .lb-cyber-tabs {
+        gap: 8px;
+        margin-bottom: 14px;
+    }
+
+    .lb-cyber-tabs button {
+        width: calc(50% - 6px);
+        min-width: 0;
+        justify-content: center;
+        padding: 0 8px;
+        font-size: 15px;
+    }
+
+    .leaderboardBox {
+        min-width: 0;
+        width: 100%;
+        padding: 0 8px;
+    }
+
+    .lb-rank {
+        min-width: 52px;
+        font-size: 18px;
+    }
+
+    .lb-avatar-wrap {
+        height: 58px;
+        width: 58px;
+        margin-right: 10px;
+    }
+
+    .lb-name {
+        max-width: 220px;
+        font-size: 18px !important;
+    }
+
+    .progressBar {
+        height: 54px;
+    }
+
+    .progressBar .xpOverlay {
+        padding-left: 10px;
+        padding-right: 8px;
+    }
+
+    .progressBar .xpOverlay p {
+        font-size: 14px;
+        line-height: 18px;
+        white-space: normal;
+    }
+
+    .lb-cyber-pagination {
+        flex-wrap: wrap;
+    }
+
+    .lb-cyber-pagination p {
+        width: 100%;
+        text-align: center;
+    }
+
+    .lb-intro-head {
+        align-items: flex-start;
+    }
+
+    .lb-intro-head img {
+        height: 72px;
+        width: 72px;
+    }
+
+    .lb-intel-card {
+        padding: 14px 12px;
+    }
+}
+
+@media (max-width: 560px) {
+    .lb-cyber-tabs button {
+        width: 100%;
+    }
+
+    .lb-row-main {
+        align-items: flex-start !important;
+    }
+
+    .lb-subline {
+        flex-wrap: wrap;
+        gap: 5px;
+    }
+
+    .lb-cyber-pagination {
+        gap: 8px;
+    }
+
+    .lb-cyber-pagination button {
+        width: 44%;
+        min-width: 0;
+    }
+
+    .popupbox .box {
+        width: calc(100% - 20px);
+        margin: 0 10px;
+        padding: 10px 12px 18px 12px;
+    }
+
+    .popupConfirm {
+        width: calc(50% - 12px);
+        min-width: 0;
+    }
+
+    .lb-credit-balance {
+        font-size: 23px;
+    }
 }
 
 @media (prefers-reduced-motion: reduce) {
     .lb-cyber-btn,
     .lb-cyber-tabs button,
-    .leaderboardSlot.canManage {
+    .leaderboardSlot.canManage,
+    .lb-cyber-row,
+    .lb-cyber-box,
+    .lb-cyber-hero h1 {
         transition: none !important;
+    }
+
+    .lb-cyber-btn:hover,
+    .lb-cyber-tabs button:hover,
+    .lb-cyber-row:hover {
+        transform: none !important;
     }
 }
