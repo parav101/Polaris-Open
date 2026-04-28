@@ -1,5 +1,5 @@
 const Discord = require("discord.js")
-const { ensureDailyQuests, computeBonusReward, allQuestsDone, allQuestsClaimed, getTodayKey } = require("../../classes/Quests.js")
+const { ensureDailyQuests, computeBonusReward, getTodayKey } = require("../../classes/Quests.js")
 
 const TIER_EMOJI  = { easy: "🟢", medium: "🟡", hard: "🔴" }
 const TIER_LABEL  = { easy: "Easy",  medium: "Medium",  hard: "Hard" }
@@ -104,7 +104,7 @@ function buildQuestsEmbed(tools, db, userId, member) {
 
     if (claimBtns.length) rows.push(new Discord.ActionRowBuilder().addComponents(claimBtns))
 
-    // Row 2: Bonus + Reroll
+    // Row 2: Bonus + Reroll + Refresh
     const bonusDone  = list.length > 0 && list.every(q => q.claimed)
     const rerollsLeft = rerollsPerDay - rerollsUsed
 
@@ -122,7 +122,13 @@ function buildQuestsEmbed(tools, db, userId, member) {
         .setStyle(Discord.ButtonStyle.Danger)
         .setDisabled(rerollsLeft <= 0 || list.length === 0 || list.every(q => q.claimed))
 
-    rows.push(new Discord.ActionRowBuilder().addComponents(bonusBtn, rerollBtn))
+    const refreshBtn = new Discord.ButtonBuilder()
+        .setCustomId(`quests_refresh~${userId}`)
+        .setLabel("Refresh")
+        .setEmoji("♻️")
+        .setStyle(Discord.ButtonStyle.Secondary)
+
+    rows.push(new Discord.ActionRowBuilder().addComponents(bonusBtn, rerollBtn, refreshBtn))
 
     return { embed, rows }
 }
@@ -161,15 +167,23 @@ module.exports = {
         const isHidden = int.isButton() || !!int.options?.get("hidden")?.value
         await int.deferReply({ ephemeral: isHidden })
 
-        const db = await tools.fetchSettings(int.user.id, int.guild.id)
-        if (!db) return tools.warn("*noData")
+        const userId = int.user.id
+        let db = await client.db.fetch(int.guild.id, [
+            "settings.quests",
+            `users.${userId}.quests`,
+        ])
+        if (!db) {
+            await client.db.create({ _id: int.guild.id })
+            db = { settings: {}, users: {} }
+        }
+        if (!db.settings) db.settings = {}
+        if (!db.users) db.users = {}
+
         if (!db.settings.quests?.enabled) return tools.warn("Daily quests are not enabled on this server.")
 
-        const userId = int.user.id
         const member = int.member
 
         // Ensure user entry exists
-        if (!db.users) db.users = {}
         if (!db.users[userId]) db.users[userId] = {}
 
         const todayKey = getTodayKey()

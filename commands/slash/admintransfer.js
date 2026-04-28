@@ -1,5 +1,3 @@
-const Discord = require('discord.js');
-
 module.exports = {
   metadata: {
     permission: 'ManageGuild', // Restricts this command to Admins/Moderators
@@ -34,23 +32,28 @@ module.exports = {
       return tools.warn('Cannot transfer to a bot');
     }
 
+    if (!int.deferred && !int.replied) {
+      await int.deferReply();
+    }
+
     // Using the corrected math from before (20% tax)
     const taxRate = 0.2; 
     const tax = Math.round(amount * taxRate);
     const netAmount = amount - tax;
     const totalDeduction = amount; 
 
-    // Fetch both users' data concurrently
-    const [senderDb, recipientDb] = await Promise.all([
-      tools.fetchSettings(sender.id, int.guild.id),
-      tools.fetchSettings(recipient.id, int.guild.id)
+    // Fetch only the fields this command needs in one read.
+    let db = await client.db.fetch(int.guild.id, [
+      `users.${sender.id}`,
+      `users.${recipient.id}`
     ]);
-
-    if (!senderDb) {
-      return tools.warn(`*noData for sender ${sender.displayName}`);
+    if (!db) {
+      await client.db.create({ _id: int.guild.id });
+      db = { users: {} };
     }
+    if (!db.users) db.users = {};
 
-    const senderUserData = senderDb.users[sender.id] || { credits: 0 };
+    const senderUserData = db.users[sender.id] || { credits: 0 };
     const senderCredits = senderUserData.credits || 0;
 
     // Make sure the forced sender actually has enough money
@@ -58,52 +61,47 @@ module.exports = {
       return tools.warn(`Insufficient credits! ${sender.displayName} only has ${tools.commafy(senderCredits)} credits.`);
     }
 
-    const recipientUserData = recipientDb.users[recipient.id] || { credits: 0 };
+    const recipientUserData = db.users[recipient.id] || { credits: 0 };
     const recipientCredits = recipientUserData.credits || 0;
 
     // Update both sender and recipient in a single query
     const newSenderCredits = senderCredits - totalDeduction;
     const newRecipientCredits = recipientCredits + netAmount;
 
-    await client.db.update(int.guild.id, {
-      $set: { 
-        [`users.${sender.id}.credits`]: newSenderCredits,
-        [`users.${recipient.id}.credits`]: newRecipientCredits 
-      },
-      $inc: { "info.taxCollected": tax }
-    }).exec();
-
-    // Log credit transactions concurrently in the background
-    Promise.all([
-      tools.addCreditLog(client.db, int.guild.id, sender.id, {
+    const now = Date.now();
+    const senderLogs = [
+      ...(senderUserData.creditLogs || []),
+      {
         type: "transfer_out",
         amount: -totalDeduction,
         balance: newSenderCredits,
-        note: `Admin forced transfer to ${recipient.displayName} by ${int.member.displayName}`
-      }, 5, senderUserData.creditLogs || []),
-      tools.addCreditLog(client.db, int.guild.id, recipient.id, {
+        note: `Admin forced transfer to ${recipient.displayName} by ${int.member.displayName}`,
+        ts: now
+      }
+    ].slice(-5);
+    const recipientLogs = [
+      ...(recipientUserData.creditLogs || []),
+      {
         type: "transfer_in",
         amount: netAmount,
         balance: newRecipientCredits,
-        note: `Admin forced transfer from ${sender.displayName} by ${int.member.displayName}`
-      }, 5, recipientUserData.creditLogs || [])
-    ]).catch(err => console.error("AdminTransfer DB log err:", err));
+        note: `Admin forced transfer from ${sender.displayName} by ${int.member.displayName}`,
+        ts: now
+      }
+    ].slice(-5);
 
-    // Send confirmation embed
-    const embed = new Discord.EmbedBuilder()
-      .setTitle('🛡️ Admin Forced Transfer')
-      .setDescription(`Transfer successful! Executed by Admin: ${int.member.displayName}`)
-      .setColor(0xff3333) // Red color to indicate an admin action
-      .addFields(
-        { name: '📤 Sender', value: `${sender.displayName}`, inline: true },
-        { name: '📥 Recipient', value: `${recipient.displayName}`, inline: true },
-        { name: '💰 Amount Taken', value: `${tools.commafy(totalDeduction)} credits`, inline: false },
-        { name: '💈 Tax Deducted (20%)', value: `${tools.commafy(tax)} credits`, inline: true },
-        { name: '💵 Net Received', value: `${tools.commafy(netAmount)} credits`, inline: true },
-        { name: '📊 New Balances', value: `${sender.displayName}: ${tools.commafy(newSenderCredits)}\n${recipient.displayName}: ${tools.commafy(newRecipientCredits)}`, inline: false }
-      )
-      .setTimestamp();
+    await client.db.update(int.guild.id, {
+      $set: { 
+        [`users.${sender.id}.credits`]: newSenderCredits,
+        [`users.${recipient.id}.credits`]: newRecipientCredits,
+        [`users.${sender.id}.creditLogs`]: senderLogs,
+        [`users.${recipient.id}.creditLogs`]: recipientLogs
+      },
+      $inc: { "info.taxCollected": tax }
+    }).select("_id").lean().exec();
 
-    await int.reply({ embeds: [embed] });
+    await int.editReply({
+      content: `🛡️ ${int.member} forced a transfer: ${sender} sent **${tools.commafy(totalDeduction)}** credits to ${recipient} | tax: **${tools.commafy(tax)}** | received: **${tools.commafy(netAmount)}**`
+    });
   }
 };

@@ -1,4 +1,3 @@
-const Discord = require('discord.js');
 const { ensureDailyQuests, tickQuest, getTodayKey } = require("../../classes/Quests.js")
 
 module.exports = {
@@ -38,24 +37,26 @@ module.exports = {
     const netAmount = amount - tax;
     const totalDeduction = amount; 
 
-    // Fetch both users' data concurrently
-    const [senderDb, recipientDb] = await Promise.all([
-      tools.fetchSettings(sender.id, int.guild.id),
-      tools.fetchSettings(recipient.id, int.guild.id)
+    // Fetch only the fields this command needs in one read.
+    let db = await client.db.fetch(int.guild.id, [
+      "settings",
+      `users.${sender.id}`,
+      `users.${recipient.id}`
     ]);
-
-    if (!senderDb) {
-      return tools.warn('*noData');
+    if (!db) {
+      await client.db.create({ _id: int.guild.id });
+      db = { settings: {}, users: {} };
     }
+    if (!db.users) db.users = {};
 
-    const senderUserData = senderDb.users[sender.id] || { credits: 0 };
+    const senderUserData = db.users[sender.id] || { credits: 0 };
     const senderCredits = senderUserData.credits || 0;
 
     if (senderCredits < totalDeduction) {
       return tools.warn(`Insufficient credits! You only have ${tools.commafy(senderCredits)} credits.`);
     }
 
-    const recipientUserData = recipientDb.users[recipient.id] || { credits: 0 };
+    const recipientUserData = db.users[recipient.id] || { credits: 0 };
     const recipientCredits = recipientUserData.credits || 0;
 
     // Update both sender and recipient in a single query
@@ -64,52 +65,47 @@ module.exports = {
 
     // Tick transferOut quest for sender
     const transferQuestSet = {}
-    if (senderDb.settings.quests?.enabled) {
-        ensureDailyQuests(senderUserData, senderDb.settings, getTodayKey())
+    if (db.settings?.quests?.enabled) {
+        ensureDailyQuests(senderUserData, db.settings, getTodayKey())
         tickQuest(senderUserData, "transferOut")
         transferQuestSet[`users.${sender.id}.quests`] = senderUserData.quests
     }
+
+    const now = Date.now();
+    const senderLogs = [
+      ...(senderUserData.creditLogs || []),
+      {
+        type: "transfer_out",
+        amount: -totalDeduction,
+        balance: newSenderCredits,
+        note: `Sent ${tools.commafy(totalDeduction)} credits to ${recipient.displayName} (20% tax: ${tools.commafy(tax)})`,
+        ts: now
+      }
+    ].slice(-5);
+    const recipientLogs = [
+      ...(recipientUserData.creditLogs || []),
+      {
+        type: "transfer_in",
+        amount: netAmount,
+        balance: newRecipientCredits,
+        note: `Received ${tools.commafy(netAmount)} credits from ${sender.displayName}`,
+        ts: now
+      }
+    ].slice(-5);
 
     await client.db.update(int.guild.id, {
       $set: { 
         [`users.${sender.id}.credits`]: newSenderCredits,
         [`users.${recipient.id}.credits`]: newRecipientCredits,
+        [`users.${sender.id}.creditLogs`]: senderLogs,
+        [`users.${recipient.id}.creditLogs`]: recipientLogs,
         ...transferQuestSet
       },
       $inc: { "info.taxCollected": tax }
-    }).exec();
+    }).select("_id").lean().exec();
 
-    // Log credit transactions concurrently in the background
-    Promise.all([
-      tools.addCreditLog(client.db, int.guild.id, sender.id, {
-        type: "transfer_out",
-        amount: -totalDeduction,
-        balance: newSenderCredits,
-        note: `Sent ${tools.commafy(totalDeduction)} credits to ${recipient.displayName} (20% tax: ${tools.commafy(tax)})`
-      }, 5, senderUserData.creditLogs || []),
-      tools.addCreditLog(client.db, int.guild.id, recipient.id, {
-        type: "transfer_in",
-        amount: netAmount,
-        balance: newRecipientCredits,
-        note: `Received ${tools.commafy(netAmount)} credits from ${sender.displayName}`
-      }, 5, recipientUserData.creditLogs || [])
-    ]).catch(err => console.error("Transfer DB log err:", err));
-
-    // Send confirmation embed
-    const embed = new Discord.EmbedBuilder()
-      .setTitle('💸 Credit Transfer')
-      .setDescription(`Transfer successful!`)
-      .setColor(0x00ff80)
-      .addFields(
-        { name: '📤 Sender', value: `${sender.displayName}`, inline: true },
-        { name: '📥 Recipient', value: `${recipient.displayName}`, inline: true },
-        { name: '💰 Amount Sent', value: `${tools.commafy(totalDeduction)} credits`, inline: false },
-        { name: '💈 Tax Deducted (20%)', value: `${tools.commafy(tax)} credits`, inline: true },
-        { name: '💵 Net Received', value: `${tools.commafy(netAmount)} credits`, inline: true },
-        { name: '📊 New Balances', value: `${sender.displayName}: ${tools.commafy(newSenderCredits)}\n${recipient.displayName}: ${tools.commafy(newRecipientCredits)}`, inline: false }
-      )
-      .setTimestamp();
-
-    await int.editReply({ embeds:[embed] });
+    await int.editReply({
+      content: `💸 ${sender} transferred **${tools.commafy(totalDeduction)}** credits to ${recipient} | tax: **${tools.commafy(tax)}** | received: **${tools.commafy(netAmount)}**`
+    });
   }
 };

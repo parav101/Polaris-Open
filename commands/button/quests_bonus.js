@@ -18,9 +18,14 @@ module.exports = {
             return int.followUp({ content: "This is not your quest board!", ephemeral: true }).catch(() => {})
         }
 
-        const db = await tools.fetchSettings(int.user.id, int.guild.id)
+        const db = await client.db.fetch(int.guild.id, [
+            "settings.quests",
+            `users.${int.user.id}.quests`,
+            `users.${int.user.id}.credits`,
+            `users.${int.user.id}.creditLogs`,
+        ]).catch(() => null)
         if (!db) return int.followUp({ content: "Could not fetch server data.", ephemeral: true }).catch(() => {})
-        if (!db.settings.quests?.enabled) return int.followUp({ content: "Daily quests are not enabled on this server.", ephemeral: true }).catch(() => {})
+        if (!db.settings?.quests?.enabled) return int.followUp({ content: "Daily quests are not enabled on this server.", ephemeral: true }).catch(() => {})
 
         const userId = int.user.id
         if (!db.users) db.users = {}

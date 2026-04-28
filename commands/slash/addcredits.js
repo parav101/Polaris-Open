@@ -1,5 +1,3 @@
-const Discord = require("discord.js")
-
 module.exports = {
 metadata: {
     permission: "ManageGuild",
@@ -24,9 +22,17 @@ async run(client, int, tools) {
     let user = member?.user
     if (!user) return tools.warn("I couldn't find that member!")
 
-    let db = await tools.fetchSettings(user.id)
-    if (!db) return tools.warn("*noData")
-    else if (!tools.canManageServer(int.member, db.settings.manualPerms)) return tools.warn("*notMod")
+    if (!int.deferred && !int.replied) {
+        await int.deferReply()
+    }
+
+    let db = await client.db.fetch(int.guild.id, ["settings", `users.${user.id}`])
+    if (!db) {
+        await client.db.create({ _id: int.guild.id })
+        db = { settings: {}, users: {} }
+    }
+    if (!db.users) db.users = {}
+    if (!tools.canManageServer(int.member, db.settings?.manualPerms)) return tools.warn("*notMod")
 
     if (amount === 0 && operation === "add") return tools.warn("Invalid amount of credits!")
     if (user.bot) return tools.warn("You can't give credits to bots, silly!")
@@ -42,22 +48,26 @@ async run(client, int, tools) {
 
     let diff = newCredits - oldCredits
 
-    client.db.update(int.guild.id, { $set: { [`users.${user.id}.credits`]: newCredits } }).then(async () => {
-        const opLabel = operation === "set"
+    const existingLogs = userData.creditLogs || []
+    const updatedLogs = [...existingLogs, {
+        type: "addcredits",
+        amount: diff,
+        balance: newCredits,
+        note: `Admin ${operation === "set"
             ? `set balance to ${tools.commafy(newCredits)}`
             : diff >= 0
                 ? `added ${tools.commafy(Math.abs(diff))} credits`
-                : `removed ${tools.commafy(Math.abs(diff))} credits`
+                : `removed ${tools.commafy(Math.abs(diff))} credits`} (by ${int.member.displayName})`,
+        ts: Date.now()
+    }].slice(-5)
 
-        // Pass pre-fetched logs to skip the extra DB fetch inside addCreditLog
-        const existingLogs = userData.creditLogs || []
-        await tools.addCreditLog(client.db, int.guild.id, user.id, {
-            type: "addcredits",
-            amount: diff,
-            balance: newCredits,
-            note: `Admin ${opLabel} (by ${int.member.displayName})`
-        }, 5, existingLogs)
-        int.reply(`${newCredits > oldCredits ? "⏫" : "⏬"} ${user.displayName} now has **${tools.commafy(newCredits)}** credits! (previously ${tools.commafy(oldCredits)}, ${diff >= 0 ? "+" : ""}${tools.commafy(diff)})`)
-    }).catch(() => tools.warn("Something went wrong while trying to modify credits!"))
+    await client.db.update(int.guild.id, {
+        $set: {
+            [`users.${user.id}.credits`]: newCredits,
+            [`users.${user.id}.creditLogs`]: updatedLogs
+        }
+    }).select("_id").lean().exec()
+
+    await int.editReply(`${newCredits > oldCredits ? "⏫" : "⏬"} ${user.displayName} now has **${tools.commafy(newCredits)}** credits! (previously ${tools.commafy(oldCredits)}, ${diff >= 0 ? "+" : ""}${tools.commafy(diff)})`)
 
 }}

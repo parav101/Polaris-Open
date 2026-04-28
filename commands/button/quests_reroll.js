@@ -21,9 +21,13 @@ module.exports = {
         await int.deferUpdate()
         await int.editReply({ components: buildDisabledComponents(int.message) }).catch(() => {})
 
-        const db = await tools.fetchSettings(int.user.id, int.guild.id)
+        const db = await client.db.fetch(int.guild.id, [
+            "settings.quests",
+            `users.${int.user.id}.quests`,
+            `users.${int.user.id}.credits`,
+        ]).catch(() => null)
         if (!db) return int.followUp({ content: "Could not fetch server data.", ephemeral: true }).catch(() => {})
-        if (!db.settings.quests?.enabled) return int.followUp({ content: "Daily quests are not enabled on this server.", ephemeral: true }).catch(() => {})
+        if (!db.settings?.quests?.enabled) return int.followUp({ content: "Daily quests are not enabled on this server.", ephemeral: true }).catch(() => {})
 
         const userId = int.user.id
         if (!db.users) db.users = {}
@@ -77,7 +81,12 @@ module.exports = {
 
             const slotIndex = parseInt(sel.values[0])
             // Re-fetch fresh data before writing
-            const freshDB = await tools.fetchSettings(userId, int.guild.id).catch(() => null)
+            const freshDB = await client.db.fetch(int.guild.id, [
+                "settings.quests",
+                `users.${userId}.quests`,
+                `users.${userId}.credits`,
+                `users.${userId}.creditLogs`,
+            ]).catch(() => null)
             if (!freshDB) return
 
             if (!freshDB.users) freshDB.users = {}
