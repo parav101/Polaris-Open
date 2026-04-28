@@ -17,11 +17,13 @@ async run(client, int, tools) {
 
     let lbLink = `${tools.WEBSITE}/leaderboard/${int.guild.id}`
 
-    let peek = await tools.fetchSettings()
+    const peekPromise = tools.fetchSettings()
+    const dbPromise = tools.fetchAll()
+    let peek = await peekPromise
     let deferEphemeral = !!int.options.get("hidden")?.value || !!(peek?.settings?.leaderboard?.ephemeral)
     if (!int.deferred && !int.replied) await int.deferReply({ ephemeral: deferEphemeral })
 
-    let db = await tools.fetchAll()
+    let db = await dbPromise
     if (!db || !db.users || !Object.keys(db.users).length) return tools.warn(`Nobody in this server is ranked yet!`);
     else if (!db.settings.enabled) return tools.warn("*xpDisabled")
     else if (db.settings.leaderboard.disabled) return tools.warn("The leaderboard is disabled in this server!" + (tools.canManageServer(int.member) ? `\nAs a moderator, you can still privately view the leaderboard here: ${lbLink}` : ""))
@@ -69,14 +71,14 @@ async run(client, int, tools) {
     let xpEmbed = new PageEmbed(embed, rankings, {
         page: pageNumber, size: pageSize, owner: int.user.id,  ephemeral: isHidden,
         mapFunction: (x, y, p) => `**${p})** ${x.id == highlight ? "**" : ""}Lv. ${tools.getLevel(x.xp, db.settings)} - <@${x.id}> (${tools.commafy(x.xp)} XP)${x.id == highlight ? "**" : ""}`,
-        // extraButtons: [ 
-        //     tools.button({style: "Link", label: "Online Leaderboard", url: lbLink}),
-        //     ...tools.button([
-        //         { style: "Secondary", label: "Progress", customId: `stats_view~progress~${int.user.id}` },
-        //         { style: "Secondary", label: "Info", customId: `stats_view~info~${int.user.id}` },
-        //         { style: "Success", label: "Leaderboard", customId: `stats_view~lb~${int.user.id}` }
-        //     ])
-        // ]
+        extraButtons: [ 
+            tools.button({style: "Link", label: "Online Leaderboard", url: lbLink}),
+            // ...tools.button([
+            //     { style: "Secondary", label: "Progress", customId: `stats_view~progress~${int.user.id}` },
+            //     { style: "Secondary", label: "Info", customId: `stats_view~info~${int.user.id}` },
+            //     { style: "Success", label: "Leaderboard", customId: `stats_view~lb~${int.user.id}` }
+            // ])
+        ]
     })
     if (!xpEmbed.data.length) return tools.warn("There are no members on this page!")
 

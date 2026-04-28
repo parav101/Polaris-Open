@@ -12,11 +12,13 @@ module.exports = {
     },
 
     async run(client, int, tools) {
-        let peek = await tools.fetchSettings(int.user.id) // fetching partial first for ephemeral check
+        const peekPromise = tools.fetchSettings(int.user.id) // fetching partial first for ephemeral check
+        const dbPromise = tools.fetchAll()
+        let peek = await peekPromise
         let deferEphemeral = !!int.options.get("hidden")?.value || !!(peek?.settings?.leaderboard?.ephemeral)
         if (!int.deferred && !int.replied) await int.deferReply({ ephemeral: deferEphemeral })
 
-        let db = await tools.fetchAll()
+        let db = await dbPromise
         if (!db || !db.users || !Object.keys(db.users).length) return tools.warn(`Nobody in this server is ranked yet!`);
         else if (!db.settings.enabled) return tools.warn("*xpDisabled")
 

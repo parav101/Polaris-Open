@@ -7,7 +7,7 @@
   
   "enableWebServer": true,
   "serverPort": 6880,
-  "siteURL": "http://localhost:6880",
+  "siteURL": "https://vibez.mixcombo.in",
   
   "changelogURL": "",
   "supportURL": ""
