@@ -694,6 +694,29 @@ app.get("/api/leaderboard/:id", cors(), async function(req, res) {
     }
     if (userLevel.partial) delete userLevel.missing
 
+    // Attach additional member-intel data for logged in users.
+    if (loggedIn && userLevel && !userLevel.noLogin) {
+        const foundXPData = data.users?.[userInfo.id] || {}
+        const creditLogs = Array.isArray(foundXPData.creditLogs) ? foundXPData.creditLogs : []
+        const streakData = foundXPData.streak && typeof foundXPData.streak === "object"
+            ? foundXPData.streak
+            : { count: 0, lastClaim: 0, highest: 0 }
+
+        userLevel.details = {
+            credits: Number(foundXPData.credits) || 0,
+            creditLogs,
+            streak: {
+                count: Number(streakData.count) || 0,
+                lastClaim: Number(streakData.lastClaim) || 0,
+                highest: Number(streakData.highest) || 0
+            },
+            xpAtDayStart: Number(foundXPData.xpAtDayStart) || 0,
+            activityXpAccumulated: Number(foundXPData.activityXpAccumulated) || 0,
+            msgXp: Number(foundXPData.msgXp) || 0,
+            lastXpGain: Number(foundXPData.lastXpGain) || 0
+        }
+    }
+
     // *almost* all settings
     let importantSettings = {
         enabled: settings.enabled,
@@ -703,7 +726,11 @@ app.get("/api/leaderboard/:id", cors(), async function(req, res) {
         leaderboard: settings.leaderboard,
         rewards: rewardList,
         rankCard: settings.rankCard,
-        maxLevel: settings.maxLevel
+        maxLevel: settings.maxLevel,
+        streak: {
+            enabled: settings.streak?.enabled !== false,
+            milestones: Array.isArray(settings.streak?.milestones) ? settings.streak.milestones : []
+        }
     }
 
     if (settings.hideMultipliers) {
