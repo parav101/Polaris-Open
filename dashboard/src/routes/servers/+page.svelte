@@ -163,7 +163,10 @@
 		{/each}
 	</div>
 
-	<div class="middleflex" style="padding-bottom: 30px">
+	<div class="middleflex" style="padding-bottom: 30px; gap: 14px; flex-wrap: wrap;">
+		<a tabindex="-1" href="/admin/logs">
+			<button class="boringbutton" style="font-size: 22px; text-align: center; text-decoration: underline;">Admin Logs</button>
+		</a>
 		<a tabindex="-1" href="/logout">
 			<button class="boringbutton" style="font-size: 22px; text-align: center; text-decoration: underline;">Log out</button>
 		</a>

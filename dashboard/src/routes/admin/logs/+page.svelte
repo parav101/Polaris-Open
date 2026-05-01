@@ -20,6 +20,27 @@
 		shardId: ""
 	}
 
+	$: errorCount = Number(summary?.events?.errorCount || 0)
+	$: warnCount = Number(summary?.events?.warnCount || 0)
+	$: perfRows = Array.isArray(summary?.perf) ? summary.perf : []
+	$: perfSampleCount = perfRows.reduce((a, x) => a + Number(x?.count || 0), 0)
+	$: weightedP95 = perfSampleCount
+		? Math.round(perfRows.reduce((a, x) => a + (Number(x?.p95 || 0) * Number(x?.count || 0)), 0) / perfSampleCount)
+		: 0
+
+	// Health signal combines reliability (errors/warnings) and latency (p95).
+	$: healthStatus = errorCount >= 50 || weightedP95 >= 2500
+		? "critical"
+		: errorCount >= 10 || warnCount >= 80 || weightedP95 >= 1200
+			? "degraded"
+			: "healthy"
+
+	$: healthLabel = healthStatus === "critical"
+		? "Critical"
+		: healthStatus === "degraded"
+			? "Degraded"
+			: "Healthy"
+
 	async function loadAll() {
 		error = null
 		try {
@@ -93,6 +114,10 @@
 				<h1>Admin Logs</h1>
 				<p>Signed in as {me?.user?.displayName || me?.user?.username}</p>
 			</div>
+			<div class="logs-health logs-health-{healthStatus}" title="Based on 24h errors, warnings, and weighted p95 latency">
+				<span class="logs-health-dot"></span>
+				<span>Status: {healthLabel}</span>
+			</div>
 			<div class="logs-actions">
 				<button class="boringbutton" on:click={loadAll}>Refresh now</button>
 				<button class="boringbutton" on:click={downloadLogs}>Download NDJSON</button>
@@ -103,15 +128,15 @@
 		<div class="logs-stats">
 			<div class="logs-stat-card">
 				<p class="logs-stat-label">Errors (24h)</p>
-				<h3>{summary?.events?.errorCount || 0}</h3>
+				<h3>{errorCount}</h3>
 			</div>
 			<div class="logs-stat-card">
 				<p class="logs-stat-label">Warnings (24h)</p>
-				<h3>{summary?.events?.warnCount || 0}</h3>
+				<h3>{warnCount}</h3>
 			</div>
 			<div class="logs-stat-card">
 				<p class="logs-stat-label">Perf samples (24h)</p>
-				<h3>{summary?.perf?.reduce((a, x) => a + x.count, 0) || 0}</h3>
+				<h3>{perfSampleCount}</h3>
 			</div>
 			<div class="logs-stat-card">
 				<p class="logs-stat-label">Refresh</p>
@@ -202,7 +227,7 @@
 	.logs-header {
 		display: flex;
 		justify-content: space-between;
-		align-items: flex-start;
+		align-items: center;
 		gap: 12px;
 		flex-wrap: wrap;
 		margin-bottom: 14px;
@@ -221,6 +246,44 @@
 		display: flex;
 		gap: 8px;
 		flex-wrap: wrap;
+	}
+
+	.logs-health {
+		display: inline-flex;
+		align-items: center;
+		gap: 8px;
+		padding: 8px 12px;
+		border-radius: 999px;
+		font-size: 14px;
+		font-weight: 700;
+		letter-spacing: 0.02em;
+		border: 1px solid transparent;
+	}
+
+	.logs-health-dot {
+		width: 9px;
+		height: 9px;
+		border-radius: 999px;
+		background: currentColor;
+		box-shadow: 0 0 8px currentColor;
+	}
+
+	.logs-health-healthy {
+		color: #7be495;
+		background: rgba(46, 140, 80, 0.18);
+		border-color: rgba(123, 228, 149, 0.45);
+	}
+
+	.logs-health-degraded {
+		color: #ffd166;
+		background: rgba(145, 111, 29, 0.2);
+		border-color: rgba(255, 209, 102, 0.45);
+	}
+
+	.logs-health-critical {
+		color: #ff8c8c;
+		background: rgba(150, 43, 43, 0.2);
+		border-color: rgba(255, 140, 140, 0.45);
 	}
 
 	.logs-link-button {
@@ -358,6 +421,10 @@
 
 		.logs-actions {
 			width: 100%;
+		}
+
+		.logs-health {
+			order: 3;
 		}
 	}
 </style>
