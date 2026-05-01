@@ -30,7 +30,6 @@ module.exports = {
         }
 
         let currentStreak = userData.coinflipStreak || 0;
-        let highestStreak = userData.coinflipHighestStreak || 0;
 
         let winProb = 0.5;
         if (currentCredits >= 100) {
@@ -55,7 +54,6 @@ module.exports = {
             logNote = `Coinflip Win (${bet} bet)`;
             
             currentStreak++;
-            if (currentStreak > highestStreak) highestStreak = currentStreak;
 
             finalMessage = `It's **${result}**! You won **${tools.commafy(netWinnings)}** credits (20% tax: ${tools.commafy(tax)}). Balance: **${tools.commafy(newCredits)}** ${MONEY_BAG_EMOJI}\n<a:Checkin:1313833525094518846> **Current Streak:** ${currentStreak}`
         } else {
@@ -71,8 +69,7 @@ module.exports = {
         let updateQuery = { 
             $set: { 
                 [`users.${int.user.id}.credits`]: newCredits,
-                [`users.${int.user.id}.coinflipStreak`]: currentStreak,
-                [`users.${int.user.id}.coinflipHighestStreak`]: highestStreak
+                [`users.${int.user.id}.coinflipStreak`]: currentStreak
             } 
         };
         
@@ -80,9 +77,6 @@ module.exports = {
         
         if (isWin) {
             updateQuery.$inc["info.taxCollected"] = Math.round(bet * 0.2);
-            updateQuery.$inc[`users.${int.user.id}.coinflipTotalWon`] = logAmount;
-        } else {
-            updateQuery.$inc[`users.${int.user.id}.coinflipTotalLost`] = bet;
         }
 
         // Tick coinflip quests
