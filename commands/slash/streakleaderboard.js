@@ -20,45 +20,36 @@ async run(client, int, tools) {
     const cmdStart = Date.now()
     const perfMeta = { command: "streakleaderboard", guildId: int.guild.id, userId: int.user.id, shardId: client.shard?.id ?? null }
 
-    const peekPromise = tools.fetchSettings()
-    const dbPromise = tools.fetchAll()
-    let peek = await peekPromise
+    const streakType = int.options.get("type")?.value || "current"
+    const sortKey = streakType === "highest" ? "streakHighest" : "streakCurrent"
+
+    // Fetch settings and sorted stats in parallel
+    const settingsPromise = tools.fetchSettings()
+    const rankingsPromise = client.userStats.fetchAllSorted(int.guild.id, sortKey)
+
+    let peek = await settingsPromise
     let deferEphemeral = !!int.options.get("hidden")?.value || !!(peek?.settings?.leaderboard?.ephemeral)
     if (!int.deferred && !int.replied) await int.deferReply({ ephemeral: deferEphemeral })
 
     const fetchStart = Date.now()
-    let db = await dbPromise
-    logger.perf("streakleaderboard.fetch", Date.now() - fetchStart, { ...perfMeta, usersCount: Object.keys(db?.users || {}).length })
-    if (!db || !db.users || !Object.keys(db.users).length) return tools.warn(`Nobody in this server is ranked yet!`);
-    else if (!db.settings.enabled) return tools.warn("*xpDisabled")
-    else if (!db.settings.streak?.enabled) return tools.warn("Streaks are not enabled in this server!" + (tools.canManageServer(int.member) ? ` (enable with ${tools.commandTag("config")})` : ""))
+    let rankings = await rankingsPromise
+    logger.perf("streakleaderboard.fetch", Date.now() - fetchStart, { ...perfMeta, usersCount: rankings.length, source: "user_stats" })
+
+    if (!rankings.length) return tools.warn(`Nobody in this server is ranked yet!`)
+    if (!peek.settings.enabled) return tools.warn("*xpDisabled")
+    if (!peek.settings.streak?.enabled) return tools.warn("Streaks are not enabled in this server!" + (tools.canManageServer(int.member) ? ` (enable with ${tools.commandTag("config")})` : ""))
 
     let pageNumber = int.options.get("page")?.value || 1
     let pageSize = 10
-    let streakType = int.options.get("type")?.value || "current"
 
-    // Convert users object to array and filter for users with streak data
+    // For current streaks: filter to users who claimed within the last 1 day
     const sortStart = Date.now()
-    let rankings = tools.xpObjToArray(db.users)
-    rankings = rankings.filter(x => x.streak && !x.hidden).map(user => ({
-        id: user.id,
-        currentStreak: user.streak.count || 0,
-        highestStreak: user.streak.highest || user.streak.count || 0,
-        lastClaim: user.streak.lastClaim || 0
-    })).filter(user => {
-        // For current streaks, exclude users who haven't claimed in more than 1 day
-        if (streakType === "current" && user.lastClaim) {
-            let daysSinceLastClaim = Math.floor((Date.now() - user.lastClaim) / (24 * 60 * 60 * 1000))
-            return daysSinceLastClaim <= 1
-        }
-        return true // For highest streaks or users without lastClaim data, include them
-    })
-
-    // Sort by the selected streak type
-    if (streakType === "highest") {
-        rankings = rankings.filter(x => x.highestStreak > 0).sort((a, b) => b.highestStreak - a.highestStreak)
-    } else {
-        rankings = rankings.filter(x => x.currentStreak > 0).sort((a, b) => b.currentStreak - a.currentStreak)
+    if (streakType === "current") {
+        rankings = rankings.filter(user => {
+            if (!user.lastClaim) return false
+            const daysSince = Math.floor((Date.now() - user.lastClaim) / (24 * 60 * 60 * 1000))
+            return daysSince <= 1
+        })
     }
     logger.perf("streakleaderboard.sort", Date.now() - sortStart, { ...perfMeta, resultCount: rankings.length, streakType })
 
@@ -73,7 +64,7 @@ async run(client, int, tools) {
         highlight = userSearch.user.id
     }
 
-    let listCol = db.settings.leaderboard?.embedColor
+    let listCol = peek.settings.leaderboard?.embedColor
     if (listCol == -1) listCol = null
 
     let embed = tools.createEmbed({
@@ -82,43 +73,36 @@ async run(client, int, tools) {
             name: `${streakType === "highest" ? "Highest" : "Current"} Streak Leaderboard for ${int.guild.name}`,
             iconURL: int.guild.iconURL()
         },
-        description: streakType === "highest" ? 
-            "Showing members' all-time highest streaks" : 
+        description: streakType === "highest" ?
+            "Showing members' all-time highest streaks" :
             "Showing members' current active streaks",
         footer: {
             text: `${tools.commafy(rankings.length)} member${rankings.length !== 1 ? "s" : ""} with streaks`
         }
     })
 
-    let isHidden = db.settings.leaderboard?.ephemeral || !!int.options.get("hidden")?.value
+    let isHidden = peek.settings.leaderboard?.ephemeral || !!int.options.get("hidden")?.value
 
     let streakEmbed = new PageEmbed(embed, rankings, {
         page: pageNumber, size: pageSize, owner: int.user.id, ephemeral: isHidden,
         mapFunction: (x, y, p) => {
-            let streakValue = streakType === "highest" ? x.highestStreak : x.currentStreak
-            
-            // Format last claim time for current streaks
+            let streakValue = streakType === "highest" ? x.streakHighest : x.streakCurrent
+
             let timeInfo = ""
             if (streakType === "current" && x.lastClaim) {
-                let daysSinceLastClaim = Math.floor((Date.now() - x.lastClaim) / (24 * 60 * 60 * 1000))
-                if (daysSinceLastClaim === 0) {
-                    timeInfo = " (active today)"
-                } else if (daysSinceLastClaim === 1) {
-                    timeInfo = " (1 day ago)"
-                } else if (daysSinceLastClaim > 1) {
-                    timeInfo = ` (${daysSinceLastClaim} days ago)`
-                }
+                let daysSince = Math.floor((Date.now() - x.lastClaim) / (24 * 60 * 60 * 1000))
+                if (daysSince === 0) timeInfo = " (active today)"
+                else if (daysSince === 1) timeInfo = " (1 day ago)"
             }
-            
+
             return `**${p})** ${x.id == highlight ? "**" : ""}${tools.commafy(streakValue)} day${streakValue !== 1 ? "s" : ""} - <@${x.id}>${timeInfo}${x.id == highlight ? "**" : ""}`
         }
     })
-    
+
     if (!streakEmbed.data.length) return tools.warn("There are no members on this page!")
 
     const renderStart = Date.now()
     await streakEmbed.post(int)
     logger.perf("streakleaderboard.render", Date.now() - renderStart, { ...perfMeta, page: pageNumber, pageSize, streakType })
     logger.perf("streakleaderboard.total", Date.now() - cmdStart, { ...perfMeta, page: pageNumber, resultCount: rankings.length, streakType })
-
 }}

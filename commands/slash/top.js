@@ -19,40 +19,38 @@ async run(client, int, tools) {
 
     let lbLink = `${tools.WEBSITE}/leaderboard/${int.guild.id}`
 
-    const peekPromise = tools.fetchSettings()
-    const dbPromise = tools.fetchAll()
-    let peek = await peekPromise
+    // Fetch settings and sorted stats in parallel
+    const settingsPromise = tools.fetchSettings()
+    const rankingsPromise = client.userStats.fetchAllSorted(int.guild.id, "xp")
+
+    let peek = await settingsPromise
     let deferEphemeral = !!int.options.get("hidden")?.value || !!(peek?.settings?.leaderboard?.ephemeral)
     if (!int.deferred && !int.replied) await int.deferReply({ ephemeral: deferEphemeral })
 
     const fetchStart = Date.now()
-    let db = await dbPromise
-    logger.perf("leaderboard.fetch", Date.now() - fetchStart, { ...perfMeta, usersCount: Object.keys(db?.users || {}).length })
-    if (!db || !db.users || !Object.keys(db.users).length) return tools.warn(`Nobody in this server is ranked yet!`);
-    else if (!db.settings.enabled) return tools.warn("*xpDisabled")
-    else if (db.settings.leaderboard.disabled) return tools.warn("The leaderboard is disabled in this server!" + (tools.canManageServer(int.member) ? `\nAs a moderator, you can still privately view the leaderboard here: ${lbLink}` : ""))
+    let rankings = await rankingsPromise
+    logger.perf("leaderboard.fetch", Date.now() - fetchStart, { ...perfMeta, usersCount: rankings.length, source: "user_stats" })
+
+    if (!rankings.length) return tools.warn(`Nobody in this server is ranked yet!`)
+    if (!peek.settings.enabled) return tools.warn("*xpDisabled")
+    if (peek.settings.leaderboard.disabled) return tools.warn("The leaderboard is disabled in this server!" + (tools.canManageServer(int.member) ? ` As a moderator, you can still privately view the leaderboard here: ${lbLink}` : ""))
 
     let pageNumber = int.options.get("page")?.value || 1
     let pageSize = 10
 
-    let minLeaderboardXP = db.settings.leaderboard.minLevel > 1 ? tools.xpForLevel(db.settings.leaderboard.minLevel, db.settings) : 0
+    let minLeaderboardXP = peek.settings.leaderboard.minLevel > 1 ? tools.xpForLevel(peek.settings.leaderboard.minLevel, peek.settings) : 0
+
     const sortStart = Date.now()
-    let rankings = tools.xpObjToArray(db.users)
-
-    const active_only = int.options.get("active_only")?.value || false;
-    if (active_only) {
-        rankings = rankings.filter(u => tools.isUserActive(u));
-    }
-
-    rankings = rankings.filter(x => x.xp > minLeaderboardXP && !x.hidden).sort(function(a, b) {return b.xp - a.xp})
+    const active_only = int.options.get("active_only")?.value || false
+    if (active_only) rankings = rankings.filter(u => tools.isUserActive(u))
+    if (minLeaderboardXP > 0) rankings = rankings.filter(x => x.xp > minLeaderboardXP)
+    if (peek.settings.leaderboard.maxEntries > 0) rankings = rankings.slice(0, peek.settings.leaderboard.maxEntries)
     logger.perf("leaderboard.sort", Date.now() - sortStart, { ...perfMeta, resultCount: rankings.length, activeOnly: active_only })
-
-    if (db.settings.leaderboard.maxEntries > 0) rankings = rankings.slice(0, db.settings.leaderboard.maxEntries)
 
     if (!rankings.length) return tools.warn("Nobody in this server is on the leaderboard yet!")
 
     let highlight = null
-    let userSearch = int.options.get("user") || int.options.get("member") // option is "user" if from context menu
+    let userSearch = int.options.get("user") || int.options.get("member")
     if (userSearch) {
         let foundRanking = rankings.findIndex(x => x.id == userSearch.user.id)
         if (isNaN(foundRanking) || foundRanking < 0) return tools.warn(int.user.id == userSearch.user.id ? "You aren't on the leaderboard!" : "This member isn't on the leaderboard!")
@@ -60,7 +58,7 @@ async run(client, int, tools) {
         highlight = userSearch.user.id
     }
 
-    let listCol = db.settings.leaderboard.embedColor
+    let listCol = peek.settings.leaderboard.embedColor
     if (listCol == -1) listCol = null
 
     let embed = tools.createEmbed({
@@ -69,21 +67,15 @@ async run(client, int, tools) {
             name: `Leaderboard for ${int.guild.name}${active_only ? " (Active Only)" : ""}`,
             iconURL: int.guild.iconURL()
         }
-    });
+    })
 
-    let isHidden = db.settings.leaderboard.ephemeral || !!int.options.get("hidden")?.value
-
+    let isHidden = peek.settings.leaderboard.ephemeral || !!int.options.get("hidden")?.value
 
     let xpEmbed = new PageEmbed(embed, rankings, {
-        page: pageNumber, size: pageSize, owner: int.user.id,  ephemeral: isHidden,
-        mapFunction: (x, y, p) => `**${p})** ${x.id == highlight ? "**" : ""}Lv. ${tools.getLevel(x.xp, db.settings)} - <@${x.id}> (${tools.commafy(x.xp)} XP)${x.id == highlight ? "**" : ""}`,
-        extraButtons: [ 
+        page: pageNumber, size: pageSize, owner: int.user.id, ephemeral: isHidden,
+        mapFunction: (x, y, p) => `**${p})** ${x.id == highlight ? "**" : ""}Lv. ${tools.getLevel(x.xp, peek.settings)} - <@${x.id}> (${tools.commafy(x.xp)} XP)${x.id == highlight ? "**" : ""}`,
+        extraButtons: [
             tools.button({style: "Link", label: "Online Leaderboard", url: lbLink}),
-            // ...tools.button([
-            //     { style: "Secondary", label: "Progress", customId: `stats_view~progress~${int.user.id}` },
-            //     { style: "Secondary", label: "Info", customId: `stats_view~info~${int.user.id}` },
-            //     { style: "Success", label: "Leaderboard", customId: `stats_view~lb~${int.user.id}` }
-            // ])
         ]
     })
     if (!xpEmbed.data.length) return tools.warn("There are no members on this page!")
@@ -92,7 +84,4 @@ async run(client, int, tools) {
     await xpEmbed.post(int)
     logger.perf("leaderboard.render", Date.now() - renderStart, { ...perfMeta, page: pageNumber, pageSize })
     logger.perf("leaderboard.total", Date.now() - cmdStart, { ...perfMeta, page: pageNumber, resultCount: rankings.length })
-
-    // Keep command logic unchanged; logs are for admin dashboard visibility.
-
 }}

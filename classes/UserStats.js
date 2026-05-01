@@ -237,6 +237,74 @@ async function getUserRank(guildId, userId, sortKey = "xp") {
 }
 
 /**
+ * Fetch all users for a guild sorted by a given key — the Phase 4 drop-in
+ * replacement for tools.fetchAll() in leaderboard commands.
+ *
+ * Compared with the old path:
+ *   OLD: fetch ONE giant servers doc (all 1889 users + settings + giveaways),
+ *        transfer it to Node, sort in memory  →  ~7200ms
+ *   NEW: indexed sort on tiny per-user docs, transfer only the fields needed → ~250ms
+ *
+ * Returns an array with an `id` field (same as tools.xpObjToArray output) so
+ * existing rendering/PageEmbed logic works without changes.
+ *
+ * @param {string} guildId
+ * @param {string} [sortKey="xp"]   - "xp" | "credits" | "streakCurrent" | "streakHighest" | "activityXpAccumulated"
+ * @param {object} [opts]
+ * @param {boolean} [opts.activeOnly]  - activity lb: only users active today (UTC)
+ * @param {number}  [opts.maxEntries]  - hard cap on results (respects leaderboard.maxEntries setting)
+ * @returns {Promise<Array>}
+ */
+async function fetchAllSorted(guildId, sortKey = "xp", opts = {}) {
+    const validSortKeys = ["xp", "credits", "streakCurrent", "streakHighest", "activityXpAccumulated"]
+    const key = validSortKeys.includes(sortKey) ? sortKey : "xp"
+
+    const filter = { guildId, hidden: { $ne: true } }
+
+    if (key === "credits")        filter.credits        = { $gt: 0 }
+    if (key === "streakCurrent")  filter.streakCurrent  = { $gt: 0 }
+    if (key === "streakHighest")  filter.streakHighest  = { $gt: 0 }
+
+    if (opts.activeOnly) {
+        const todayStart = Date.UTC(
+            new Date().getUTCFullYear(),
+            new Date().getUTCMonth(),
+            new Date().getUTCDate()
+        )
+        filter.lastDailyUpdate         = { $gte: todayStart }
+        filter.activityXpAccumulated   = { $gt: 0 }
+    }
+
+    const limit = opts.maxEntries > 0 ? opts.maxEntries : 5000
+
+    const docs = await UserStatsModel
+        .find(filter, { _id: 0, __v: 0, guildId: 0 })
+        .sort({ [key]: -1 })
+        .limit(limit)
+        .lean()
+
+    // Map to the same shape as tools.xpObjToArray() so rendering code needs zero changes
+    return docs.map(d => ({
+        id:                    d.userId,
+        xp:                    d.xp                    || 0,
+        credits:               d.credits               || 0,
+        hidden:                !!d.hidden,
+        streakCurrent:         d.streakCurrent         || 0,
+        streakHighest:         d.streakHighest         || 0,
+        lastClaim:             d.lastClaim             || 0,
+        activityXpAccumulated: d.activityXpAccumulated || 0,
+        lastDailyUpdate:       d.lastDailyUpdate       || 0,
+        coinflipStreak:        d.coinflipStreak        || 0,
+        // Legacy nested streak shape — keeps streakleaderboard rendering unchanged
+        streak: {
+            count:     d.streakCurrent || 0,
+            highest:   d.streakHighest || 0,
+            lastClaim: d.lastClaim     || 0,
+        },
+    }))
+}
+
+/**
  * Dual-write helper: extracts all leaderboard-relevant fields from a full userData
  * object (as stored in servers.users[userId]) and upserts them into user_stats.
  *
@@ -316,6 +384,7 @@ module.exports = {
     buildStatsPayload,
     upsertUserStats,
     bulkUpsertUsers,
+    fetchAllSorted,
     dualWriteFromUserData,
     dualWritePartial,
     queryLeaderboard,

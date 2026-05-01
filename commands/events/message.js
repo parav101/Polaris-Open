@@ -165,14 +165,26 @@ async run(client, message, tools) {
 
     // ,lb shortcut — only works in the configured activity leaderboard channel
     if (message.content.trim().toLowerCase() === ",lb") {
-        const fullDb = await tools.fetchAll(message.guild.id).catch(() => null)
         if (
-            fullDb?.settings?.activityLeaderboard?.enabled &&
-            fullDb.settings.activityLeaderboard.channelId === message.channel.id
+            db?.settings?.activityLeaderboard?.enabled &&
+            db.settings.activityLeaderboard.channelId === message.channel.id
         ) {
             const loadingMsg = await message.reply({ content: "<a:loading:1478025535975325738> Loading activity leaderboard..." }).catch(() => null)
 
-            const embed = await generateLeaderboardEmbed(message.guild, fullDb, tools, null, false, message.author.id)
+            // Use indexed user_stats instead of fetchAll
+            const statsUsers = await client.userStats.fetchAllSorted(message.guild.id, "activityXpAccumulated", { activeOnly: true }).catch(() => [])
+            const usersMap = {}
+            for (const u of statsUsers) {
+                usersMap[u.id] = {
+                    xp: u.xp,
+                    hidden: u.hidden,
+                    activityXpAccumulated: u.activityXpAccumulated,
+                    lastDailyUpdate: u.lastDailyUpdate,
+                }
+            }
+            const slimDb = { users: usersMap, settings: db.settings }
+
+            const embed = await generateLeaderboardEmbed(message.guild, slimDb, tools, null, false, message.author.id)
 
             if (!embed) {
                 if (loadingMsg) await loadingMsg.edit({ content: "Failed to load leaderboard." }).catch(() => {})

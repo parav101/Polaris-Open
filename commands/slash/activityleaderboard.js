@@ -17,32 +17,40 @@ async run(client, int, tools) {
     const isHidden = !!int.options.get("hidden")?.value
     await int.deferReply({ ephemeral: isHidden })
 
-    const fetchStart = Date.now()
-    let db = await tools.fetchAll(int.guild.id)
-    logger.perf("activityleaderboard.fetch", Date.now() - fetchStart, { ...perfMeta, usersCount: Object.keys(db?.users || {}).length })
+    // Fetch settings and today's active users in parallel
+    const settingsPromise = tools.fetchSettings()
+    const rankingsPromise = client.userStats.fetchAllSorted(int.guild.id, "activityXpAccumulated", { activeOnly: true })
 
-    if (!db || !db.users || !Object.keys(db.users).length) {
-        return int.editReply({ content: "Nobody in this server is ranked yet!" })
+    const fetchStart = Date.now()
+    const [settings, statsUsers] = await Promise.all([settingsPromise, rankingsPromise])
+    logger.perf("activityleaderboard.fetch", Date.now() - fetchStart, { ...perfMeta, usersCount: statsUsers.length, source: "user_stats" })
+
+    if (!settings.settings.enabled) return int.editReply({ content: tools.errors.xpDisabled })
+    if (!settings.settings.activityLeaderboard?.enabled) return int.editReply({ content: "The activity leaderboard is not enabled in this server!" })
+    if (!statsUsers.length) return int.editReply({ content: "Nobody in this server is ranked yet!" })
+
+    // Build a slim db-compatible object so generateLeaderboardEmbed works unchanged
+    const usersMap = {}
+    for (const u of statsUsers) {
+        usersMap[u.id] = {
+            xp:                    u.xp,
+            hidden:                u.hidden,
+            activityXpAccumulated: u.activityXpAccumulated,
+            lastDailyUpdate:       u.lastDailyUpdate,
+        }
     }
-    if (!db.settings.enabled) {
-        return int.editReply({ content: tools.errors.xpDisabled })
-    }
-    if (!db.settings.activityLeaderboard?.enabled) {
-        return int.editReply({ content: "The activity leaderboard is not enabled in this server!" })
-    }
+    const slimDb = { users: usersMap, settings: settings.settings }
 
     // Determine highlight
     const highlightUser = int.options.get("user") || int.options.get("member")
     const highlightId = highlightUser?.user?.id || null
 
     const renderStart = Date.now()
-    const embed = await generateLeaderboardEmbed(int.guild, db, tools, highlightId, false, int.user.id)
+    const embed = await generateLeaderboardEmbed(int.guild, slimDb, tools, highlightId, false, int.user.id)
 
-    if (!embed) {
-        return int.editReply({ content: "Failed to generate leaderboard." })
-    }
+    if (!embed) return int.editReply({ content: "Failed to generate leaderboard." })
 
     await int.editReply({ embeds: [embed] })
-    logger.perf("activityleaderboard.render", Date.now() - renderStart, { ...perfMeta })
+    logger.perf("activityleaderboard.render", Date.now() - renderStart, perfMeta)
     logger.perf("activityleaderboard.total", Date.now() - cmdStart, perfMeta)
 }}
