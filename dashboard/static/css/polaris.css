@@ -974,10 +974,87 @@ button.hideFromLeaderboard {
 
 .red { color: red }
 
-/* @media screen and (max-width: 800px) {
-    #sidebar { width: 62px; min-width: 62px; }
-    #sidebar p { display: none; }
-} */
+/* Settings page responsiveness */
+@media screen and (max-width: 1400px) {
+    .fulllength {
+        width: calc(100vw - 290px);
+        max-width: 1260px;
+    }
+
+    .settingBox {
+        width: min(600px, calc(100vw - 290px));
+    }
+
+    .sideoption {
+        width: min(520px, calc((100vw - 320px) / 2));
+    }
+}
+
+@media screen and (max-width: 1100px) {
+    #sidebar {
+        width: 78px;
+    }
+
+    #sidebar div {
+        justify-content: center;
+        padding-left: 0;
+        padding-right: 0;
+    }
+
+    #sidebar div p {
+        display: none;
+    }
+
+    #sidebar div img,
+    #sidebar div svg {
+        margin-right: 0 !important;
+    }
+
+    .configboxes {
+        margin-left: 88px;
+        padding-right: 14px;
+    }
+
+    .settingBox,
+    .fulllength,
+    .sideoption,
+    textarea {
+        width: 100%;
+        max-width: 100%;
+    }
+
+    .simpleflex {
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+}
+
+@media screen and (max-width: 700px) {
+    #sidebar {
+        width: 64px;
+    }
+
+    #sidebar div {
+        min-height: 50px;
+    }
+
+    #sidebar div img,
+    #sidebar div svg {
+        width: 22px;
+        height: 22px;
+    }
+
+    .configboxes {
+        margin-left: 70px;
+        padding-right: 10px;
+        padding-bottom: 10px;
+    }
+
+    .categoryBox {
+        min-height: 92px;
+        padding: 8px 12px;
+    }
+}
 
 /* Cyberpunk leaderboard overhaul */
 :root {
