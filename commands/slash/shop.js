@@ -8,13 +8,21 @@ metadata: {
 },
 
 async run(client, int, tools) {
+    const isEphemeral = int.isButton()
 
-    let db = await tools.fetchSettings(int.user.id)
+    // Acknowledge immediately so Discord doesn't time out while we fetch data
+    await int.deferReply({ ephemeral: isEphemeral })
+
+    // Fetch only what the initial view needs — not the entire settings document
+    let db = await client.db.fetch(int.guild.id, [
+        "settings.shop",
+        "settings.quests",
+        `users.${int.user.id}.credits`,
+    ])
     if (!db) return tools.warn("*noData")
-    if (!db.settings.shop.enabled) return tools.warn("The shop is currently disabled in this server!")
+    if (!db.settings?.shop?.enabled) return tools.warn("The shop is currently disabled in this server!")
 
-    let userData = db.users[int.user.id] || { credits: 0 }
-    let credits = userData.credits || 0
+    let credits = db.users?.[int.user.id]?.credits || 0
     let shopItems = db.settings.shop.items || []
 
     if (shopItems.length === 0) return tools.warn("There are no items in the shop right now!")
@@ -26,9 +34,9 @@ async run(client, int, tools) {
         thumbnail: int.guild.iconURL({ dynamic: true })
     })
 
-    let compactItems = shopItems.map(item => {
-        return `${item.emoji} **${item.name}** • ${tools.commafy(item.price)}<:gold:1472934905972527285> • ${item.duration}h • <@&${item.roleId}>`
-    })
+    let compactItems = shopItems.map(item =>
+        `${item.emoji} **${item.name}** • ${tools.commafy(item.price)}<:gold:1472934905972527285> • ${item.duration}h • <@&${item.roleId}>`
+    )
 
     let chunkSize = 8
     let itemChunks = []
@@ -54,8 +62,8 @@ async run(client, int, tools) {
 
     let row = new Discord.ActionRowBuilder().addComponents(selectMenu)
 
-    let isEphemeral = int.isButton();
-    let msg = await int.reply({ embeds: [embed], components: [row], fetchReply: true, ephemeral: isEphemeral })
+    // editReply since we already deferred
+    let msg = await int.editReply({ embeds: [embed], components: [row] })
 
     let collector = msg.createMessageComponentCollector({
         componentType: Discord.ComponentType.StringSelect,
@@ -67,33 +75,30 @@ async run(client, int, tools) {
 
         let roleId = i.values[0]
         let item = shopItems.find(x => x.roleId === roleId)
-
         if (!item) return i.reply({ content: "Item not found!", ephemeral: true })
 
-        // Defer reply early to avoid interaction timeouts during role granting and DB updates
-        try { await i.deferReply({ ephemeral: true }) } catch (e) {}
+        // Acknowledge the new interaction before any async work
+        try { await i.deferReply({ ephemeral: true }) } catch (e) { return }
 
-        // Re-fetch user data to ensure up-to-date credits
-        let freshDB = await tools.fetchSettings(int.user.id)
-        let freshUserData = freshDB.users[int.user.id] || { credits: 0 }
+        // Re-fetch only this user's live data (settings reused from initial load above)
+        let freshDoc = await client.db.fetch(int.guild.id, [`users.${int.user.id}`])
+        let freshUserData = freshDoc?.users?.[int.user.id] || { credits: 0 }
         let currentCredits = freshUserData.credits || 0
 
         if (currentCredits < item.price) {
-            return i.reply({ content: `You don't have enough credits! You need **${tools.commafy(item.price - currentCredits)}** more.`, ephemeral: true })
+            return i.editReply({ content: `You don't have enough credits! You need **${tools.commafy(item.price - currentCredits)}** more.` })
         }
 
         // Add role to user
         try {
             await i.member.roles.add(item.roleId)
         } catch (e) {
-            return i.reply({ content: "I couldn't give you the role! Make sure my role is above it and I have 'Manage Roles' permission.", ephemeral: true })
+            return i.editReply({ content: "I couldn't give you the role! Make sure my role is above it and I have 'Manage Roles' permission." })
         }
 
-        // Update database
+        // Compute new state
         let expires = Date.now() + (item.duration * 3600000)
         let newTempRoles = freshUserData.tempRoles || []
-        
-        // Check if already has this role as temp role, update duration
         let existingTempIndex = newTempRoles.findIndex(x => x.roleId === item.roleId)
         if (existingTempIndex >= 0) {
             newTempRoles[existingTempIndex].expires = Math.max(newTempRoles[existingTempIndex].expires, Date.now()) + (item.duration * 3600000)
@@ -103,50 +108,41 @@ async run(client, int, tools) {
 
         let newCredits = currentCredits - item.price
 
-        // Tick shopBuy quest
+        // Quest tick (reuse db.settings from initial fetch — settings don't change mid-session)
         const questSet = {}
-        if (freshDB.settings.quests?.enabled) {
-            ensureDailyQuests(freshUserData, freshDB.settings, getTodayKey())
+        if (db.settings.quests?.enabled) {
+            ensureDailyQuests(freshUserData, db.settings, getTodayKey())
             tickQuest(freshUserData, "shopBuy")
             questSet[`users.${int.user.id}.quests`] = freshUserData.quests
         }
-        
+
+        // Inline credit log — avoids a separate DB fetch + write round-trip
+        const newLog = {
+            type: "shop",
+            amount: -item.price,
+            balance: newCredits,
+            note: `Bought ${item.name} from shop (${item.duration}h)`,
+            ts: Date.now()
+        }
+        const updatedLogs = [...(freshUserData.creditLogs || []), newLog].slice(-5)
+
+        // Single combined DB write
         await client.db.update(int.guild.id, {
             $set: {
                 [`users.${int.user.id}.credits`]: newCredits,
                 [`users.${int.user.id}.tempRoles`]: newTempRoles,
+                [`users.${int.user.id}.creditLogs`]: updatedLogs,
                 ...questSet
             }
         })
 
-        // Log the shop purchase
-        await tools.addCreditLog(client.db, int.guild.id, int.user.id, {
-            type: "shop",
-            amount: -item.price,
-            balance: newCredits,
-            note: `Bought ${item.name} from shop (${item.duration}h)`
-        }, 5, freshUserData.creditLogs || [])
+        // Fire announcement without blocking the reply
+        int.channel.send({ content: `🎉 <@${int.user.id}> just purchased **${item.emoji} ${item.name}**! <:gold:1472934905972527285> enjoy it for the next **${item.duration}h**!` }).catch(() => {})
 
-        // --- NEW: Public announcement message ---
-        // Send a message to the channel to encourage others and show off the purchase
-        const announcementEmbed = tools.createEmbed({
-            color: tools.COLOR,
-            description: `🎉 <@${int.user.id}> just purchased **${item.emoji} ${item.name}** from the shop!\nEnjoy your new role for the next **${item.duration}** hours!`,
-        }).setThumbnail(int.user.displayAvatarURL({ dynamic: true }))
-
-        // We send it as a follow-up or a new message in the channel since the interaction reply is ephemeral
-        await int.channel.send({ embeds: [announcementEmbed] }).catch(() => {})
-
-        // Edit the previously deferred reply with the result
-        try {
-            await i.editReply({ content: `✅ **Successfully purchased ${item.emoji} ${item.name}!**\nCredits remaining: **${tools.commafy(newCredits)}**\nExpires in: **${tools.time(item.duration * 3600000)}**` })
-        } catch (err) {
-            try { await i.followUp({ content: `✅ Successfully purchased ${item.emoji} ${item.name}!`, ephemeral: true }) } catch (e) {}
-        }
+        await i.editReply({ content: `${item.emoji} **${item.name}** purchased! <:gold:1472934905972527285> **${tools.commafy(newCredits)}** left · expires in **${tools.time(item.duration * 3600000)}**` })
     })
 
     collector.on("end", () => {
         int.editReply({ components: [] }).catch(() => {})
     })
-
 }}
