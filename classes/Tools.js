@@ -3,6 +3,7 @@ const Discord = require('discord.js')
 const {inlineCode} = require('@discordjs/builders')
 const { Font, RankCardBuilder, LeaderboardBuilder } = require("canvacord");
 const { ensureDailyQuests, tickQuest, getTodayKey } = require('./Quests.js')
+const logger = require("./Logger.js")
 
 // this class contains all sorts of misc functions used around the bot
 
@@ -46,18 +47,27 @@ class Tools {
 
         // fetch settings from db/cache (+ some xp)
         this.fetchSettings = async function(userID, serverID=int.guild.id) {
+            const started = Date.now()
             let data = await client.db.fetch(serverID, ["settings", "info", userID ? `users.${userID}` : null])
             if (!data) {
                 await client.db.create({ _id: serverID })
+                logger.perf("db.fetchSettings", Date.now() - started, { command: "db.fetchSettings", guildId: serverID, cacheMiss: true })
                 return await this.fetchSettings(userID, serverID)
             }
             if (!data.users) data.users = {}
+            logger.perf("db.fetchSettings", Date.now() - started, { command: "db.fetchSettings", guildId: serverID, userId: userID || null, usersLoaded: userID ? 1 : 0 })
             return data
         }
 
         // fetch all xp in the server
         this.fetchAll = async function(serverID=int.guild.id) {
+            const started = Date.now()
             return await client.db.fetch(serverID).then(data => {
+                logger.perf("db.fetchAll", Date.now() - started, {
+                    command: "db.fetchAll",
+                    guildId: serverID,
+                    usersCount: Object.keys(data?.users || {}).length
+                })
                 if (!data) return
                 return data
             })
@@ -874,6 +884,7 @@ class Tools {
         //   balance – new balance after the transaction
         //   note    – short human-readable description (max ~60 chars)
         this.addCreditLog = async function(dbClient, guildId, userId, entry, maxLogs = 5, prefetchedLogs) {
+            const started = Date.now()
             const log = {
                 type:    entry.type    || "unknown",
                 amount:  entry.amount  || 0,
@@ -918,9 +929,20 @@ class Tools {
                 await dbClient.update(guildId, {
                     $set: { [`users.${userId}.creditLogs`]: updated }
                 }).exec()
+                logger.perf("db.addCreditLog", Date.now() - started, {
+                    command: "db.addCreditLog",
+                    guildId,
+                    userId,
+                    entryType: log.type,
+                    logCount: updated.length
+                })
             } catch (e) {
                 // Non-fatal — log silently
                 console.warn(`[CreditLog] Failed to write log for ${userId} in ${guildId}:`, e.message)
+                logger.warn("creditLog", {
+                    msg: "Failed to write credit log",
+                    meta: { guildId, userId, error: e.message }
+                })
             }
         }
 

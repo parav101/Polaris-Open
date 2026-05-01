@@ -1,4 +1,5 @@
 const PageEmbed = require("../../classes/PageEmbed.js")
+const logger = require("../../classes/Logger.js")
 
 module.exports = {
     metadata: {
@@ -12,23 +13,29 @@ module.exports = {
     },
 
     async run(client, int, tools) {
+        const cmdStart = Date.now()
+        const perfMeta = { command: "creditleaderboard", guildId: int.guild.id, userId: int.user.id, shardId: client.shard?.id ?? null }
         const peekPromise = tools.fetchSettings(int.user.id) // fetching partial first for ephemeral check
         const dbPromise = tools.fetchAll()
         let peek = await peekPromise
         let deferEphemeral = !!int.options.get("hidden")?.value || !!(peek?.settings?.leaderboard?.ephemeral)
         if (!int.deferred && !int.replied) await int.deferReply({ ephemeral: deferEphemeral })
 
+        const fetchStart = Date.now()
         let db = await dbPromise
+        logger.perf("creditleaderboard.fetch", Date.now() - fetchStart, { ...perfMeta, usersCount: Object.keys(db?.users || {}).length })
         if (!db || !db.users || !Object.keys(db.users).length) return tools.warn(`Nobody in this server is ranked yet!`);
         else if (!db.settings.enabled) return tools.warn("*xpDisabled")
 
         let pageNumber = int.options.get("page")?.value || 1
         let pageSize = 10
 
+        const sortStart = Date.now()
         let rankings = tools.xpObjToArray(db.users)
         
         // Filter out those with no credits
         rankings = rankings.filter(x => x.credits > 0 && !x.hidden).sort(function(a, b) {return (b.credits || 0) - (a.credits || 0)})
+        logger.perf("creditleaderboard.sort", Date.now() - sortStart, { ...perfMeta, resultCount: rankings.length })
 
         if (db.settings.leaderboard.maxEntries > 0) rankings = rankings.slice(0, db.settings.leaderboard.maxEntries)
 
@@ -63,6 +70,9 @@ module.exports = {
         
         if (!embedPage.data.length) return tools.warn("There are no members on this page!")
 
+        const renderStart = Date.now()
         await embedPage.post(int)
+        logger.perf("creditleaderboard.render", Date.now() - renderStart, { ...perfMeta, page: pageNumber, pageSize })
+        logger.perf("creditleaderboard.total", Date.now() - cmdStart, { ...perfMeta, page: pageNumber, resultCount: rankings.length })
     }
 }

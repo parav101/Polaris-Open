@@ -1,4 +1,5 @@
 const PageEmbed = require("../../classes/PageEmbed.js")
+const logger = require("../../classes/Logger.js")
 
 module.exports = {
 metadata: {
@@ -13,7 +14,8 @@ metadata: {
 },
 
 async run(client, int, tools) {
-    // const startTime = Date.now(); // Start timing
+    const cmdStart = Date.now()
+    const perfMeta = { command: "leaderboard", guildId: int.guild.id, userId: int.user.id, shardId: client.shard?.id ?? null }
 
     let lbLink = `${tools.WEBSITE}/leaderboard/${int.guild.id}`
 
@@ -23,7 +25,9 @@ async run(client, int, tools) {
     let deferEphemeral = !!int.options.get("hidden")?.value || !!(peek?.settings?.leaderboard?.ephemeral)
     if (!int.deferred && !int.replied) await int.deferReply({ ephemeral: deferEphemeral })
 
+    const fetchStart = Date.now()
     let db = await dbPromise
+    logger.perf("leaderboard.fetch", Date.now() - fetchStart, { ...perfMeta, usersCount: Object.keys(db?.users || {}).length })
     if (!db || !db.users || !Object.keys(db.users).length) return tools.warn(`Nobody in this server is ranked yet!`);
     else if (!db.settings.enabled) return tools.warn("*xpDisabled")
     else if (db.settings.leaderboard.disabled) return tools.warn("The leaderboard is disabled in this server!" + (tools.canManageServer(int.member) ? `\nAs a moderator, you can still privately view the leaderboard here: ${lbLink}` : ""))
@@ -32,6 +36,7 @@ async run(client, int, tools) {
     let pageSize = 10
 
     let minLeaderboardXP = db.settings.leaderboard.minLevel > 1 ? tools.xpForLevel(db.settings.leaderboard.minLevel, db.settings) : 0
+    const sortStart = Date.now()
     let rankings = tools.xpObjToArray(db.users)
 
     const active_only = int.options.get("active_only")?.value || false;
@@ -40,6 +45,7 @@ async run(client, int, tools) {
     }
 
     rankings = rankings.filter(x => x.xp > minLeaderboardXP && !x.hidden).sort(function(a, b) {return b.xp - a.xp})
+    logger.perf("leaderboard.sort", Date.now() - sortStart, { ...perfMeta, resultCount: rankings.length, activeOnly: active_only })
 
     if (db.settings.leaderboard.maxEntries > 0) rankings = rankings.slice(0, db.settings.leaderboard.maxEntries)
 
@@ -82,10 +88,11 @@ async run(client, int, tools) {
     })
     if (!xpEmbed.data.length) return tools.warn("There are no members on this page!")
 
+    const renderStart = Date.now()
     await xpEmbed.post(int)
+    logger.perf("leaderboard.render", Date.now() - renderStart, { ...perfMeta, page: pageNumber, pageSize })
+    logger.perf("leaderboard.total", Date.now() - cmdStart, { ...perfMeta, page: pageNumber, resultCount: rankings.length })
 
-    // const endTime = Date.now();
-    // const executionTime = endTime - startTime;
-    // console.log(`Execution time for /leaderboard command: ${executionTime} ms`);
+    // Keep command logic unchanged; logs are for admin dashboard visibility.
 
 }}

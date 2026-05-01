@@ -1,4 +1,5 @@
 const PageEmbed = require("../../classes/PageEmbed.js")
+const logger = require("../../classes/Logger.js")
 
 module.exports = {
 metadata: {
@@ -16,6 +17,8 @@ metadata: {
 },
 
 async run(client, int, tools) {
+    const cmdStart = Date.now()
+    const perfMeta = { command: "streakleaderboard", guildId: int.guild.id, userId: int.user.id, shardId: client.shard?.id ?? null }
 
     const peekPromise = tools.fetchSettings()
     const dbPromise = tools.fetchAll()
@@ -23,7 +26,9 @@ async run(client, int, tools) {
     let deferEphemeral = !!int.options.get("hidden")?.value || !!(peek?.settings?.leaderboard?.ephemeral)
     if (!int.deferred && !int.replied) await int.deferReply({ ephemeral: deferEphemeral })
 
+    const fetchStart = Date.now()
     let db = await dbPromise
+    logger.perf("streakleaderboard.fetch", Date.now() - fetchStart, { ...perfMeta, usersCount: Object.keys(db?.users || {}).length })
     if (!db || !db.users || !Object.keys(db.users).length) return tools.warn(`Nobody in this server is ranked yet!`);
     else if (!db.settings.enabled) return tools.warn("*xpDisabled")
     else if (!db.settings.streak?.enabled) return tools.warn("Streaks are not enabled in this server!" + (tools.canManageServer(int.member) ? ` (enable with ${tools.commandTag("config")})` : ""))
@@ -33,6 +38,7 @@ async run(client, int, tools) {
     let streakType = int.options.get("type")?.value || "current"
 
     // Convert users object to array and filter for users with streak data
+    const sortStart = Date.now()
     let rankings = tools.xpObjToArray(db.users)
     rankings = rankings.filter(x => x.streak && !x.hidden).map(user => ({
         id: user.id,
@@ -54,6 +60,7 @@ async run(client, int, tools) {
     } else {
         rankings = rankings.filter(x => x.currentStreak > 0).sort((a, b) => b.currentStreak - a.currentStreak)
     }
+    logger.perf("streakleaderboard.sort", Date.now() - sortStart, { ...perfMeta, resultCount: rankings.length, streakType })
 
     if (!rankings.length) return tools.warn("Nobody in this server has any streaks yet!")
 
@@ -109,6 +116,9 @@ async run(client, int, tools) {
     
     if (!streakEmbed.data.length) return tools.warn("There are no members on this page!")
 
+    const renderStart = Date.now()
     await streakEmbed.post(int)
+    logger.perf("streakleaderboard.render", Date.now() - renderStart, { ...perfMeta, page: pageNumber, pageSize, streakType })
+    logger.perf("streakleaderboard.total", Date.now() - cmdStart, { ...perfMeta, page: pageNumber, resultCount: rankings.length, streakType })
 
 }}

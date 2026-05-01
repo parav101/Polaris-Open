@@ -11,6 +11,7 @@ const Discord = require('discord.js')
 const { REST } = require("@discordjs/rest")
 
 const Tools = require('./classes/Tools.js')
+const logger = require("./classes/Logger.js")
 const Model = require("./classes/DatabaseModel.js");
 const LevelUpEmbed = require('./classes/LevelUpEmbed.js')
 const LevelUpMessage = require("./classes/LevelUpMessage.js")
@@ -74,6 +75,19 @@ function botIsPublic() {
 function notFalse(val) {
     return val && val != "false" && val != "0"
 } 
+
+async function requireBotDev(req, res) {
+    let [user] = await getDiscordInfo(req)
+    if (!user) {
+        res.apiError("Not logged in!", "login")
+        return null
+    }
+    if (!tools.isDev(user)) {
+        res.apiError("Missing permissions!", "noPerms")
+        return null
+    }
+    return user
+}
 
 function clearDeletedData(settings, roles, channels) {
     if (roles) {
@@ -1018,18 +1032,71 @@ app.get("/api/emojis/:guildId", async function(req, res) {
     return res.send({ appEmojis, guildEmojis })
 })
 
+app.get("/api/admin/whoami", async function(req, res) {
+    const user = await requireBotDev(req, res)
+    if (!user) return
+    return res.send({
+        ok: true,
+        user: { id: user.id, username: user.username, displayName: user.global_name || user.username }
+    })
+})
+
+app.get("/api/admin/logs", async function(req, res) {
+    const user = await requireBotDev(req, res)
+    if (!user) return
+
+    const type = (req.query.type === "perf") ? "perf" : "events"
+    const opts = {
+        limit: req.query.limit,
+        since: req.query.since,
+        level: req.query.level,
+        category: req.query.category,
+        command: req.query.command,
+        shardId: req.query.shardId
+    }
+    const data = logger.readLogs(type, opts)
+    return res.send({ type, count: data.length, logs: data })
+})
+
+app.get("/api/admin/logs/summary", async function(req, res) {
+    const user = await requireBotDev(req, res)
+    if (!user) return
+    return res.send(logger.summary())
+})
+
+app.get("/api/admin/logs/export", async function(req, res) {
+    const user = await requireBotDev(req, res)
+    if (!user) return
+
+    const type = (req.query.type === "perf") ? "perf" : "events"
+    const logs = logger.readLogs(type, {
+        limit: req.query.limit || 2000,
+        since: req.query.since,
+        level: req.query.level,
+        category: req.query.category,
+        command: req.query.command,
+        shardId: req.query.shardId
+    }).reverse()
+
+    const fileName = `polaris-${type}-${Date.now()}.ndjson`
+    res.setHeader("Content-Type", "application/x-ndjson; charset=utf-8")
+    res.setHeader("Content-Disposition", `attachment; filename=\"${fileName}\"`)
+    return res.send(logs.map(x => JSON.stringify(x)).join("\n"))
+})
+
 app.get("/api", function(req, res) { res.send("ඞ") })
 
 app.use(function (err, req, res, next) {
     if (err && err.message == "Response timeout") res.status(500).send({ apiError: true, internalError: true, message: 'Internal server error! (Timed out)'})
     else {
         console.warn(err)
+        logger.error("web", { msg: "Unhandled web error", meta: { error: err.message } })
         res.status(500).send({ apiError: true, internalError: true, message: `Internal server error! (${err.message})`})
     }
 })
 
-process.on('uncaughtException', (e) => { console.warn(e) });
-process.on('unhandledRejection', (e, p) => { console.warn(e) });
+process.on('uncaughtException', (e) => { console.warn(e); logger.error("process", { msg: "uncaughtException", meta: { error: e.message } }) });
+process.on('unhandledRejection', (e, p) => { console.warn(e); logger.error("process", { msg: "unhandledRejection", meta: { error: e?.message || String(e) } }) });
 
 // SvelteKit SPA fallback — must be last, after all API routes
 app.get('*', (req, res) => {

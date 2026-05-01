@@ -1,5 +1,6 @@
 const Discord = require('discord.js');
 const path = require('path');
+const logger = require("../../classes/Logger.js")
 module.exports = {
     metadata: {
         name: "prettyleaderboard",
@@ -14,12 +15,16 @@ module.exports = {
     },
 
     async run(client, int, tools) {
+        const cmdStart = Date.now()
+        const perfMeta = { command: "prettyleaderboard", guildId: int.guild.id, userId: int.user.id, shardId: client.shard?.id ?? null }
         // Defer reply immediately
         await int.deferReply();
 
         try {
             // Get server data
+            const fetchStart = Date.now()
             let db = await tools.fetchAll()
+            logger.perf("prettyleaderboard.fetch", Date.now() - fetchStart, { ...perfMeta, usersCount: Object.keys(db?.users || {}).length })
             if (!db || !db.users || !Object.keys(db.users).length) 
                 return int.editReply(tools.warn(`Nobody in this server is ranked yet!`));
             if (!db.settings.enabled) 
@@ -35,15 +40,18 @@ module.exports = {
             const variant = int.options.getString('variant') || 'default';
             let number = 10;
             if(variant === 'default') number = 7;
+            const sortStart = Date.now()
             let rankings = tools.xpObjToArray(db.users)
                 .filter(x => x.xp > minLeaderboardXP && !x.hidden)
                 .sort((a, b) => b.xp - a.xp)
                 .slice(0, number); // Top 10 only
+            logger.perf("prettyleaderboard.sort", Date.now() - sortStart, { ...perfMeta, resultCount: rankings.length, variant })
 
             if (!rankings.length) 
                 return int.editReply(tools.warn("Nobody in this server is on the leaderboard yet!"));
 
             // Format member data
+            const renderStart = Date.now()
             const memberList = await Promise.all(rankings.map(async (user, index) => {
                 const member = await int.guild.members.fetch(user.id).catch(() => null);
                 if (!member) return null;
@@ -74,9 +82,15 @@ module.exports = {
             await int.editReply({
                 files: [{ attachment: image, name: 'leaderboard.png' }]
             });
+            logger.perf("prettyleaderboard.render", Date.now() - renderStart, { ...perfMeta, resultCount: validMembers.length, variant })
+            logger.perf("prettyleaderboard.total", Date.now() - cmdStart, { ...perfMeta, resultCount: validMembers.length, variant })
 
         } catch (error) {
             console.error('Leaderboard generation error:', error);
+            logger.error("command", {
+                msg: "prettyleaderboard failed",
+                meta: { ...perfMeta, error: error.message }
+            })
             await int.editReply(tools.warn("Failed to generate the leaderboard image!"));
         }
     }

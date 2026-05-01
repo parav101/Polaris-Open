@@ -128,6 +128,17 @@ This installs the dashboard's dependencies and compiles it into `dashboard/build
 
 Devs can also view and modify any server from the web dashboard. The main use for this is importing from .json files, since only bot devs can do that (security reasons)
 
+### Admin logs dashboard
+If you're listed in `config.json` under `developer_ids`, you can view structured logs from the dashboard:
+
+1. Open `/admin/logs` on your dashboard host.
+2. Use the **Events** tab for warnings/errors.
+3. Use the **Perf** tab for command/database timings (including leaderboard fetch/sort/render timing).
+4. Use filters for command, category, shard ID, and log level.
+5. Use **Download NDJSON** to export filtered logs.
+
+Log files are stored locally in `logs/` and rotated daily with retention cleanup (old files are automatically pruned).
+
 ## Want to modify the bot?
 Do whatever you want as long as you credit me and use your own fork for it.
 

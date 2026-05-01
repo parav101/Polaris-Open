@@ -1,4 +1,5 @@
 const { generateLeaderboardEmbed } = require("../../classes/ActivityLeaderboard.js")
+const logger = require("../../classes/Logger.js")
 
 module.exports = {
 metadata: {
@@ -11,10 +12,14 @@ metadata: {
 },
 
 async run(client, int, tools) {
+    const cmdStart = Date.now()
+    const perfMeta = { command: "activityleaderboard", guildId: int.guild.id, userId: int.user.id, shardId: client.shard?.id ?? null }
     const isHidden = !!int.options.get("hidden")?.value
     await int.deferReply({ ephemeral: isHidden })
 
+    const fetchStart = Date.now()
     let db = await tools.fetchAll(int.guild.id)
+    logger.perf("activityleaderboard.fetch", Date.now() - fetchStart, { ...perfMeta, usersCount: Object.keys(db?.users || {}).length })
 
     if (!db || !db.users || !Object.keys(db.users).length) {
         return int.editReply({ content: "Nobody in this server is ranked yet!" })
@@ -30,6 +35,7 @@ async run(client, int, tools) {
     const highlightUser = int.options.get("user") || int.options.get("member")
     const highlightId = highlightUser?.user?.id || null
 
+    const renderStart = Date.now()
     const embed = await generateLeaderboardEmbed(int.guild, db, tools, highlightId, false, int.user.id)
 
     if (!embed) {
@@ -37,4 +43,6 @@ async run(client, int, tools) {
     }
 
     await int.editReply({ embeds: [embed] })
+    logger.perf("activityleaderboard.render", Date.now() - renderStart, { ...perfMeta })
+    logger.perf("activityleaderboard.total", Date.now() - cmdStart, perfMeta)
 }}
