@@ -119,6 +119,15 @@
 		<p style="font-size: 20px; margin-top: 4px; margin-bottom: 25px">Select a server to manage</p>
 	</div>
 
+	<div class="middleflex" style="padding: 0 12px 18px; gap: 10px; flex-wrap: wrap;">
+		<a tabindex="-1" href="/admin/logs">
+			<button class="fancybutton" style="height: 42px; min-width: 130px; padding: 0 14px;">Admin Logs</button>
+		</a>
+		<a tabindex="-1" href="/logout">
+			<button class="boringbutton" style="font-size: 20px; text-align: center; text-decoration: underline;">Log out</button>
+		</a>
+	</div>
+
 	<div style="padding-bottom: 20px">
 		{#each rows as row}
 			{#if row.addBreak}
@@ -163,12 +172,4 @@
 		{/each}
 	</div>
 
-	<div class="middleflex" style="padding-bottom: 30px; gap: 14px; flex-wrap: wrap;">
-		<a tabindex="-1" href="/admin/logs">
-			<button class="boringbutton" style="font-size: 22px; text-align: center; text-decoration: underline;">Admin Logs</button>
-		</a>
-		<a tabindex="-1" href="/logout">
-			<button class="boringbutton" style="font-size: 22px; text-align: center; text-decoration: underline;">Log out</button>
-		</a>
-	</div>
 {/if}
