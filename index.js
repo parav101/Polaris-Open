@@ -54,6 +54,7 @@ client.globalTools = new Tools(client);
 
 // connect to db
 client.db = new Model("servers", require("./database_schema.js").schema)
+client.userStats = require("./classes/UserStats.js")
 
 // command files
 const dir = "./commands/"
@@ -78,6 +79,9 @@ client.on("ready", async() => {
     if (client.shard.id == client.shard.count - 1) console.log(`Bot online! (${+process.uptime().toFixed(2)} secs)`)
     client.startupTime = Date.now() - startTime
     client.version = version
+
+    // Ensure user_stats indexes exist (idempotent; runs on every shard but Atlas deduplicates)
+    if (client.shard.id === 0) client.userStats.ensureIndexes().catch(() => {})
     client.application.commands.fetch() // cache slash commands
     .then(cmds => {
         if (cmds.size < 1) { // no commands!! deploy to test server
@@ -230,6 +234,7 @@ client.on("ready", async() => {
                                     await client.db.update(guildId, {
                                         $set: { [`users.${topEntry.id}.credits`]: newActivityCredits }
                                     }).exec().catch(() => {})
+                                    client.userStats.dualWritePartial(guildId, topEntry.id, { credits: newActivityCredits }, "activityReward").catch(() => {})
 
                                     // Log the activity leaderboard credit reward
                                     await tools.addCreditLog(client.db, guildId, topEntry.id, {
@@ -516,6 +521,12 @@ client.on("ready", async() => {
                             const setObj = updates
                             setObj.voiceSessions = guildDoc.voiceSessions
                             await client.db.update(guildId, { $set: setObj }).exec().catch(e => console.error(`[VoiceXP] DB update failed for ${guildId}:`, e.message))
+                            // Dual-write updated users into user_stats (fire-and-forget)
+                            for (const [key, uData] of Object.entries(updates)) {
+                                if (!key.startsWith("users.")) continue
+                                const uid = key.slice(6)
+                                client.userStats.dualWriteFromUserData(guildId, uid, uData, "voiceXP").catch(() => {})
+                            }
                         }
                     } catch (guildErr) {
                         console.error(`[VoiceXP] Error processing guild ${guildDoc._id}:`, guildErr.message)

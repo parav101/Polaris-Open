@@ -89,6 +89,7 @@ async function handleBumpReward(client, message, tools, db) {
                 "info.lastUpdate": now
             }
         }).exec()
+        client.userStats.dualWritePartial(message.guild.id, claimantId, { credits: newCredits }, "bump").catch(() => {})
 
         await tools.addCreditLog(client.db, message.guild.id, claimantId, {
             type: "bump",
@@ -237,6 +238,7 @@ async run(client, message, tools) {
 
     // database update
     client.db.update(message.guild.id, { $set: { [`users.${author}`]: userData } }).exec();
+    client.userStats.dualWriteFromUserData(message.guild.id, author, userData, "message").catch(() => {})
 
     // check for level up
     let oldLevel = tools.getLevel(oldXP, settings)

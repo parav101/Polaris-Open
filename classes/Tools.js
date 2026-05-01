@@ -671,6 +671,7 @@ class Tools {
             }
 
             await client.db.update(member.guild.id, { $set: { [`users.${member.id}`]: db.users[member.id] } }).exec();
+            client.userStats?.dualWriteFromUserData(member.guild.id, member.id, db.users[member.id], "streak").catch(() => {})
         }
 
         // Function to update daily XP starting point (snapshot)
@@ -706,6 +707,10 @@ class Tools {
                         [`users.${member.id}.msgXp`]: 0
                     } 
                 }).exec();
+                client.userStats?.dualWritePartial(member.guild.id, member.id, {
+                    activityXpAccumulated: 0,
+                    lastDailyUpdate: now.getTime(),
+                }, "dailySnapshot").catch(() => {})
             }
         }
 

@@ -2,6 +2,7 @@ const COIN_FLIP_EMOJI = "<a:coinflip:1496185990572802078>"
 const LOADING_EMOJI = "<a:loading:1478025535975325738>"
 const MONEY_BAG_EMOJI = "<a:moneybaganimted:1496185992967749863>"
 const { ensureDailyQuests, tickQuest, getTodayKey } = require("../../classes/Quests.js")
+const logger = require("../../classes/Logger.js")
 
 module.exports = {
     metadata: {
@@ -90,6 +91,7 @@ module.exports = {
             updateQuery.$set[`users.${int.user.id}.quests`] = userData.quests
         }
 
+        const cmdStart = Date.now()
         Promise.all([
             client.db.update(int.guild.id, updateQuery).exec(),
             tools.addCreditLog(client.db, int.guild.id, int.user.id, {
@@ -97,8 +99,14 @@ module.exports = {
                 amount: logAmount, 
                 balance: newCredits,
                 note: logNote
-            }, 5, userData.creditLogs || [])
-        ]).catch(console.error);
+            }, 5, userData.creditLogs || []),
+            client.userStats.dualWritePartial(int.guild.id, int.user.id, {
+                credits: newCredits,
+                coinflipStreak: currentStreak,
+            }, "coinflip"),
+        ]).then(() => {
+            logger.perf("coinflip.total", Date.now() - cmdStart, { command: "coinflip", guildId: int.guild.id })
+        }).catch(console.error);
 
         await int.editReply({ content: `${COIN_FLIP_EMOJI} Flipping the coin... ${LOADING_EMOJI}` })
 

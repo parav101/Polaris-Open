@@ -30,7 +30,9 @@
     "dev": "nodemon polaris.js",
     "install:dashboard": "cd dashboard && npm install",
     "build:dashboard": "cd dashboard && npm install && npm run build",
-    "dev:dashboard": "cd dashboard && npm run dev"
+    "dev:dashboard": "cd dashboard && npm run dev",
+    "backfill:user-stats": "node scripts/backfill_user_stats.js",
+    "backfill:user-stats:dry": "node scripts/backfill_user_stats.js --dry-run"
   },
   "author": "",
   "license": "ISC",
