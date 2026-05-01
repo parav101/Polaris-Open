@@ -112,20 +112,21 @@ async run(client, int, tools) {
         }
         const updatedLogs = [...(freshUserData.creditLogs || []), newLog].slice(-5)
 
-        // Single combined DB write
-        await client.db.update(int.guild.id, {
-            $set: {
-                [`users.${int.user.id}.credits`]: newCredits,
-                [`users.${int.user.id}.xp`]: newXP,
-                [`users.${int.user.id}.creditLogs`]: updatedLogs,
-                ...questSet
-            }
-        })
-
         // Fire announcement without blocking the reply
         int.channel.send({ content: `<:chest:1486740653067997394> <@${int.user.id}> just opened a **${item.emoji} ${item.name}** and gained **+${tools.commafy(xpGained)} XP**!` }).catch(() => {})
 
-        await i.editReply({ content: `${item.emoji} **${item.name}** opened! · **+${tools.commafy(xpGained)} XP** <:gold:1472934905972527285> **${tools.commafy(newCredits)}** left` })
+        // DB write and user reply run in parallel to reduce perceived latency
+        await Promise.all([
+            client.db.update(int.guild.id, {
+                $set: {
+                    [`users.${int.user.id}.credits`]: newCredits,
+                    [`users.${int.user.id}.xp`]: newXP,
+                    [`users.${int.user.id}.creditLogs`]: updatedLogs,
+                    ...questSet
+                }
+            }),
+            i.editReply({ content: `${item.emoji} **${item.name}** opened! · **+${tools.commafy(xpGained)} XP** <:gold:1472934905972527285> **${tools.commafy(newCredits)}** left` })
+        ])
     })
 
     collector.on("end", () => {

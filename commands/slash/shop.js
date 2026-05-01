@@ -126,20 +126,21 @@ async run(client, int, tools) {
         }
         const updatedLogs = [...(freshUserData.creditLogs || []), newLog].slice(-5)
 
-        // Single combined DB write
-        await client.db.update(int.guild.id, {
-            $set: {
-                [`users.${int.user.id}.credits`]: newCredits,
-                [`users.${int.user.id}.tempRoles`]: newTempRoles,
-                [`users.${int.user.id}.creditLogs`]: updatedLogs,
-                ...questSet
-            }
-        })
-
         // Fire announcement without blocking the reply
         int.channel.send({ content: `🎉 <@${int.user.id}> just purchased **${item.emoji} ${item.name}**! <:gold:1472934905972527285> enjoy it for the next **${item.duration}h**!` }).catch(() => {})
 
-        await i.editReply({ content: `${item.emoji} **${item.name}** purchased! <:gold:1472934905972527285> **${tools.commafy(newCredits)}** left · expires in **${tools.time(item.duration * 3600000)}**` })
+        // DB write and reply run in parallel — user sees result without waiting for MongoDB
+        await Promise.all([
+            client.db.update(int.guild.id, {
+                $set: {
+                    [`users.${int.user.id}.credits`]: newCredits,
+                    [`users.${int.user.id}.tempRoles`]: newTempRoles,
+                    [`users.${int.user.id}.creditLogs`]: updatedLogs,
+                    ...questSet
+                }
+            }),
+            i.editReply({ content: `${item.emoji} **${item.name}** purchased! <:gold:1472934905972527285> **${tools.commafy(newCredits)}** left · expires in **${tools.time(item.duration * 3600000)}**` })
+        ])
     })
 
     collector.on("end", () => {
