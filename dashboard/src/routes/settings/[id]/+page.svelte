@@ -783,7 +783,7 @@
 	</div>
 
 {:else if guild && s.gain}
-	<div style="display: flex; width: 1600px">
+	<div style="display: flex; width: min(1600px, 100%)">
 
 		<!-- ── SIDEBAR ──────────────────────────────────────────────────────── -->
 		<div id="sidebar">

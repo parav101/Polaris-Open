@@ -374,8 +374,8 @@ input:checked + .sliderspan:before {
 .categoryBox {
     cursor: pointer;
     width: 379px;
-    height: 150px;
-    padding: 10px 20px;
+    min-height: 112px;
+    padding: 8px 16px;
     transition-duration: 0.1s;
 }
 
@@ -501,23 +501,26 @@ input:checked + .sliderspan:before {
     position: fixed;
     display: flex;
     flex-direction: column;
-    width: 225px;
-    height: 100%;
+    width: 210px;
+    height: 100vh;
     background-color: var(--fg);
     margin-right: 32px;
     border-right: 1px solid black;
-    overflow: hidden;
+    overflow-y: auto;
+    overflow-x: hidden;
     white-space: nowrap;
     z-index: 1;
+    padding-bottom: 18px;
 }
 
 #sidebar div {
-    height: 70px;
+    min-height: 56px;
     display: flex;
     flex-direction: row;
     align-items: center;
     justify-content: flex-start;
-    padding-left: 15px;
+    padding-left: 12px;
+    padding-right: 10px;
     cursor: pointer;
 }
 
@@ -536,9 +539,9 @@ input:checked + .sliderspan:before {
 }
 
 #sidebar div img {
-    width: 32px;
-    height: 32px;
-    margin-right: 16px;
+    width: 26px;
+    height: 26px;
+    margin-right: 12px;
 }
 
 #unsavedWarning {
@@ -583,7 +586,7 @@ input:checked + .sliderspan:before {
     justify-content: flex-start;
     align-items: flex-start;
     padding-bottom: 20px;
-    margin-left: 240px;
+    margin-left: 220px;
 }
 
 .sideoption {
