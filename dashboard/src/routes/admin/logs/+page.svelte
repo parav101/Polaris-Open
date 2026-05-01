@@ -50,6 +50,12 @@
 		timer = setInterval(loadAll, refreshMs)
 	}
 
+	function switchTab(nextTab) {
+		if (tab === nextTab) return
+		tab = nextTab
+		loadAll()
+	}
+
 	function downloadLogs() {
 		const params = new URLSearchParams({
 			type: tab,
@@ -76,39 +82,39 @@
 {#if loading}
 	<h2 class="middleflex">Loading admin logs...</h2>
 {:else if error}
-	<div class="middleflex" style="flex-direction: column;">
+	<div class="middleflex logs-state">
 		<h2>Unable to load admin logs</h2>
 		<p>{error.message}</p>
 	</div>
 {:else}
-	<div style="max-width: 1200px; margin: 0 auto; padding: 16px 20px 36px 20px;">
-		<div class="middleflex" style="justify-content: space-between; align-items: center;">
-			<div>
-				<h1 style="margin-bottom: 2px;">Admin Logs</h1>
-				<p style="opacity: 0.8; margin-top: 0;">Signed in as {me?.user?.displayName || me?.user?.username}</p>
+	<div class="logs-page">
+		<div class="logs-header">
+			<div class="logs-title">
+				<h1>Admin Logs</h1>
+				<p>Signed in as {me?.user?.displayName || me?.user?.username}</p>
 			</div>
-			<div style="display: flex; gap: 8px;">
+			<div class="logs-actions">
 				<button class="boringbutton" on:click={loadAll}>Refresh now</button>
 				<button class="boringbutton" on:click={downloadLogs}>Download NDJSON</button>
-				<a href="/servers"><button class="boringbutton">Back</button></a>
+				<a class="boringbutton logs-link-button" href="/servers">Back</a>
 			</div>
 		</div>
 
-		<div style="display: grid; grid-template-columns: repeat(4, minmax(150px, 1fr)); gap: 10px; margin: 14px 0;">
-			<div class="serverOption" style="padding: 10px;">
-				<p style="margin: 0; opacity: 0.8;">Errors (24h)</p>
-				<h3 style="margin: 4px 0 0 0;">{summary?.events?.errorCount || 0}</h3>
+		<div class="logs-stats">
+			<div class="logs-stat-card">
+				<p class="logs-stat-label">Errors (24h)</p>
+				<h3>{summary?.events?.errorCount || 0}</h3>
 			</div>
-			<div class="serverOption" style="padding: 10px;">
-				<p style="margin: 0; opacity: 0.8;">Warnings (24h)</p>
-				<h3 style="margin: 4px 0 0 0;">{summary?.events?.warnCount || 0}</h3>
+			<div class="logs-stat-card">
+				<p class="logs-stat-label">Warnings (24h)</p>
+				<h3>{summary?.events?.warnCount || 0}</h3>
 			</div>
-			<div class="serverOption" style="padding: 10px;">
-				<p style="margin: 0; opacity: 0.8;">Perf samples (24h)</p>
-				<h3 style="margin: 4px 0 0 0;">{summary?.perf?.reduce((a, x) => a + x.count, 0) || 0}</h3>
+			<div class="logs-stat-card">
+				<p class="logs-stat-label">Perf samples (24h)</p>
+				<h3>{summary?.perf?.reduce((a, x) => a + x.count, 0) || 0}</h3>
 			</div>
-			<div class="serverOption" style="padding: 10px;">
-				<p style="margin: 0; opacity: 0.8;">Refresh</p>
+			<div class="logs-stat-card">
+				<p class="logs-stat-label">Refresh</p>
 				<select bind:value={refreshMs} on:change={resetInterval}>
 					<option value={10000}>10s</option>
 					<option value={20000}>20s</option>
@@ -118,10 +124,10 @@
 			</div>
 		</div>
 
-		<div class="serverOption" style="padding: 12px;">
-			<div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px;">
-				<button class="boringbutton" on:click={() => { tab = "events"; loadAll() }}>Events</button>
-				<button class="boringbutton" on:click={() => { tab = "perf"; loadAll() }}>Perf</button>
+		<div class="logs-panel">
+			<div class="logs-controls">
+				<button class="boringbutton {tab === 'events' ? 'is-active' : ''}" on:click={() => switchTab("events")}>Events</button>
+				<button class="boringbutton {tab === 'perf' ? 'is-active' : ''}" on:click={() => switchTab("perf")}>Perf</button>
 				<input placeholder="category" bind:value={filters.category} />
 				<input placeholder="command" bind:value={filters.command} />
 				<input placeholder="shardId" bind:value={filters.shardId} />
@@ -140,14 +146,14 @@
 				<button class="boringbutton" on:click={loadAll}>Apply</button>
 			</div>
 
-			<p style="opacity: 0.8;">Showing {logs.length} {tab} rows</p>
-			<div style="max-height: 560px; overflow: auto; border: 1px solid #2e2e2e; border-radius: 8px; padding: 8px;">
+			<p class="logs-muted">Showing {logs.length} {tab} rows</p>
+			<div class="logs-list">
 				{#if !logs.length}
 					<p>No log entries found for filters.</p>
 				{:else}
 					{#each logs as row}
-						<div style="border-bottom: 1px solid #2d2d2d; padding: 8px 0;">
-							<div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+						<div class="logs-row">
+							<div class="logs-row-main">
 								<code>{new Date(row.ts).toLocaleString()}</code>
 								<b>[{row.level}]</b>
 								<span>{row.category}</span>
@@ -155,7 +161,7 @@
 								{#if row.msg}<span>{row.msg}</span>{/if}
 							</div>
 							{#if row.meta}
-								<pre style="white-space: pre-wrap; margin: 6px 0 0 0; opacity: 0.9;">{JSON.stringify(row.meta, null, 2)}</pre>
+								<pre>{JSON.stringify(row.meta, null, 2)}</pre>
 							{/if}
 						</div>
 					{/each}
@@ -163,12 +169,12 @@
 			</div>
 		</div>
 
-		<div class="serverOption" style="padding: 12px; margin-top: 12px;">
-			<h3 style="margin-top: 0;">P50 / P95 (24h)</h3>
+		<div class="logs-panel">
+			<h3>P50 / P95 (24h)</h3>
 			{#if summary?.perf?.length}
 				{#each summary.perf as p}
-					<div style="display: flex; gap: 12px; border-bottom: 1px solid #2d2d2d; padding: 6px 0;">
-						<b style="min-width: 210px;">{p.command}</b>
+					<div class="logs-perf-row">
+						<b>{p.command}</b>
 						<span>count: {p.count}</span>
 						<span>p50: {p.p50}ms</span>
 						<span>p95: {p.p95}ms</span>
@@ -181,3 +187,177 @@
 		</div>
 	</div>
 {/if}
+
+<style>
+	.logs-page {
+		max-width: 1200px;
+		margin: 0 auto;
+		padding: 18px 20px 36px;
+	}
+
+	.logs-state {
+		flex-direction: column;
+	}
+
+	.logs-header {
+		display: flex;
+		justify-content: space-between;
+		align-items: flex-start;
+		gap: 12px;
+		flex-wrap: wrap;
+		margin-bottom: 14px;
+	}
+
+	.logs-title h1 {
+		margin: 0;
+	}
+
+	.logs-title p {
+		margin: 4px 0 0;
+		opacity: 0.75;
+	}
+
+	.logs-actions {
+		display: flex;
+		gap: 8px;
+		flex-wrap: wrap;
+	}
+
+	.logs-link-button {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		min-width: 100px;
+		height: 40px;
+		padding: 0 15px;
+		text-decoration: none;
+	}
+
+	.logs-stats {
+		display: grid;
+		grid-template-columns: repeat(4, minmax(170px, 1fr));
+		gap: 10px;
+		margin: 10px 0 14px;
+	}
+
+	.logs-stat-card,
+	.logs-panel {
+		background: var(--lighterfg);
+		border: 1px solid rgba(255, 255, 255, 0.08);
+		border-radius: 10px;
+		padding: 12px;
+	}
+
+	.logs-stat-label {
+		margin: 0;
+		opacity: 0.7;
+	}
+
+	.logs-stat-card h3 {
+		margin: 6px 0 0;
+		font-size: 28px;
+	}
+
+	.logs-controls {
+		display: flex;
+		gap: 8px;
+		flex-wrap: wrap;
+		margin-bottom: 10px;
+	}
+
+	.logs-controls input,
+	.logs-controls select {
+		width: 170px;
+	}
+
+	.logs-controls .is-active {
+		opacity: 1;
+		text-decoration: underline;
+	}
+
+	.logs-muted {
+		opacity: 0.75;
+		margin: 4px 0 10px;
+	}
+
+	.logs-list {
+		max-height: 560px;
+		overflow: auto;
+		border: 1px solid rgba(255, 255, 255, 0.08);
+		border-radius: 8px;
+		padding: 8px 12px;
+		background: rgba(0, 0, 0, 0.16);
+	}
+
+	.logs-row {
+		border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+		padding: 8px 0;
+	}
+
+	.logs-row:last-child {
+		border-bottom: none;
+	}
+
+	.logs-row-main {
+		display: flex;
+		gap: 8px;
+		align-items: center;
+		flex-wrap: wrap;
+	}
+
+	pre {
+		white-space: pre-wrap;
+		margin: 6px 0 0;
+		opacity: 0.9;
+		font-size: 13px;
+		line-height: 1.4;
+		background: rgba(0, 0, 0, 0.2);
+		border-radius: 6px;
+		padding: 8px;
+	}
+
+	.logs-panel h3 {
+		margin: 0 0 10px;
+	}
+
+	.logs-perf-row {
+		display: grid;
+		grid-template-columns: minmax(180px, 2fr) repeat(4, minmax(90px, 1fr));
+		gap: 10px;
+		border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+		padding: 8px 0;
+	}
+
+	.logs-perf-row:last-child {
+		border-bottom: none;
+	}
+
+	@media (max-width: 920px) {
+		.logs-stats {
+			grid-template-columns: repeat(2, minmax(170px, 1fr));
+		}
+
+		.logs-perf-row {
+			grid-template-columns: repeat(2, minmax(140px, 1fr));
+		}
+	}
+
+	@media (max-width: 620px) {
+		.logs-page {
+			padding: 14px 10px 24px;
+		}
+
+		.logs-stats {
+			grid-template-columns: 1fr;
+		}
+
+		.logs-controls input,
+		.logs-controls select {
+			width: 100%;
+		}
+
+		.logs-actions {
+			width: 100%;
+		}
+	}
+</style>
