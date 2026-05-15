@@ -52,6 +52,14 @@ async run(client, int, tools) {
     const levelData = tools.getLevel(xp, db.settings, true)
     const maxLevel = levelData.level >= db.settings.maxLevel
     const levelPercent = maxLevel ? 100 : (xp - levelData.previousLevel) / (levelData.xpRequired - levelData.previousLevel) * 100
+    const multiplierData = tools.getMultiplier(member, db.settings)
+    const currentBoost = Number(multiplierData.multiplier || 1)
+    const boostRoles = Array.isArray(multiplierData.roleList) ? multiplierData.roleList : []
+    const boostRoleText = db.settings.hideMultipliers
+        ? "Hidden by server"
+        : boostRoles.length > 0
+            ? boostRoles.map(role => `<@&${role.id}>`).join(", ")
+            : "None"
 
     const tips = [
         "Tip: You get XP from both chatting and being in voice channels!",
@@ -106,6 +114,8 @@ async run(client, int, tools) {
         xpStatsValue = [
             `Today you earned: ${tools.commafy(dailyXp)} boosted XP`,
             `Base activity XP: ${tools.commafy(rawDailyXp)}`,
+            `Current XP boost: ${currentBoost}x`,
+            `Boost role: ${boostRoleText}`,
             "No activity XP recorded yet today."
         ].join("\n")
     } else {
@@ -134,6 +144,8 @@ async run(client, int, tools) {
         xpStatsValue = [
             `Today you earned: ${tools.commafy(dailyXp)} boosted XP`,
             `Base activity XP: ${tools.commafy(rawDailyXp)}`,
+            `Current XP boost: ${currentBoost}x`,
+            `Boost role: ${boostRoleText}`,
             ...breakdownLines
         ].join("\n")
     }
@@ -141,6 +153,15 @@ async run(client, int, tools) {
     // Streak section
     let streakText = null
     if (db.settings.streak?.enabled) {
+        const now = Date.now()
+        const nextUTCMidnight = (() => {
+            const d = new Date(now)
+            d.setUTCHours(24, 0, 0, 0)
+            return d.getTime()
+        })()
+        const hoursUntilNextClaim = Math.max(0, (nextUTCMidnight - now) / 3600000)
+        const roundedHours = Math.max(0.1, Math.round(hoursUntilNextClaim * 10) / 10)
+
         if (!db.users[member.id].streak) {
             db.users[member.id].streak = { count: 0, lastClaim: 0, highest: 0 }
         }
@@ -151,8 +172,9 @@ async run(client, int, tools) {
         ]
 
         if (userStreak.lastClaim > 0) {
-            streakInfo.push(`Last active: <t:${Math.floor(userStreak.lastClaim / 1000)}:R>`)
+            streakInfo.push(`Last streak claim: <t:${Math.floor(userStreak.lastClaim / 1000)}:R>`)
         }
+        streakInfo.push(`Next streak claim in: about ${tools.commafy(roundedHours)} hours`)
 
         const milestones = db.settings.streak.milestones || []
         if (milestones.length > 0) {
