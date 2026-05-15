@@ -112,9 +112,10 @@ async run(client, int, tools) {
     const tipPool = activeTips.length > 0 ? activeTips : tips
     const randomTip = tipPool[Math.floor(Math.random() * tipPool.length)]
 
-    let barSize = 33    // how many characters the xp bar is
-    let barRepeat = Math.round(levelPercent / (100 / barSize)) // .round() so bar can sometimes display as completely full and completely empty
-    let progressBar = `${"▓".repeat(barRepeat)}${"░".repeat(barSize - barRepeat)} (${!maxLevel ? Number(levelPercent.toFixed(2)) + "%" : "MAX"})`
+    let barSize = 25
+    let barRepeat = Math.round(levelPercent / (100 / barSize))
+    let barLabel = maxLevel ? "MAX 🎉" : `${Number(levelPercent.toFixed(1))}%`
+    let progressBar = `\`[${"█".repeat(barRepeat)}${"░".repeat(barSize - barRepeat)}]\` ${barLabel}`
 
     let cardCol = db.settings.rankCard.embedColor
     if (cardCol == -1) cardCol = null
@@ -122,24 +123,6 @@ async run(client, int, tools) {
     let memberAvatar = member.displayAvatarURL()
     let memberColor = cardCol || member.displayColor || await member.user.fetch().then(x => x.accentColor)
 
-    // ===== REWARD ROLES =====
-    const userRewards = tools.getRolesForLevel(levelData.level, db.settings.rewards)
-    const rewardsEarned = userRewards.length
-
-    // Build reward roles display — show all earned keep-roles, not just the first
-    let rewardRolesValue
-    if (rewardsEarned === 0) {
-        rewardRolesValue = "None yet"
-    } else {
-        // Show up to 3 earned roles to avoid field overflow
-        const displayRoles = userRewards.slice(0, 3)
-        rewardRolesValue = displayRoles.map(r => `<@&${r.id}>`).join("\n")
-        if (userRewards.length > 3) rewardRolesValue += `\n_+${userRewards.length - 3} more_`
-    }
-
-    // ===== LAST XP GAIN =====
-    const lastXpGain = currentXP.lastXpGain ? `<t:${Math.floor(currentXP.lastXpGain / 1000)}:R>` : "Never"
-    
     // ===== MULTIPLIER DISPLAY =====
     // Format as "1.5×" instead of "150%"
     const multiplierFormatted = `${multiplier}×`
@@ -188,19 +171,13 @@ async run(client, int, tools) {
         streakText = streakInfo.join('\n');
     }
 
-    const makeMiniBar = (percent, size = 10) => {
-        const safePercent = Math.max(0, Math.min(100, percent || 0))
-        const filled = Math.round((safePercent / 100) * size)
-        return `${"▓".repeat(filled)}${"░".repeat(size - filled)}`
-    }
-
     // Create the embed
     let embed = tools.createEmbed({
         author: { 
             name: member.user.displayName,
             iconURL: int.guild.iconURL({ dynamic: true })
         },
-        description: `\`\`\`${progressBar}\`\`\``,
+        description: progressBar,
         thumbnail: memberAvatar,
         color: memberColor,
         fields: [
@@ -232,50 +209,51 @@ async run(client, int, tools) {
         embed.addFields([{ name: `XP Boost: ${multiplierFormatted}`, value: boostRoleValue, inline: true }])
     }
 
-    // Add Daily boosted XP snapshot info
-    const dailyXp = xp - (currentXP.xpAtDayStart ?? xp);
-    embed.addFields({ 
-        name: `Daily Boosted XP: ${tools.commafy(dailyXp)}`, 
-        value: `Last gain: ${lastXpGain}`, 
-        inline: true 
-    });
-
+    const dailyXp = xp - (currentXP.xpAtDayStart ?? xp)
     const rawDailyXp = Math.floor(currentXP.activityXpAccumulated || 0)
     const msgXp = Math.floor(currentXP.msgXp || 0)
     const safeMsgXp = Math.min(msgXp, rawDailyXp)
     const vcXp = Math.max(0, rawDailyXp - safeMsgXp)
-    const msgPercent = rawDailyXp > 0 ? (safeMsgXp / rawDailyXp) * 100 : 0
-    const vcPercent = rawDailyXp > 0 ? (vcXp / rawDailyXp) * 100 : 0
 
-    if (db.settings.enabledVoiceXp) {
-        const activityValue = rawDailyXp > 0
-            ? [
-                `💬 \`${makeMiniBar(msgPercent)}\` **${msgPercent.toFixed(1)}%**  ·  ${tools.commafy(safeMsgXp)} msg XP`,
-                `🎙 \`${makeMiniBar(vcPercent)}\` **${vcPercent.toFixed(1)}%**  ·  ${tools.commafy(vcXp)} vc XP`
-            ].join("\n")
-            : "No XP earned today yet."
-
-        embed.addFields({
-            name: `Today's Activity: ${tools.commafy(rawDailyXp)} raw XP`,
-            value: activityValue,
-            inline: true
-        })
+    let xpStatsValue
+    if (rawDailyXp <= 0) {
+        xpStatsValue = `boosted: ${tools.commafy(dailyXp)}\nraw: ${tools.commafy(rawDailyXp)}\n\n_No XP earned today yet._`
     } else {
-        embed.addFields({
-            name: `Today's Activity: ${tools.commafy(rawDailyXp)} raw XP`,
-            value: rawDailyXp > 0
-                ? `💬 Message XP only (voice XP disabled)\n\`${makeMiniBar(100)}\` **100.0%**  ·  ${tools.commafy(rawDailyXp)} msg XP`
-                : "No XP earned today yet.",
-            inline: true
-        })
+        const avgRawMsgXp = (db.settings.gain.min + db.settings.gain.max) / 2
+        const estMsgs = avgRawMsgXp > 0 ? Math.round(safeMsgXp / avgRawMsgXp) : 0
+        const safeEstMsgs = Math.max(0, estMsgs)
+
+        const breakdownLines = [
+            `💬 ${tools.commafy(safeMsgXp)} raw XP · ~${tools.commafy(safeEstMsgs)} msgs`
+        ]
+
+        if (db.settings.enabledVoiceXp && vcXp > 0) {
+            const v = db.settings.voice
+            if (v && Number.isFinite(v.multiplier) && Number.isFinite(v.interval) && v.interval > 0) {
+                const avgRawVoicePerTick = v.multiplier * avgRawMsgXp * (v.interval / 60)
+                const estVoiceMin = avgRawVoicePerTick > 0
+                    ? Math.round((vcXp / avgRawVoicePerTick) * (v.interval / 60))
+                    : 0
+                const safeEstVoiceMin = Math.max(0, estVoiceMin)
+                breakdownLines.push(`🎙 ${tools.commafy(vcXp)} raw XP · ~${tools.commafy(safeEstVoiceMin)} min`)
+            } else {
+                breakdownLines.push(`🎙 ${tools.commafy(vcXp)} raw XP`)
+            }
+        }
+
+        xpStatsValue = [
+            `boosted: ${tools.commafy(dailyXp)}`,
+            `raw: ${tools.commafy(rawDailyXp)}`,
+            "",
+            ...breakdownLines
+        ].join("\n")
     }
 
-    // Add Rewards Earned — show all earned keep-roles
-    embed.addFields({ 
-        name: `Active Reward${rewardsEarned !== 1 ? "s" : ""}: ${rewardsEarned > 0 ? "✅" : "❌"}`, 
-        value: rewardRolesValue, 
-        inline: true 
-    });
+    embed.addFields({
+        name: "XP Stats",
+        value: xpStatsValue,
+        inline: false
+    })
 
     if (streakText) {
         embed.addFields({ name: "🔥 Streak Info", value: streakText, inline: true });
