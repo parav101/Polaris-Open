@@ -1,5 +1,15 @@
 const multiplierModes = require("../../json/multiplier_modes.json")
 
+const E = {
+    gold:     "<:gold:1472934905972527285>",
+    level:    "<:level:1466817213830009045>",
+    progress: "<:progress:1466819928110792816>",
+    userxp:   "<:userxp:1466822701724340304>",
+    info:     "<:info:1466817220687695967>",
+    chest:    "<:chest:1486740653067997394>",
+    end:      "<:extendedend:1466819484999225579>",
+}
+
 // ─── Credit Log Display Config ───────────────────────────────────────────────
 // How many recent logs to show in /info (change this number to show more/fewer)
 const CREDIT_LOG_DISPLAY_COUNT = 5
@@ -148,12 +158,12 @@ async run(client, int, tools) {
         const userStreak = db.users[member.id].streak;
         
         const streakInfo = [
-            `**Current:** ${tools.commafy(userStreak.count)}`,
-            `**Highest:** ${tools.commafy(userStreak.highest || userStreak.count)}`
+            `Current: ${tools.commafy(userStreak.count)}`,
+            `Highest: ${tools.commafy(userStreak.highest || userStreak.count)}`
         ];
 
         if (userStreak.lastClaim > 0) {
-            streakInfo.push(`**Last claim:** <t:${Math.floor(userStreak.lastClaim / 1000)}:R>`);
+            streakInfo.push(`Last claim: <t:${Math.floor(userStreak.lastClaim / 1000)}:R>`);
         }
 
         // Show next streak milestone (mirrors /streak command behaviour)
@@ -164,50 +174,23 @@ async run(client, int, tools) {
                 .sort((a, b) => a.days - b.days)[0]
             if (nextMilestone) {
                 const daysLeft = nextMilestone.days - userStreak.count
-                streakInfo.push(`**Next milestone:** ${tools.commafy(nextMilestone.days)} days${nextMilestone.roleId ? ` (<@&${nextMilestone.roleId}>)` : ""} — ${daysLeft} to go`)
+                streakInfo.push(`Next milestone: ${tools.commafy(nextMilestone.days)} days${nextMilestone.roleId ? ` (<@&${nextMilestone.roleId}>)` : ""} — ${daysLeft} to go`)
             }
         }
         
         streakText = streakInfo.join('\n');
     }
 
-    // Create the embed
-    let embed = tools.createEmbed({
-        author: { 
-            name: member.user.displayName,
-            iconURL: int.guild.iconURL({ dynamic: true })
-        },
-        description: progressBar,
-        thumbnail: memberAvatar,
-        color: memberColor,
-        fields: [
-            { 
-                name: `Level: ${levelData.level}`, 
-                value: "\u200b", 
-                inline: true 
-            },
-            { 
-                name: `Remaining XP: ${tools.commafy(remaining)}`, 
-                value: "\u200b", 
-                inline: true 
-            },
-        ],
-        footer: {
-            text: randomTip,
-            iconURL: "https://cdn3.emoji.gg/emojis/9385-sparkles-pinkpastel.gif"
-        }
-    })
-    
-    // Add XP Boost field — show multiplier as "1.5×" format
-    if (multiplier !== 1 && !db.settings.hideMultipliers) {
-        embed.addFields([{ 
-            name: `XP Boost: ${multiplierFormatted}`, 
-            value: boostRoleValue, 
-            inline: true 
-        }])
-    } else {
-        embed.addFields([{ name: `XP Boost: ${multiplierFormatted}`, value: boostRoleValue, inline: true }])
-    }
+    const boostDetail = boostRoleValue === "\u200b" ? multiplierFormatted : `${multiplierFormatted}\n${boostRoleValue}`
+
+    const overviewValue = [
+        `${E.level} Level`,
+        `${E.end} ${tools.commafy(levelData.level)}`,
+        `${E.userxp} Remaining XP`,
+        `${E.end} ${tools.commafy(remaining)}`,
+        `${E.progress} XP Boost`,
+        `${E.end} ${boostDetail}`,
+    ].join("\n")
 
     const dailyXp = xp - (currentXP.xpAtDayStart ?? xp)
     const rawDailyXp = Math.floor(currentXP.activityXpAccumulated || 0)
@@ -217,14 +200,20 @@ async run(client, int, tools) {
 
     let xpStatsValue
     if (rawDailyXp <= 0) {
-        xpStatsValue = `boosted: ${tools.commafy(dailyXp)}\nraw: ${tools.commafy(rawDailyXp)}\n\n_No XP earned today yet._`
+        xpStatsValue = [
+            `${E.gold} boosted`,
+            `${E.end} ${tools.commafy(dailyXp)}`,
+            `${E.userxp} raw`,
+            `${E.end} ${tools.commafy(rawDailyXp)}`,
+            `${E.end} _No XP earned today yet._`,
+        ].join("\n")
     } else {
         const avgRawMsgXp = (db.settings.gain.min + db.settings.gain.max) / 2
         const estMsgs = avgRawMsgXp > 0 ? Math.round(safeMsgXp / avgRawMsgXp) : 0
         const safeEstMsgs = Math.max(0, estMsgs)
 
         const breakdownLines = [
-            `💬 ${tools.commafy(safeMsgXp)} raw XP · ~${tools.commafy(safeEstMsgs)} msgs`
+            `${E.userxp} ${tools.commafy(safeMsgXp)} raw XP · ~${tools.commafy(safeEstMsgs)} msgs`
         ]
 
         if (db.settings.enabledVoiceXp && vcXp > 0) {
@@ -235,28 +224,41 @@ async run(client, int, tools) {
                     ? Math.round((vcXp / avgRawVoicePerTick) * (v.interval / 60))
                     : 0
                 const safeEstVoiceMin = Math.max(0, estVoiceMin)
-                breakdownLines.push(`🎙 ${tools.commafy(vcXp)} raw XP · ~${tools.commafy(safeEstVoiceMin)} min`)
+                breakdownLines.push(`${E.progress} ${tools.commafy(vcXp)} raw XP · ~${tools.commafy(safeEstVoiceMin)} min`)
             } else {
-                breakdownLines.push(`🎙 ${tools.commafy(vcXp)} raw XP`)
+                breakdownLines.push(`${E.progress} ${tools.commafy(vcXp)} raw XP`)
             }
         }
 
         xpStatsValue = [
-            `boosted: ${tools.commafy(dailyXp)}`,
-            `raw: ${tools.commafy(rawDailyXp)}`,
-            "",
+            `${E.gold} boosted`,
+            `${E.end} ${tools.commafy(dailyXp)}`,
+            `${E.userxp} raw`,
+            `${E.end} ${tools.commafy(rawDailyXp)}`,
             ...breakdownLines
         ].join("\n")
     }
 
-    embed.addFields({
-        name: "XP Stats",
-        value: xpStatsValue,
-        inline: false
+    let embed = tools.createEmbed({
+        author: {
+            name: member.user.displayName,
+            iconURL: int.guild.iconURL({ dynamic: true })
+        },
+        description: progressBar,
+        thumbnail: memberAvatar,
+        color: memberColor,
+        fields: [
+            { name: `${E.level} Overview`, value: overviewValue, inline: false },
+            { name: `${E.progress} XP Stats`, value: xpStatsValue, inline: false },
+        ],
+        footer: {
+            text: randomTip,
+            iconURL: "https://cdn3.emoji.gg/emojis/9385-sparkles-pinkpastel.gif"
+        }
     })
 
     if (streakText) {
-        embed.addFields({ name: "🔥 Streak Info", value: streakText, inline: true });
+        embed.addFields({ name: `${E.info} Streak Info`, value: streakText, inline: false });
     }
 
     // ─── Credit Transaction Log ───────────────────────────────────────────────
@@ -266,10 +268,10 @@ async run(client, int, tools) {
     let creditLogField
     if (rawLogs.length === 0) {
         // No logs yet — show balance with a hint
-        creditLogField = `<:gold:1472934905972527285> **Balance: ${tools.commafy(credits)}**\n<:extendedend:1466819484999225579>_No transactions recorded yet._`
+        creditLogField = `${E.gold} Balance: ${tools.commafy(credits)}\n${E.end} _No transactions recorded yet._`
     } else {
         // Header line: current balance
-        const balanceLine = `<:gold:1472934905972527285> **Balance: ${tools.commafy(credits)}**`
+        const balanceLine = `${E.gold} Balance: ${tools.commafy(credits)}`
 
         // Build each log row
         const logLines = rawLogs.map((log, i) => {
@@ -286,26 +288,26 @@ async run(client, int, tools) {
             const noteSegment = note ? `  ·  _${note}_` : ""
 
             // e.g.  ├ 🔥 +10  Daily streak reward  •  2h ago · _Claimed daily streak (day 3)_
-            return `\`${tree}\` ${meta.emoji} \`${amt.padStart(7)}\` **${meta.label}**${time ? `  •  ${time}` : ""}${noteSegment}`
+            return `\`${tree}\` ${meta.emoji} \`${amt.padStart(7)}\` ${meta.label}${time ? `  •  ${time}` : ""}${noteSegment}`
         })
 
-        const footerLine = `<:extendedend:1466819484999225579>_Showing last ${rawLogs.length} transaction${rawLogs.length === 1 ? "" : "s"}._`
+        const footerLine = `${E.end} _Showing last ${rawLogs.length} transaction${rawLogs.length === 1 ? "" : "s"}._`
 
         creditLogField = `${balanceLine}\n${logLines.join("\n")}\n${footerLine}`
     }
 
     embed.addFields({
-        name: `<:info:1466817220687695967> Credit History  (last ${CREDIT_LOG_DISPLAY_COUNT})`,
+        name: `${E.info} Credit History  (last ${CREDIT_LOG_DISPLAY_COUNT})`,
         value: creditLogField,
         inline: false
     })
 
     // Navigation Buttons
     const navBtns = [
-        { style: "Secondary", label: "Stats", customId: `stats_view~progress~${member.id}`, emoji: "<:progress:1466819928110792816>" },
-        { style: "Success", label: "Info", customId: `stats_view~info~${member.id}`, emoji: "<:info:1466817220687695967>" },
-        { style: "Primary", label: "Shop", customId: "shop", emoji: "<:gold:1472934905972527285>" },
-        { style: "Primary", label: "XP Chests", customId: "chests", emoji: "<:chest:1486740653067997394>" },
+        { style: "Secondary", label: "Stats", customId: `stats_view~progress~${member.id}`, emoji: E.progress },
+        { style: "Success", label: "Info", customId: `stats_view~info~${member.id}`, emoji: E.info },
+        { style: "Primary", label: "Shop", customId: "shop", emoji: E.gold },
+        { style: "Primary", label: "XP Chests", customId: "chests", emoji: E.chest },
     ]
     if (db.settings.quests?.enabled) {
         navBtns.push({ style: "Primary", label: "Quests", customId: "quests", emoji: "📜" })
