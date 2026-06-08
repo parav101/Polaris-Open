@@ -126,8 +126,6 @@ function getStatsRetentionUnset(statsDaily, maxDays = MAX_DAILY_STATS_DAYS) {
     return unset
 }
 
-// Returns an array of { periodKey, channelId } for every period that should be
-// posted right now for this guild. An empty array means nothing to post.
 function getScheduledReports(doc, now = new Date()) {
     const statsSettings = doc?.settings?.stats
     if (!statsSettings?.enabled) return []
@@ -147,7 +145,7 @@ function getScheduledReports(doc, now = new Date()) {
         }
     }
 
-    // Weekly — only fires on the day after the last day of the week (Sunday UTC, reportKey = Saturday)
+    // Weekly
     if (isWeeklyReportDay(reportKey) && statsSettings.weeklyEnabled !== false) {
         const channelId = statsSettings.weeklyChannelId || fallbackChannelId
         if (channelId && doc.info?.statsLastWeeklyReportKey !== reportKey) {
@@ -155,7 +153,7 @@ function getScheduledReports(doc, now = new Date()) {
         }
     }
 
-    // Monthly — only fires on the last day of the month
+    // Monthly
     if (isMonthlyReportDay(reportKey) && statsSettings.monthlyEnabled === true) {
         const channelId = statsSettings.monthlyChannelId || fallbackChannelId
         if (channelId && doc.info?.statsLastMonthlyReportKey !== reportKey) {
@@ -163,7 +161,7 @@ function getScheduledReports(doc, now = new Date()) {
         }
     }
 
-    // Quarterly — only fires on the last day of a quarter-end month
+    // Quarterly
     if (isQuarterlyReportDay(reportKey) && statsSettings.quarterlyEnabled === true) {
         const channelId = statsSettings.quarterlyChannelId || fallbackChannelId
         if (channelId && doc.info?.statsLastQuarterlyReportKey !== reportKey) {
@@ -174,23 +172,18 @@ function getScheduledReports(doc, now = new Date()) {
     return reports
 }
 
-// Keep old name as an alias so any other callers aren't broken
 function shouldPostScheduledReport(doc, now = new Date()) {
     return getScheduledReports(doc, now).length > 0
 }
 
-// Returns true if the reportKey date is a Saturday (UTC day 6) — end of week.
-// The scheduled report fires on Sunday (reportKey = yesterday = Saturday).
 function isWeeklyReportDay(reportKey) {
     return parseUtcDateKey(reportKey).getUTCDay() === 6
 }
 
-// Returns true if the day after reportKey falls in a different month — i.e. reportKey is the last day of the month.
 function isMonthlyReportDay(reportKey) {
     return parseUtcDateKey(reportKey).getUTCMonth() !== parseUtcDateKey(shiftUtcDateKey(reportKey, 1)).getUTCMonth()
 }
 
-// Returns true if it is both a month-end and the month ends a quarter (March=2, June=5, September=8, December=11).
 function isQuarterlyReportDay(reportKey) {
     return isMonthlyReportDay(reportKey) && [2, 5, 8, 11].includes(parseUtcDateKey(reportKey).getUTCMonth())
 }
@@ -207,28 +200,40 @@ function buildRankingList(entries, formatter, tools, emptyText) {
     }).join("\n")
 }
 
-function buildPeriodValue(summary, tools) {
+function getTrendString(current, previous, tools) {
+    const delta = current - (previous || 0)
+    if (delta === 0) return `*(→ no change)*`
+
+    const direction = delta > 0 ? "▲" : "▼"
+    const sign = delta > 0 ? "+" : "-"
+    const absDelta = Math.abs(delta)
+    const formattedDelta = tools.commafy(absDelta)
+
+    if (!previous || previous === 0) {
+        return `*(${direction} ${sign}${formattedDelta})*`
+    }
+
+    const percentChange = ((delta / previous) * 100).toFixed(1)
+    const percentSign = delta > 0 ? "+" : ""
+    return `*(${direction} ${sign}${formattedDelta}, ${percentSign}${percentChange}%)*`
+}
+
+function buildComparisonValue(summary, tools) {
+    const msgTrend = getTrendString(summary.totalMessages, summary.previousTotalMessages, tools)
+    const activeTrend = getTrendString(summary.activeCount, summary.previousActiveCount, tools)
+
     return [
-        `Messages: **${formatCount(tools, summary.totalMessages)}**`,
-        `Active members: **${formatCount(tools, summary.activeCount)}**`,
+        `Messages: **${formatCount(tools, summary.totalMessages)}** ${msgTrend}`,
+        `Active members: **${formatCount(tools, summary.activeCount)}** ${activeTrend}`,
         `Newly active: **${formatCount(tools, summary.newlyActiveCount)}**`,
         `Threshold: **${formatCount(tools, summary.threshold)}** message${summary.threshold === 1 ? "" : "s"}`,
     ].join("\n")
 }
 
-function buildComparisonValue(summary, tools) {
-    const msgDelta = summary.totalMessages - (summary.previousTotalMessages || 0)
-    const activeDelta = summary.activeCount - (summary.previousActiveCount || 0)
-
-    function deltaStr(delta) {
-        if (delta > 0) return `*(▲ +${tools.commafy(delta)})*`
-        if (delta < 0) return `*(▼ -${tools.commafy(Math.abs(delta))})*`
-        return `*(→ no change)*`
-    }
-
+function buildPeriodValue(summary, tools) {
     return [
-        `Messages: **${formatCount(tools, summary.totalMessages)}** ${deltaStr(msgDelta)}`,
-        `Active members: **${formatCount(tools, summary.activeCount)}** ${deltaStr(activeDelta)}`,
+        `Messages: **${formatCount(tools, summary.totalMessages)}**`,
+        `Active members: **${formatCount(tools, summary.activeCount)}**`,
         `Newly active: **${formatCount(tools, summary.newlyActiveCount)}**`,
         `Threshold: **${formatCount(tools, summary.threshold)}** message${summary.threshold === 1 ? "" : "s"}`,
     ].join("\n")
