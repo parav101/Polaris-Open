@@ -553,6 +553,14 @@
 			'stats.enabled':                    s.stats?.enabled,
 			'stats.logChannelId':               s.stats?.logChannelId,
 			'stats.reportHourUtc':              +s.stats?.reportHourUtc,
+			'stats.dailyEnabled':               s.stats?.dailyEnabled,
+			'stats.dailyChannelId':             s.stats?.dailyChannelId,
+			'stats.weeklyEnabled':              s.stats?.weeklyEnabled,
+			'stats.weeklyChannelId':            s.stats?.weeklyChannelId,
+			'stats.monthlyEnabled':             s.stats?.monthlyEnabled,
+			'stats.monthlyChannelId':           s.stats?.monthlyChannelId,
+			'stats.quarterlyEnabled':           s.stats?.quarterlyEnabled,
+			'stats.quarterlyChannelId':         s.stats?.quarterlyChannelId,
 			'stats.activeThresholdDaily':       +s.stats?.activeThresholdDaily,
 			'stats.activeThresholdWeekly':      +s.stats?.activeThresholdWeekly,
 			'stats.activeThresholdMonthly':     +s.stats?.activeThresholdMonthly,
@@ -714,6 +722,14 @@
 		s.coinflip = s.coinflip || { enabled: false }
 		s.bump     = s.bump     || { enabled: false, channelId: '1280913100924653608', rewardCredits: 5, cooldownSeconds: 7200, disboardBotId: '302050872383242240' }
 		s.stats    = s.stats    || { enabled: false, logChannelId: '', reportHourUtc: 12, activeThresholdDaily: 8, activeThresholdWeekly: 35, activeThresholdMonthly: 140, activeThresholdQuarterly: 420 }
+		s.stats.dailyEnabled = s.stats.dailyEnabled ?? true;
+		s.stats.dailyChannelId = s.stats.dailyChannelId ?? '';
+		s.stats.weeklyEnabled = s.stats.weeklyEnabled ?? true;
+		s.stats.weeklyChannelId = s.stats.weeklyChannelId ?? '';
+		s.stats.monthlyEnabled = s.stats.monthlyEnabled ?? false;
+		s.stats.monthlyChannelId = s.stats.monthlyChannelId ?? '';
+		s.stats.quarterlyEnabled = s.stats.quarterlyEnabled ?? false;
+		s.stats.quarterlyChannelId = s.stats.quarterlyChannelId ?? '';
 		if (s.chestDrops) s.chestDrops.emojiId = s.chestDrops.emojiId ?? ''
 
 		// Ensure quests object exists with defaults
