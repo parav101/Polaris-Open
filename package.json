@@ -37,6 +37,13 @@
   "author": "",
   "license": "ISC",
   "description": "",
+  "nodemonConfig": {
+    "ignore": [
+      "logs/*",
+      "json/*",
+      "dashboard/*"
+    ]
+  },
   "devDependencies": {
     "eslint": "^10.1.0",
     "eslint-plugin-svelte": "^3.16.0",
