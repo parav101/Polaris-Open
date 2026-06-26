@@ -479,6 +479,9 @@ app.post("/api/sendexample", async function(req, res) {
 })
 
 app.post("/api/pruneMembers", async function(req, res) {
+    req.clearTimeout()
+    req.setTimeout(120000)
+
     if (typeof req.body != "object") return res.apiError("Invalid data!");
     let num = Number(req.body.amount)
 
@@ -496,24 +499,46 @@ app.post("/api/pruneMembers", async function(req, res) {
     let canManage = canManageServer(foundGuild)
     if (!canManage) return res.apiError("Manage server permission required!")
 
-    let users = await client.db.fetch(guildID, ["users"]).then(x => x.users)
-    let vals = Object.entries(users || {})
-    let toPrune = vals.filter(x => (x[1].xp || 0) < num).length
+    const userEntriesAgg = [
+        { $match: { _id: guildID } },
+        { $addFields: { usersArr: { $objectToArray: { $ifNull: ["$users", {}] } } } },
+        { $unwind: "$usersArr" },
+    ]
 
     if (req.body.confirmPrune != "hell yes") {
-        return res.send({ total: vals.length, matches: toPrune })
+        const [{ total = 0, matches = 0 } = {}] = await client.db.model.aggregate([
+            ...userEntriesAgg,
+            { $group: {
+                _id: null,
+                total: { $sum: 1 },
+                matches: { $sum: { $cond: [{ $lt: [{ $ifNull: ["$usersArr.v.xp", 0] }, num] }, 1, 0] } },
+            } },
+        ])
+        return res.send({ total, matches })
     }
 
-    else {
-        let newUsers = {}
-        vals.forEach(x => {
-            if ((x[1].xp || 0) >= num) newUsers[x[0]] = x[1]
-        })
-        client.db.update(guildID, { $set: { users: newUsers } }).exec().then(() => {
-            return res.end(`Successfully pruned ${toPrune} user${toPrune == 1 ? "" : "s"}!`)
-        }).catch(console.error)
-    }
+    const pruneIds = await client.db.model.aggregate([
+        ...userEntriesAgg,
+        { $match: { $expr: { $lt: [{ $ifNull: ["$usersArr.v.xp", 0] }, num] } } },
+        { $project: { _id: 0, userId: "$usersArr.k" } },
+    ]).then(rows => rows.map(r => r.userId))
 
+    let toPrune = pruneIds.length
+
+    try {
+        const batchSize = 500
+        for (let i = 0; i < pruneIds.length; i += batchSize) {
+            const batch = pruneIds.slice(i, i + batchSize)
+            const unset = {}
+            batch.forEach(id => { unset[`users.${id}`] = "" })
+            await client.db.update(guildID, { $unset: unset }).exec()
+            client.userStats.UserStatsModel.deleteMany({ guildId: guildID, userId: { $in: batch } }).catch(() => {})
+        }
+        return res.end(`Successfully pruned ${toPrune} user${toPrune == 1 ? "" : "s"}!`)
+    } catch (e) {
+        console.error(e)
+        return res.apiError("Unknown error!")
+    }
 })
 
 const importCooldowns = {}
