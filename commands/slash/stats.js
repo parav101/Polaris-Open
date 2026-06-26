@@ -11,20 +11,19 @@ module.exports = {
     },
 
     async run(client, int, tools) {
-                // const startTime = Date.now(); // Start timing
-        // fetch member
         let member = int.member
-        let foundUser = int.options.get("user") || int.options.get("member") // option is "user" if from context menu
+        let foundUser = int.options.get("user") || int.options.get("member")
         if (foundUser) member = foundUser.member
         if (!member) return tools.warn("That member couldn't be found!")
 
-        // fetch server xp settings
+        const commandHidden = !!int.options.get("hidden")?.value
+        if (!int.deferred && !int.replied) {
+            await int.deferReply({ ephemeral: commandHidden })
+        }
+
         let db = await tools.fetchSettings(member.id)
         if (!db) return tools.warn("*noData")
         else if (!db.settings.enabled) return tools.warn("*xpDisabled")
-
-        let isHidden = !!int.options.get("hidden")?.value
-        if (!int.replied && !int.deferred) await int.deferReply({ ephemeral: isHidden })
 
         let currentXP = db.users[member.id]
 
