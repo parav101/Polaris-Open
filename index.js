@@ -655,4 +655,6 @@ client.on('warn', e => console.warn(e))
 process.on('uncaughtException', e => console.warn(e))
 process.on('unhandledRejection', (e, p) => console.warn(e))
 
-client.login(process.env.DISCORD_TOKEN)
+Model.dbReady
+    .then(() => client.login(process.env.DISCORD_TOKEN))
+    .catch(() => process.exit(1))

@@ -48,7 +48,9 @@ class Tools {
         // fetch settings from db/cache (+ some xp)
         this.fetchSettings = async function(userID, serverID=int.guild.id) {
             const started = Date.now()
-            let data = await client.db.fetch(serverID, ["settings", "info", userID ? `users.${userID}` : null])
+            const projection = ["settings", "info"]
+            if (userID) projection.push(`users.${userID}`)
+            let data = await client.db.fetch(serverID, projection)
             if (!data) {
                 await client.db.create({ _id: serverID })
                 logger.perf("db.fetchSettings", Date.now() - started, { command: "db.fetchSettings", guildId: serverID, cacheMiss: true })
